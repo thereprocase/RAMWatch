@@ -364,6 +364,21 @@ public sealed class RamWatchService : BackgroundService
         if (message is null)
             return;
 
+        // Reject mismatched protocol versions before dispatching.
+        // The GUI must match the service's compiled-in version (B6).
+        if (message.ProtocolVersion != IpcMessage.CurrentProtocolVersion)
+        {
+            await client.SendAsync(MessageSerializer.Serialize(new ResponseMessage
+            {
+                Type      = "response",
+                RequestId = "",
+                Status    = "error",
+                Code      = "protocol_mismatch",
+                Message   = $"Expected protocol version {IpcMessage.CurrentProtocolVersion}, got {message.ProtocolVersion}"
+            }));
+            return;
+        }
+
         switch (message)
         {
             case GetStateMessage:
@@ -434,6 +449,18 @@ public sealed class RamWatchService : BackgroundService
 
             case LogValidationMessage log:
                 await HandleLogValidationAsync(log, client);
+                break;
+
+            case DeleteValidationMessage del:
+                await HandleDeleteValidationAsync(del, client);
+                break;
+
+            case GetDesignationsMessage getDes:
+                await HandleGetDesignationsAsync(getDes, client);
+                break;
+
+            case UpdateDesignationsMessage updDes:
+                await HandleUpdateDesignationsAsync(updDes, client);
                 break;
 
             case SaveSnapshotMessage save:
@@ -588,6 +615,117 @@ public sealed class RamWatchService : BackgroundService
             }));
 
         // Broadcast updated state immediately so Timeline/Snapshots refresh
+        if (_aggregator is not null)
+            await _aggregator.BroadcastStateAsync();
+    }
+
+    private async Task HandleDeleteValidationAsync(DeleteValidationMessage msg, ConnectedClient client)
+    {
+        if (_validationLogger is null || _lkgTracker is null)
+        {
+            await client.SendAsync(MessageSerializer.Serialize(
+                new ResponseMessage
+                {
+                    Type      = "response",
+                    RequestId = msg.RequestId,
+                    Status    = "error",
+                    Code      = "not_ready",
+                    Message   = "Validation logger not initialised"
+                }));
+            return;
+        }
+
+        bool removed = _validationLogger.DeleteById(msg.ValidationId);
+        if (!removed)
+        {
+            await client.SendAsync(MessageSerializer.Serialize(
+                new ResponseMessage
+                {
+                    Type      = "response",
+                    RequestId = msg.RequestId,
+                    Status    = "error",
+                    Code      = "not_found",
+                    Message   = $"No validation result with id {msg.ValidationId}"
+                }));
+            return;
+        }
+
+        // Re-evaluate LKG now that the result set has changed.
+        var journalSnapshots = _snapshotJournal?.GetAll() ?? new List<TimingSnapshot>();
+        _lkgTracker.UpdateLkg(_validationLogger.GetResults(), journalSnapshots);
+
+        await client.SendAsync(MessageSerializer.Serialize(
+            new ResponseMessage
+            {
+                Type      = "response",
+                RequestId = msg.RequestId,
+                Status    = "ok"
+            }));
+
+        // Broadcast updated state immediately so Timeline tab reflects the removal.
+        if (_aggregator is not null)
+            await _aggregator.BroadcastStateAsync();
+    }
+
+    private async Task HandleGetDesignationsAsync(GetDesignationsMessage msg, ConnectedClient client)
+    {
+        // Convert the internal enum-keyed map to the string-keyed wire format.
+        var wireMap = _designations.Designations
+            .ToDictionary(
+                kvp => kvp.Key,
+                kvp => kvp.Value.ToString());
+
+        await client.SendAsync(MessageSerializer.Serialize(
+            new DesignationsResponseMessage
+            {
+                Type         = "designationsResponse",
+                RequestId    = msg.RequestId,
+                Designations = wireMap
+            }));
+    }
+
+    private async Task HandleUpdateDesignationsAsync(UpdateDesignationsMessage msg, ConnectedClient client)
+    {
+        // Parse the string values from the wire format into enums.
+        // Unrecognised values are silently treated as Unknown (forward compatibility).
+        var parsed = new Dictionary<string, TimingDesignation>(msg.Designations.Count);
+        foreach (var (key, value) in msg.Designations)
+        {
+            parsed[key] = Enum.TryParse<TimingDesignation>(value, ignoreCase: true, out var desig)
+                ? desig
+                : TimingDesignation.Unknown;
+        }
+
+        _designations.Designations = parsed;
+
+        try
+        {
+            SaveDesignations(_designations);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to persist designation map");
+            await client.SendAsync(MessageSerializer.Serialize(
+                new ResponseMessage
+                {
+                    Type      = "response",
+                    RequestId = msg.RequestId,
+                    Status    = "error",
+                    Code      = "io_error",
+                    Message   = "Failed to persist designations"
+                }));
+            return;
+        }
+
+        await client.SendAsync(MessageSerializer.Serialize(
+            new ResponseMessage
+            {
+                Type      = "response",
+                RequestId = msg.RequestId,
+                Status    = "ok"
+            }));
+
+        // Broadcast updated state so the GUI designation display refreshes.
         if (_aggregator is not null)
             await _aggregator.BroadcastStateAsync();
     }

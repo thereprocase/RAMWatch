@@ -14,6 +14,9 @@ public sealed class EventLogMonitor : IDisposable
     private readonly Lock _lock = new();
     private readonly Dictionary<string, ErrorSource> _errorSources = new();
     private readonly List<MonitoredEvent> _recentEvents = [];
+    private readonly Dictionary<string, DateTime> _lastEventTime = new();
+    private readonly Dictionary<string, int> _coalescedCounts = new();
+    private const int MinEventIntervalMs = 1000;
     private DateTime _bootTime;
     private bool _historicalScanComplete;
 
@@ -193,6 +196,9 @@ public sealed class EventLogMonitor : IDisposable
             summary,
             rawXml);
 
+        bool shouldFire = false;
+        MonitoredEvent? coalescedEvt = null;
+
         lock (_lock)
         {
             if (_errorSources.TryGetValue(source.Name, out var current))
@@ -209,12 +215,39 @@ public sealed class EventLogMonitor : IDisposable
             _recentEvents.Add(evt);
             if (_recentEvents.Count > 500)
                 _recentEvents.RemoveRange(0, _recentEvents.Count - 500);
+
+            if (!isHistorical && _historicalScanComplete)
+            {
+                if (_lastEventTime.TryGetValue(source.Name, out var lastTime) &&
+                    (DateTime.UtcNow - lastTime).TotalMilliseconds < MinEventIntervalMs)
+                {
+                    // Rate-limited — count but don't fire yet.
+                    _coalescedCounts[source.Name] =
+                        _coalescedCounts.GetValueOrDefault(source.Name) + 1;
+                }
+                else
+                {
+                    // Outside the cooldown window — fire, folding in any coalesced count.
+                    int coalesced = _coalescedCounts.GetValueOrDefault(source.Name);
+                    _coalescedCounts[source.Name] = 0;
+                    _lastEventTime[source.Name] = DateTime.UtcNow;
+
+                    shouldFire = true;
+                    // When there were suppressed events, rewrite the summary to include
+                    // the count so the GUI shows the true volume.
+                    if (coalesced > 0)
+                    {
+                        coalescedEvt = evt with
+                        {
+                            Summary = $"[+{coalesced} suppressed] {evt.Summary}"
+                        };
+                    }
+                }
+            }
         }
 
-        if (!isHistorical && _historicalScanComplete)
-        {
-            EventDetected?.Invoke(evt);
-        }
+        if (shouldFire)
+            EventDetected?.Invoke(coalescedEvt ?? evt);
     }
 
     private static string BuildXPathQuery(WatchedSource source, DateTime since)
@@ -235,6 +268,65 @@ public sealed class EventLogMonitor : IDisposable
     {
         var uptime = TimeSpan.FromMilliseconds(Environment.TickCount64);
         return DateTime.UtcNow - uptime;
+    }
+
+    /// <summary>
+    /// Test seam: inject a synthetic live event as if it arrived from an EventLogWatcher.
+    /// Sets <c>_historicalScanComplete</c> to true so the rate limiter is active.
+    /// Only callable by RAMWatch.Tests (InternalsVisibleTo).
+    /// </summary>
+    internal void InjectLiveEventForTest(WatchedSource source, MonitoredEvent evt)
+    {
+        bool shouldFire = false;
+        MonitoredEvent? coalescedEvt = null;
+
+        lock (_lock)
+        {
+            // Ensure historical scan is marked complete so the rate-limiter path runs.
+            _historicalScanComplete = true;
+
+            if (_errorSources.TryGetValue(source.Name, out var current))
+            {
+                _errorSources[source.Name] = current with
+                {
+                    Count    = current.Count + 1,
+                    LastSeen = evt.Timestamp
+                };
+            }
+            else
+            {
+                _errorSources[source.Name] = new ErrorSource(source.Name, source.Category, 1, evt.Timestamp);
+            }
+
+            _recentEvents.Add(evt);
+            if (_recentEvents.Count > 500)
+                _recentEvents.RemoveRange(0, _recentEvents.Count - 500);
+
+            if (_lastEventTime.TryGetValue(source.Name, out var lastTime) &&
+                (DateTime.UtcNow - lastTime).TotalMilliseconds < MinEventIntervalMs)
+            {
+                _coalescedCounts[source.Name] =
+                    _coalescedCounts.GetValueOrDefault(source.Name) + 1;
+            }
+            else
+            {
+                int coalesced = _coalescedCounts.GetValueOrDefault(source.Name);
+                _coalescedCounts[source.Name] = 0;
+                _lastEventTime[source.Name] = DateTime.UtcNow;
+
+                shouldFire = true;
+                if (coalesced > 0)
+                {
+                    coalescedEvt = evt with
+                    {
+                        Summary = $"[+{coalesced} suppressed] {evt.Summary}"
+                    };
+                }
+            }
+        }
+
+        if (shouldFire)
+            EventDetected?.Invoke(coalescedEvt ?? evt);
     }
 
     public void Dispose()

@@ -103,7 +103,50 @@ public sealed class GetDigestMessage : IpcMessage
     public int HistoryCount { get; init; } = 10;
 }
 
+/// <summary>
+/// Delete a validation result by ID. Service removes the entry from
+/// tests.json, re-evaluates the LKG snapshot, and broadcasts updated state.
+/// </summary>
+public sealed class DeleteValidationMessage : IpcMessage
+{
+    public required string RequestId { get; init; }
+    public required string ValidationId { get; init; }
+}
+
+/// <summary>
+/// Request the current timing designation map.
+/// </summary>
+public sealed class GetDesignationsMessage : IpcMessage
+{
+    public required string RequestId { get; init; }
+}
+
+/// <summary>
+/// Update the timing designation map. Values must be "Manual", "Auto", or "Unknown".
+/// Service persists to designations.json and broadcasts updated state.
+/// </summary>
+public sealed class UpdateDesignationsMessage : IpcMessage
+{
+    public required string RequestId { get; init; }
+    /// <summary>
+    /// Full replacement map. Values: "Manual", "Auto", "Unknown".
+    /// </summary>
+    public required Dictionary<string, string> Designations { get; init; }
+}
+
 // ── Phase 3 — Service → Client ────────────────────────────────────
+
+/// <summary>
+/// Response to GetDesignationsMessage.
+/// </summary>
+public sealed class DesignationsResponseMessage : IpcMessage
+{
+    public required string RequestId { get; init; }
+    /// <summary>
+    /// Current designation map. Values: "Manual", "Auto", "Unknown".
+    /// </summary>
+    public required Dictionary<string, string> Designations { get; init; }
+}
 
 /// <summary>
 /// Response to GetSnapshotsMessage.

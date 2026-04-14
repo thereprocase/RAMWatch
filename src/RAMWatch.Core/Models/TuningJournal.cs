@@ -187,6 +187,11 @@ public sealed record DriftEvent
 /// </summary>
 public sealed record ValidationResult
 {
+    /// <summary>
+    /// Stable identifier for this result. Auto-generated on construction.
+    /// Used by DeleteValidationMessage to target a specific entry.
+    /// </summary>
+    public string Id { get; init; } = Guid.NewGuid().ToString("N");
     public required DateTime Timestamp { get; init; }
     public required string BootId { get; init; }
     public required string TestTool { get; init; }

@@ -389,6 +389,105 @@ public class IpcRoundtripTests
         Assert.Null(resp.DigestText);
     }
 
+    // ── New Phase 3 messages ──────────────────────────────────────────────────
+
+    [Fact]
+    public void DeleteValidationMessage_RoundTrips()
+    {
+        var msg = new DeleteValidationMessage
+        {
+            Type         = "deleteValidation",
+            RequestId    = "req-del-1",
+            ValidationId = "abc123"
+        };
+
+        string json = MessageSerializer.Serialize(msg);
+        var result = MessageSerializer.Deserialize(json.TrimEnd('\n'));
+
+        var del = Assert.IsType<DeleteValidationMessage>(result);
+        Assert.Equal("req-del-1", del.RequestId);
+        Assert.Equal("abc123", del.ValidationId);
+    }
+
+    [Fact]
+    public void GetDesignationsMessage_RoundTrips()
+    {
+        var msg = new GetDesignationsMessage
+        {
+            Type      = "getDesignations",
+            RequestId = "req-des-1"
+        };
+
+        string json = MessageSerializer.Serialize(msg);
+        var result = MessageSerializer.Deserialize(json.TrimEnd('\n'));
+
+        var get = Assert.IsType<GetDesignationsMessage>(result);
+        Assert.Equal("req-des-1", get.RequestId);
+    }
+
+    [Fact]
+    public void UpdateDesignationsMessage_RoundTrips()
+    {
+        var msg = new UpdateDesignationsMessage
+        {
+            Type         = "updateDesignations",
+            RequestId    = "req-des-2",
+            Designations = new Dictionary<string, string>
+            {
+                ["CL"]    = "Manual",
+                ["RCDRD"] = "Auto",
+                ["tRFC"]  = "Unknown"
+            }
+        };
+
+        string json = MessageSerializer.Serialize(msg);
+        var result = MessageSerializer.Deserialize(json.TrimEnd('\n'));
+
+        var upd = Assert.IsType<UpdateDesignationsMessage>(result);
+        Assert.Equal("req-des-2", upd.RequestId);
+        Assert.Equal(3, upd.Designations.Count);
+        Assert.Equal("Manual",  upd.Designations["CL"]);
+        Assert.Equal("Auto",    upd.Designations["RCDRD"]);
+        Assert.Equal("Unknown", upd.Designations["tRFC"]);
+    }
+
+    [Fact]
+    public void DesignationsResponseMessage_RoundTrips()
+    {
+        var msg = new DesignationsResponseMessage
+        {
+            Type         = "designationsResponse",
+            RequestId    = "req-des-1",
+            Designations = new Dictionary<string, string>
+            {
+                ["CL"]    = "Manual",
+                ["RCDRD"] = "Auto"
+            }
+        };
+
+        string json = MessageSerializer.Serialize(msg);
+        var result = MessageSerializer.Deserialize(json.TrimEnd('\n'));
+
+        var resp = Assert.IsType<DesignationsResponseMessage>(result);
+        Assert.Equal("req-des-1", resp.RequestId);
+        Assert.Equal(2, resp.Designations.Count);
+        Assert.Equal("Manual", resp.Designations["CL"]);
+    }
+
+    [Fact]
+    public void ProtocolMismatch_MessageWithWrongVersion_StillDeserializes()
+    {
+        // MessageSerializer.Deserialize is unaware of version — it hands the
+        // message to RamWatchService which performs the version check.
+        // The deserializer must not throw or return null for a structurally valid
+        // message whose protocolVersion happens to be wrong.
+        string json = """{"type":"getState","requestId":"r1","protocolVersion":999}""";
+        var result = MessageSerializer.Deserialize(json);
+
+        var msg = Assert.IsType<GetStateMessage>(result);
+        Assert.Equal(999, msg.ProtocolVersion);
+    }
+
     private static StateMessage CreateStateMessage()
     {
         return new StateMessage

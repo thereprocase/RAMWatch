@@ -72,6 +72,24 @@ public sealed class ValidationTestLogger
     }
 
     /// <summary>
+    /// Remove the result with the given ID and persist the updated list.
+    /// Returns true when the entry was found and removed, false when not found.
+    /// </summary>
+    public bool DeleteById(string id)
+    {
+        lock (_lock)
+        {
+            int index = _results.FindIndex(r => r.Id == id);
+            if (index < 0)
+                return false;
+
+            _results.RemoveAt(index);
+            Persist();
+            return true;
+        }
+    }
+
+    /// <summary>
     /// All logged results in insertion order.
     /// </summary>
     public List<ValidationResult> GetResults()

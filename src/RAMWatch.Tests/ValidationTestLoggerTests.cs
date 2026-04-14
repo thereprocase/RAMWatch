@@ -139,7 +139,77 @@ public class ValidationTestLoggerTests : IDisposable
         Assert.Empty(tmpFiles);
     }
 
-    // -------------------------------------------------------------------------
+    // ── DeleteById ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void DeleteById_ExistingId_RemovesAndReturnsTrueAndPersists()
+    {
+        var logger = new ValidationTestLogger(_tempDir);
+        logger.Load();
+
+        var result = MakeResult("Karhu", passed: true, metricValue: 1000);
+        logger.LogResult(result);
+
+        bool removed = logger.DeleteById(result.Id);
+
+        Assert.True(removed);
+        Assert.Empty(logger.GetResults());
+
+        // Verify persistence: a new instance sees the deletion.
+        var logger2 = new ValidationTestLogger(_tempDir);
+        logger2.Load();
+        Assert.Empty(logger2.GetResults());
+    }
+
+    [Fact]
+    public void DeleteById_UnknownId_ReturnsFalse_LeavesListUnchanged()
+    {
+        var logger = new ValidationTestLogger(_tempDir);
+        logger.Load();
+
+        logger.LogResult(MakeResult("Karhu", passed: true, metricValue: 1000));
+
+        bool removed = logger.DeleteById("does-not-exist");
+
+        Assert.False(removed);
+        Assert.Single(logger.GetResults());
+    }
+
+    [Fact]
+    public void DeleteById_CorrectEntryRemoved_OthersPreserved()
+    {
+        var logger = new ValidationTestLogger(_tempDir);
+        logger.Load();
+
+        var r1 = MakeResult("Karhu", passed: true,  metricValue: 100);
+        var r2 = MakeResult("TM5",   passed: false, metricValue: 10);
+        var r3 = MakeResult("Karhu", passed: true,  metricValue: 200);
+        logger.LogResult(r1);
+        logger.LogResult(r2);
+        logger.LogResult(r3);
+
+        bool removed = logger.DeleteById(r2.Id);
+
+        Assert.True(removed);
+        var remaining = logger.GetResults();
+        Assert.Equal(2, remaining.Count);
+        Assert.Equal(r1.Id, remaining[0].Id);
+        Assert.Equal(r3.Id, remaining[1].Id);
+    }
+
+    [Fact]
+    public void ValidationResult_AutoGeneratesUniqueIds()
+    {
+        // Each new result gets a distinct Id even when all fields are identical.
+        var r1 = MakeResult("Karhu", passed: true, metricValue: 1000);
+        var r2 = MakeResult("Karhu", passed: true, metricValue: 1000);
+
+        Assert.NotEqual(r1.Id, r2.Id);
+    }
+
+    // ── DeleteById ────────────────────────────────────────────────────────────
+
+    // ── end ──────────────────────────────────────────────────────────────────
 
     private static ValidationResult MakeResult(
         string testTool,
