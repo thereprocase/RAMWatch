@@ -156,3 +156,28 @@ public sealed class DesignationMap
     public DateTime LastUpdated { get; set; }
     public Dictionary<string, TimingDesignation> Designations { get; set; } = new();
 }
+
+// ---------------------------------------------------------------------------
+// DriftDetector persistence types
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// Persisted rolling window of timing values across the last N boots.
+/// Written by DriftDetector; read back on service startup.
+/// </summary>
+public sealed class DriftWindow
+{
+    public int SchemaVersion { get; set; } = 1;
+    public List<BootEntry> Boots { get; set; } = new();
+}
+
+/// <summary>
+/// One entry in the drift window: the timing values observed during a single boot.
+/// Boolean fields (GDM, Cmd2T, PowerDown) are stored as 0/1.
+/// </summary>
+public sealed class BootEntry
+{
+    public required string BootId { get; init; }
+    public required DateTime Timestamp { get; init; }
+    public required Dictionary<string, int> Values { get; init; }
+}

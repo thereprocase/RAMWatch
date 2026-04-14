@@ -15,6 +15,8 @@ public static class DataDirectory
     public static string LogsPath => Path.Combine(BasePath, "logs");
     public static string SettingsPath => Path.Combine(BasePath, "settings.json");
     public static string SnapshotsPath => Path.Combine(BasePath, "snapshots.json");
+    public static string TestsPath => Path.Combine(BasePath, "tests.json");
+    public static string LkgPath => Path.Combine(BasePath, "lkg.json");
 
     /// <summary>
     /// Ensure the data directory exists with correct ACLs.

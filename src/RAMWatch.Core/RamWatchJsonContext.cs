@@ -39,6 +39,11 @@ namespace RAMWatch.Core;
 [JsonSerializable(typeof(List<ConfigChange>))]
 [JsonSerializable(typeof(List<DriftEvent>))]
 [JsonSerializable(typeof(List<ValidationResult>))]
+// DriftDetector rolling window
+[JsonSerializable(typeof(DriftWindow))]
+[JsonSerializable(typeof(BootEntry))]
+[JsonSerializable(typeof(List<BootEntry>))]
+[JsonSerializable(typeof(Dictionary<string, int>))]
 public partial class RamWatchJsonContext : JsonSerializerContext
 {
 }

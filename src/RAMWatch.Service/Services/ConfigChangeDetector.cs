@@ -1,0 +1,194 @@
+using System.Text.Json;
+using RAMWatch.Core;
+using RAMWatch.Core.Models;
+
+namespace RAMWatch.Service.Services;
+
+/// <summary>
+/// Detects timing configuration changes between boots by comparing
+/// the current TimingSnapshot against the one persisted from the previous boot.
+/// Persists the last-seen snapshot to disk using atomic write-temp-rename (B7).
+/// </summary>
+public sealed class ConfigChangeDetector : IDisposable
+{
+    private readonly string _snapshotPath;
+    private readonly Lock _lock = new();
+    private TimingSnapshot? _previous;
+
+    public ConfigChangeDetector(string dataDirectory)
+    {
+        _snapshotPath = Path.Combine(dataDirectory, "last_snapshot.json");
+        Directory.CreateDirectory(dataDirectory);
+    }
+
+    /// <summary>
+    /// Load the previously persisted snapshot from disk.
+    /// Call once on service startup before the first DetectChanges call.
+    /// </summary>
+    public void LoadPrevious()
+    {
+        lock (_lock)
+        {
+            if (!File.Exists(_snapshotPath))
+            {
+                _previous = null;
+                return;
+            }
+
+            try
+            {
+                string json = File.ReadAllText(_snapshotPath);
+                _previous = JsonSerializer.Deserialize(json, RamWatchJsonContext.Default.TimingSnapshot);
+            }
+            catch
+            {
+                // Corrupt file — treat as first boot; we'll overwrite on next save.
+                _previous = null;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Compare current snapshot against the previous one.
+    /// Returns a ConfigChange if any timing values differ, null if nothing changed
+    /// or if this is the first boot (no previous snapshot).
+    /// Always updates the persisted snapshot to current after comparison.
+    /// </summary>
+    public ConfigChange? DetectChanges(TimingSnapshot current)
+    {
+        lock (_lock)
+        {
+            TimingSnapshot? before = _previous;
+            _previous = current;
+            SaveSnapshot(current);
+
+            if (before is null)
+            {
+                // First boot — establish baseline, no change to report.
+                return null;
+            }
+
+            var deltas = BuildDeltas(before, current);
+            if (deltas.Count == 0)
+            {
+                return null;
+            }
+
+            return new ConfigChange
+            {
+                ChangeId = Guid.NewGuid().ToString("N"),
+                Timestamp = current.Timestamp,
+                BootId = current.BootId,
+                Changes = deltas,
+                SnapshotBeforeId = before.SnapshotId,
+                SnapshotAfterId = current.SnapshotId
+            };
+        }
+    }
+
+    /// <summary>
+    /// Explicit comparison of every named timing field.
+    /// Reflection-free: the compiler sees every field name, so renames are caught at build time.
+    /// </summary>
+    private static Dictionary<string, TimingDelta> BuildDeltas(TimingSnapshot before, TimingSnapshot after)
+    {
+        var d = new Dictionary<string, TimingDelta>();
+
+        // --- Clocks ---
+        Check(d, "MemClockMhz", before.MemClockMhz, after.MemClockMhz);
+        Check(d, "FclkMhz",     before.FclkMhz,     after.FclkMhz);
+        Check(d, "UclkMhz",     before.UclkMhz,     after.UclkMhz);
+
+        // --- Primaries ---
+        Check(d, "CL",    before.CL,    after.CL);
+        Check(d, "RCDRD", before.RCDRD, after.RCDRD);
+        Check(d, "RCDWR", before.RCDWR, after.RCDWR);
+        Check(d, "RP",    before.RP,    after.RP);
+        Check(d, "RAS",   before.RAS,   after.RAS);
+        Check(d, "RC",    before.RC,    after.RC);
+        Check(d, "CWL",   before.CWL,   after.CWL);
+
+        // --- tRFC group ---
+        Check(d, "RFC",  before.RFC,  after.RFC);
+        Check(d, "RFC2", before.RFC2, after.RFC2);
+        Check(d, "RFC4", before.RFC4, after.RFC4);
+
+        // --- Secondaries ---
+        Check(d, "RRDS",     before.RRDS,     after.RRDS);
+        Check(d, "RRDL",     before.RRDL,     after.RRDL);
+        Check(d, "FAW",      before.FAW,      after.FAW);
+        Check(d, "WTRS",     before.WTRS,     after.WTRS);
+        Check(d, "WTRL",     before.WTRL,     after.WTRL);
+        Check(d, "WR",       before.WR,       after.WR);
+        Check(d, "RTP",      before.RTP,      after.RTP);
+        Check(d, "RDRDSCL",  before.RDRDSCL,  after.RDRDSCL);
+        Check(d, "WRWRSCL",  before.WRWRSCL,  after.WRWRSCL);
+
+        // --- Turn-around ---
+        Check(d, "RDRDSC", before.RDRDSC, after.RDRDSC);
+        Check(d, "RDRDSD", before.RDRDSD, after.RDRDSD);
+        Check(d, "RDRDDD", before.RDRDDD, after.RDRDDD);
+        Check(d, "WRWRSC", before.WRWRSC, after.WRWRSC);
+        Check(d, "WRWRSD", before.WRWRSD, after.WRWRSD);
+        Check(d, "WRWRDD", before.WRWRDD, after.WRWRDD);
+        Check(d, "RDWR",   before.RDWR,   after.RDWR);
+        Check(d, "WRRD",   before.WRRD,   after.WRRD);
+
+        // --- Misc ---
+        Check(d, "REFI", before.REFI, after.REFI);
+        Check(d, "CKE",  before.CKE,  after.CKE);
+        Check(d, "STAG", before.STAG, after.STAG);
+        Check(d, "MOD",  before.MOD,  after.MOD);
+        Check(d, "MRD",  before.MRD,  after.MRD);
+
+        // --- PHY ---
+        Check(d, "PHYRDL_A", before.PHYRDL_A, after.PHYRDL_A);
+        Check(d, "PHYRDL_B", before.PHYRDL_B, after.PHYRDL_B);
+
+        // --- Controller config (booleans) ---
+        CheckBool(d, "GDM",       before.GDM,       after.GDM);
+        CheckBool(d, "Cmd2T",     before.Cmd2T,     after.Cmd2T);
+        CheckBool(d, "PowerDown", before.PowerDown, after.PowerDown);
+
+        // Voltages intentionally excluded: they are analog telemetry that varies
+        // continuously and is not a "configuration" change.
+
+        return d;
+    }
+
+    private static void Check(Dictionary<string, TimingDelta> d, string name, int before, int after)
+    {
+        if (before != after)
+            d[name] = new TimingDelta(before.ToString(), after.ToString());
+    }
+
+    private static void CheckBool(Dictionary<string, TimingDelta> d, string name, bool before, bool after)
+    {
+        if (before != after)
+            d[name] = new TimingDelta(before.ToString(), after.ToString());
+    }
+
+    private void SaveSnapshot(TimingSnapshot snapshot)
+    {
+        string dir = Path.GetDirectoryName(_snapshotPath)!;
+        string tempPath = Path.Combine(dir, $"last_snapshot.{Guid.NewGuid():N}.tmp");
+
+        try
+        {
+            string json = JsonSerializer.Serialize(snapshot, RamWatchJsonContext.Default.TimingSnapshot);
+            File.WriteAllText(tempPath, json);
+            File.Move(tempPath, _snapshotPath, overwrite: true);
+        }
+        catch
+        {
+            try { File.Delete(tempPath); } catch { }
+            // Persistence failure is non-fatal. The in-memory _previous is still valid
+            // for the rest of this session; we'll try again on the next DetectChanges call.
+        }
+    }
+
+    public void Dispose()
+    {
+        // Nothing to release — no file handles are held open.
+    }
+}
