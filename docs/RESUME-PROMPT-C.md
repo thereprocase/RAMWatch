@@ -41,18 +41,28 @@ You're continuing work on RAMWatch, a Windows DRAM tuning monitor at F:\Claude\p
 **Files:** `src/RAMWatch/ViewModels/SnapshotsViewModel.cs` lines 396-427
 
 ### 2. Spurious config changes on boot from incomplete hardware reads
-**Problem:** Three bogus CHANGE entries appear on every boot (see screenshot):
-- 15:31:30 — Detects "change" from previous boot snapshot, but FCLK/UCLK read as 0 (SMU not ready yet). Shows `FclkMhz: 1800 -> 0, UclkMhz: 1800 -> 0` plus all the real timing differences from a profile switch.
-- 15:31:31 — FCLK/UCLK now available: `FclkMhz: 0 -> 1900, UclkMhz: 0 -> 1900` — second spurious change.
-- 15:32:32 — FCLK/UCLK jitter: `1900 -> 1902, 1900 -> 1902` — 2 MHz noise from SMU readback.
+**Problem:** 4-5 bogus CHANGE entries appear on every boot. Full pattern from two boots:
+
+Boot 1 (pre-reboot):
+- 15:32:32 — `FclkMhz: 1900 -> 1902, UclkMhz: 1900 -> 1902` — 2 MHz jitter
+
+Boot 2 (post-reboot, same profile):
+- 15:42:57 — `FclkMhz: 1902 -> 0, UclkMhz: 1902 -> 0, RFC: 1046 -> 610, RFC2: 666 -> 396, RFC4: 495 -> 274` — mixed! Clocks going to 0 is spurious, but RFC changes are REAL (different DDR profile from previous boot). This entry should exist but without the zero-clock noise.
+- 15:42:58 — `FclkMhz: 0 -> 1900, UclkMhz: 0 -> 1900` — clocks populate, spurious.
+- 15:43:59 — `FclkMhz: 1900 -> 1902, UclkMhz: 1900 -> 1902` — 2 MHz jitter, spurious.
+
+**Key insight from user:** We MUST still detect real timing/freq changes between boots (different DDR profile, different RFC, etc.). The fix can't just suppress all first-boot comparisons. It needs to:
+1. Ignore zero-value clock fields (FCLK=0, UCLK=0 means "not read yet", not "changed to 0")
+2. Ignore clock jitter <= ~5 MHz (SMU readback noise)
+3. Still detect real timing changes (RFC, CL, RAS, etc.) on the first valid comparison
 
 **Root cause:** `ConfigChangeDetector.DetectChanges()` fires on every hardware read cycle. Early reads have incomplete data (clocks at 0). Subsequent reads have minor jitter. The detector treats each as a real config change.
 
-**Fix options (pick one or combine):**
-- **Stabilization window:** Don't compare until N consecutive reads produce the same values (e.g., 3 stable reads in a row). This handles both the 0-value startup and jitter.
-- **Jitter tolerance:** For FCLK/UCLK/MemClockMhz, ignore differences <= 5 MHz.
-- **Skip zero values:** Don't treat a snapshot with FCLK=0 or UCLK=0 as valid for change detection.
-- **First-read flag:** Skip the first comparison after boot (the previous-boot-to-first-read transition is always noisy).
+**Recommended fix (combine all three):**
+- In `BuildDeltas()`, skip FCLK/UCLK/MemClockMhz fields where either before or after is 0 (incomplete read)
+- In `BuildDeltas()`, add a tolerance for clock fields: ignore differences <= 5 MHz
+- In `DetectChanges()`, skip comparison entirely when the new snapshot has FCLK=0 or UCLK=0 (wait for clocks to populate before comparing)
+- This preserves real timing changes (RFC etc.) while filtering clock noise
 
 **Files:** `src/RAMWatch.Service/Services/ConfigChangeDetector.cs`, `src/RAMWatch.Service/RamWatchService.cs` (the `OnTimingSnapshotAsync` method that calls DetectChanges)
 
