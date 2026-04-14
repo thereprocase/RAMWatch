@@ -18,6 +18,10 @@ public static class DataDirectory
     public static string TestsPath => Path.Combine(BasePath, "tests.json");
     public static string LkgPath => Path.Combine(BasePath, "lkg.json");
 
+    // Phase 4 — git-backed tuning history
+    public static string HistoryRepoPath => Path.Combine(BasePath, "history");
+    public static string GhConfigPath => Path.Combine(BasePath, ".gh");
+
     /// <summary>
     /// Ensure the data directory exists with correct ACLs.
     /// Called once on service startup.

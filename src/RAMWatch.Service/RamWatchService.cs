@@ -37,6 +37,9 @@ public sealed class RamWatchService : BackgroundService
     private ValidationTestLogger? _validationLogger;
     private LkgTracker? _lkgTracker;
 
+    // Phase 4 — git-backed history
+    private GitCommitter? _gitCommitter;
+
     public RamWatchService(SettingsManager settings, ILogger<RamWatchService> logger)
     {
         _settings = settings;
@@ -89,6 +92,10 @@ public sealed class RamWatchService : BackgroundService
 
         _lkgTracker = new LkgTracker(DataDirectory.BasePath);
         _lkgTracker.Load();
+
+        // Phase 4 — git committer (initialise after LKG so commit context is available)
+        _gitCommitter = new GitCommitter(_settings, _logger);
+        await _gitCommitter.InitializeAsync(stoppingToken);
 
         // Hardware reader — detects PawnIO, opens driver, detects CPU
         _hardwareReader = new HardwareReader();
@@ -155,6 +162,8 @@ public sealed class RamWatchService : BackgroundService
         _timingCsvLogger?.Dispose();
         _hardwareReader?.Dispose();
         _mirrorLogger = null;
+        if (_gitCommitter is not null)
+            await _gitCommitter.DisposeAsync();
         if (_pipeServer is not null)
             await _pipeServer.DisposeAsync();
         await base.StopAsync(cancellationToken);
@@ -247,6 +256,15 @@ public sealed class RamWatchService : BackgroundService
                     $"Timing configuration changed: {change.Changes.Count} field(s)")
             };
             await _pipeServer.BroadcastAsync(MessageSerializer.Serialize(changeMsg));
+
+            _gitCommitter?.Enqueue(new GitCommitRequest
+            {
+                Reason          = GitCommitReason.ConfigChange,
+                CurrentSnapshot = snapshot,
+                Change          = change,
+                Designations    = designations,
+                RecentValidations = _validationLogger.GetRecentResults(10)
+            });
         }
 
         // Detect drift in auto-trained timings.
@@ -270,6 +288,15 @@ public sealed class RamWatchService : BackgroundService
                 };
                 await _pipeServer.BroadcastAsync(MessageSerializer.Serialize(driftMsg));
             }
+
+            _gitCommitter?.Enqueue(new GitCommitRequest
+            {
+                Reason          = GitCommitReason.DriftDetected,
+                CurrentSnapshot = snapshot,
+                DriftEvents     = driftEvents,
+                Designations    = designations,
+                RecentValidations = _validationLogger.GetRecentResults(10)
+            });
         }
 
         // Re-evaluate LKG against current validation results.
@@ -479,6 +506,20 @@ public sealed class RamWatchService : BackgroundService
         // Re-evaluate LKG against all results.
         // Snapshot list is stubbed until the Phase 2 snapshot journal is wired.
         _lkgTracker.UpdateLkg(_validationLogger.GetResults(), new List<TimingSnapshot>());
+
+        // Commit the validation result to git history.
+        if (_currentTimings is not null)
+        {
+            _gitCommitter?.Enqueue(new GitCommitRequest
+            {
+                Reason            = GitCommitReason.ValidationTest,
+                CurrentSnapshot   = _currentTimings,
+                LkgSnapshot       = _lkgTracker.CurrentLkg,
+                Validation        = result,
+                Designations      = _designations,
+                RecentValidations = _validationLogger.GetRecentResults(10)
+            });
+        }
 
         await client.SendAsync(MessageSerializer.Serialize(
             new ResponseMessage

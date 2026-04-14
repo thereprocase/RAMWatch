@@ -37,4 +37,10 @@ public sealed class AppSettings
 
     // Advanced
     public bool DebugLogging { get; set; }
+
+    // Git integration (Phase 4)
+    public bool EnableGitIntegration { get; set; }
+    public bool EnableGitPush { get; set; }
+    public string GitRemoteRepo { get; set; } = "";
+    public string GitUserDisplayName { get; set; } = "RAMWatch";
 }
