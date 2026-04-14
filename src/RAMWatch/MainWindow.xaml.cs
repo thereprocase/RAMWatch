@@ -178,14 +178,13 @@ public partial class MainWindow : System.Windows.Window
     {
         var workArea = SystemParameters.WorkArea;
 
-        // Target 40% of work-area width, 60% of work-area height.
-        // The Monitor tab has ~600–650 px of content at standard DPI;
-        // 75% was too tall and left significant dead space below the content.
-        double targetW = workArea.Width  * 0.40;
+        // Target 28% of work-area width, 60% of work-area height.
+        // Timings tab needs ~440px minimum; 40% was ~30% too wide on 2560px displays.
+        double targetW = workArea.Width  * 0.28;
         double targetH = workArea.Height * 0.60;
 
         // Clamp to reasonable bounds so the window is never absurdly small or large.
-        Width  = Math.Clamp(targetW, 440, 700);
+        Width  = Math.Clamp(targetW, 440, 560);
         Height = Math.Clamp(targetH, 500, 850);
     }
 
