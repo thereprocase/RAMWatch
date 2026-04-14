@@ -297,6 +297,7 @@ public class SecurityAndCapTests : IDisposable
                 SnapshotId  = Guid.NewGuid().ToString("N"),
                 Timestamp   = DateTime.UtcNow,
                 BootId      = $"boot_{i}",
+                FclkMhz = 1900, UclkMhz = 1900, MemClockMhz = 1800,
                 CL          = 14 + i,   // changes every boot
                 RCDRD = 18, RCDWR = 12, RP = 18, RAS = 36, RC = 54, CWL = 14,
                 RFC = 312, RFC2 = 200, RFC4 = 100,
@@ -328,12 +329,14 @@ public class SecurityAndCapTests : IDisposable
         detector.DetectChanges(new TimingSnapshot
         {
             SnapshotId = "s1", BootId = "b1", Timestamp = DateTime.UtcNow,
+            FclkMhz = 1900, UclkMhz = 1900, MemClockMhz = 1800,
             CL = 16, RCDRD = 18, RCDWR = 12, RP = 18, RAS = 36, RC = 54, CWL = 14,
             RFC = 312, RFC2 = 200, RFC4 = 100,
         });
         detector.DetectChanges(new TimingSnapshot
         {
             SnapshotId = "s2", BootId = "b2", Timestamp = DateTime.UtcNow,
+            FclkMhz = 1900, UclkMhz = 1900, MemClockMhz = 1800,
             CL = 18, RCDRD = 18, RCDWR = 12, RP = 18, RAS = 36, RC = 54, CWL = 14,
             RFC = 312, RFC2 = 200, RFC4 = 100,
         });

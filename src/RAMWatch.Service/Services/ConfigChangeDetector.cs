@@ -88,10 +88,22 @@ public sealed class ConfigChangeDetector : IDisposable
     /// or if this is the first boot (no previous snapshot).
     /// Always updates the persisted snapshot to current after comparison.
     /// </summary>
+    /// <summary>
+    /// Tolerance in MHz for clock fields (FCLK, UCLK, MemClock).
+    /// SMU readback jitter of ±2-3 MHz is normal and not a config change.
+    /// </summary>
+    private const int ClockToleranceMhz = 5;
+
     public ConfigChange? DetectChanges(TimingSnapshot current)
     {
         lock (_lock)
         {
+            // Incomplete hardware read — clocks haven't populated yet.
+            // Don't update _previous or save; wait for a complete read so the
+            // first real comparison has accurate clock values.
+            if (current.FclkMhz == 0 || current.UclkMhz == 0)
+                return null;
+
             TimingSnapshot? before = _previous;
             _previous = current;
             SaveSnapshot(current);
@@ -166,10 +178,10 @@ public sealed class ConfigChangeDetector : IDisposable
     {
         var d = new Dictionary<string, TimingDelta>();
 
-        // --- Clocks ---
-        Check(d, "MemClockMhz", before.MemClockMhz, after.MemClockMhz);
-        Check(d, "FclkMhz",     before.FclkMhz,     after.FclkMhz);
-        Check(d, "UclkMhz",     before.UclkMhz,     after.UclkMhz);
+        // --- Clocks (with jitter tolerance, skip zero = incomplete read) ---
+        CheckClock(d, "MemClockMhz", before.MemClockMhz, after.MemClockMhz);
+        CheckClock(d, "FclkMhz",     before.FclkMhz,     after.FclkMhz);
+        CheckClock(d, "UclkMhz",     before.UclkMhz,     after.UclkMhz);
 
         // --- Primaries ---
         Check(d, "CL",    before.CL,    after.CL);
@@ -232,6 +244,17 @@ public sealed class ConfigChangeDetector : IDisposable
     {
         if (before != after)
             d[name] = new TimingDelta(before.ToString(), after.ToString());
+    }
+
+    /// <summary>
+    /// Clock-specific check: ignores zero values (incomplete reads) and
+    /// differences within <see cref="ClockToleranceMhz"/> (SMU jitter).
+    /// </summary>
+    private static void CheckClock(Dictionary<string, TimingDelta> d, string name, int before, int after)
+    {
+        if (before == 0 || after == 0) return;
+        if (Math.Abs(before - after) <= ClockToleranceMhz) return;
+        d[name] = new TimingDelta(before.ToString(), after.ToString());
     }
 
     private static void CheckBool(Dictionary<string, TimingDelta> d, string name, bool before, bool after)

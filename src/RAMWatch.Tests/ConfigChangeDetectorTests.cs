@@ -28,18 +28,24 @@ public class ConfigChangeDetectorTests : IDisposable
         string? snapshotId = null,
         int cl = 18, int rcdrd = 18, int rcdwr = 18,
         int rfc = 312,
+        int fclk = 1900, int uclk = 1900, int memClock = 1800,
+        int rrds = 4, int rrdl = 6, int faw = 16,
+        int wtrs = 4, int wtrl = 12, int wr = 18, int rtp = 10,
+        int rdrdscl = 2, int wrwrscl = 2,
         bool gdm = false, bool cmd2t = false, bool powerDown = false) =>
         new TimingSnapshot
         {
             SnapshotId = snapshotId ?? Guid.NewGuid().ToString("N"),
             Timestamp  = DateTime.UtcNow,
             BootId     = bootId,
+            MemClockMhz = memClock,
+            FclkMhz   = fclk,  UclkMhz = uclk,
             CL    = cl,    RCDRD = rcdrd, RCDWR = rcdwr,
             RP    = 18,    RAS   = 36,    RC    = 54,    CWL  = 14,
             RFC   = rfc,   RFC2  = 200,   RFC4  = 100,
-            RRDS  = 4,     RRDL  = 6,     FAW   = 16,
-            WTRS  = 4,     WTRL  = 12,    WR    = 18,    RTP  = 10,
-            RDRDSCL = 2,   WRWRSCL = 2,
+            RRDS  = rrds,  RRDL  = rrdl,  FAW   = faw,
+            WTRS  = wtrs,  WTRL  = wtrl,  WR    = wr,    RTP  = rtp,
+            RDRDSCL = rdrdscl, WRWRSCL = wrwrscl,
             RDRDSC = 2,    RDRDSD = 6,    RDRDDD = 8,
             WRWRSC = 2,    WRWRSD = 6,    WRWRDD = 8,
             RDWR  = 14,    WRRD  = 2,
@@ -364,5 +370,160 @@ public class ConfigChangeDetectorTests : IDisposable
 
         var tmpFiles = Directory.GetFiles(_tempDir, "changes.*.tmp");
         Assert.Empty(tmpFiles);
+    }
+
+    // -----------------------------------------------------------------------
+    // Spurious config change suppression
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public void IncompleteRead_FclkZero_SkippedEntirely()
+    {
+        using var detector = new ConfigChangeDetector(_tempDir);
+
+        // Baseline with real clocks.
+        detector.DetectChanges(MakeSnapshot("boot_a", fclk: 1900, uclk: 1900, cl: 18));
+
+        // Incomplete read — FCLK=0 means hardware hasn't populated yet.
+        var change = detector.DetectChanges(MakeSnapshot("boot_b", fclk: 0, uclk: 0, cl: 16));
+
+        // Must be null — we don't compare incomplete reads.
+        Assert.Null(change);
+    }
+
+    [Fact]
+    public void IncompleteRead_DoesNotUpdateBaseline()
+    {
+        using var detector = new ConfigChangeDetector(_tempDir);
+
+        // Baseline: CL=18, FCLK=1900.
+        detector.DetectChanges(MakeSnapshot("boot_a", fclk: 1900, uclk: 1900, cl: 18));
+
+        // Incomplete read with CL=16 — should be ignored.
+        detector.DetectChanges(MakeSnapshot("boot_b", fclk: 0, uclk: 0, cl: 16));
+
+        // Complete read with CL=16 — baseline is still CL=18 from boot_a,
+        // so this should detect the CL change.
+        var change = detector.DetectChanges(MakeSnapshot("boot_b", fclk: 1900, uclk: 1900, cl: 16));
+
+        Assert.NotNull(change);
+        Assert.True(change.Changes.ContainsKey("CL"));
+        Assert.Equal("18", change.Changes["CL"].Before);
+        Assert.Equal("16", change.Changes["CL"].After);
+    }
+
+    [Fact]
+    public void ClockJitter_WithinTolerance_NotDetected()
+    {
+        using var detector = new ConfigChangeDetector(_tempDir);
+
+        detector.DetectChanges(MakeSnapshot("boot_a", fclk: 1900, uclk: 1900, memClock: 1800));
+
+        // 2 MHz jitter — within the 5 MHz tolerance.
+        var change = detector.DetectChanges(MakeSnapshot("boot_b", fclk: 1902, uclk: 1902, memClock: 1800));
+
+        Assert.Null(change);
+    }
+
+    [Fact]
+    public void ClockJitter_ExceedsTolerance_Detected()
+    {
+        using var detector = new ConfigChangeDetector(_tempDir);
+
+        detector.DetectChanges(MakeSnapshot("boot_a", fclk: 1900, uclk: 1900));
+
+        // 100 MHz change — real frequency change, not jitter.
+        var change = detector.DetectChanges(MakeSnapshot("boot_b", fclk: 2000, uclk: 2000));
+
+        Assert.NotNull(change);
+        Assert.True(change.Changes.ContainsKey("FclkMhz"));
+        Assert.True(change.Changes.ContainsKey("UclkMhz"));
+    }
+
+    [Fact]
+    public void RealTimingChanges_StillDetected_AfterIncompleteRead()
+    {
+        // Simulates the real scenario: boot with different DDR profile.
+        // Read 1 has FCLK=0 (incomplete) but real timing changes.
+        // Read 2 has FCLK=1900 (complete) — should detect timing changes.
+        using var detector = new ConfigChangeDetector(_tempDir);
+
+        // Previous boot: DDR4-3600 CL16
+        detector.DetectChanges(MakeSnapshot("boot_a", fclk: 1900, uclk: 1900,
+            cl: 16, rrds: 8, rrdl: 12, faw: 40, wtrs: 5, wtrl: 14, wr: 26, rtp: 14,
+            rdrdscl: 5, wrwrscl: 5));
+
+        // Read 1: incomplete (FCLK=0), different timings — skipped.
+        detector.DetectChanges(MakeSnapshot("boot_b", fclk: 0, uclk: 0,
+            cl: 18, rrds: 4, rrdl: 8, faw: 24, wtrs: 4, wtrl: 8, wr: 12, rtp: 12,
+            rdrdscl: 4, wrwrscl: 4));
+
+        // Read 2: complete, same timings as read 1 — detects change vs boot_a.
+        var change = detector.DetectChanges(MakeSnapshot("boot_b", fclk: 1900, uclk: 1900,
+            cl: 18, rrds: 4, rrdl: 8, faw: 24, wtrs: 4, wtrl: 8, wr: 12, rtp: 12,
+            rdrdscl: 4, wrwrscl: 4));
+
+        Assert.NotNull(change);
+        Assert.True(change.Changes.ContainsKey("CL"));
+        Assert.True(change.Changes.ContainsKey("RRDS"));
+        Assert.True(change.Changes.ContainsKey("FAW"));
+        // Clocks didn't change (1900 both boots) — should NOT be in deltas.
+        Assert.False(change.Changes.ContainsKey("FclkMhz"));
+        Assert.False(change.Changes.ContainsKey("UclkMhz"));
+    }
+
+    [Fact]
+    public void FullBootSequence_ProducesOneCleanChange()
+    {
+        // Simulates the exact 3-stage pattern from the screenshot:
+        // Previous boot: FCLK=1900, profile A timings
+        // This boot:     FCLK=1900 (jitters to 1902), profile B timings
+        using var detector = new ConfigChangeDetector(_tempDir);
+
+        // Previous boot baseline.
+        detector.DetectChanges(MakeSnapshot("boot_a", fclk: 1900, uclk: 1900,
+            rrds: 8, rrdl: 12, faw: 40));
+
+        // Read 1: FCLK=0 — skipped entirely.
+        var c1 = detector.DetectChanges(MakeSnapshot("boot_b", fclk: 0, uclk: 0,
+            rrds: 4, rrdl: 8, faw: 24));
+        Assert.Null(c1);
+
+        // Read 2: FCLK populated — timing changes detected.
+        var c2 = detector.DetectChanges(MakeSnapshot("boot_b", fclk: 1900, uclk: 1900,
+            rrds: 4, rrdl: 8, faw: 24));
+        Assert.NotNull(c2);
+        Assert.True(c2.Changes.ContainsKey("RRDS"));
+        Assert.False(c2.Changes.ContainsKey("FclkMhz")); // same clock, no delta
+
+        // Read 3: FCLK jitters to 1902 — within tolerance, no change.
+        var c3 = detector.DetectChanges(MakeSnapshot("boot_b", fclk: 1902, uclk: 1902,
+            rrds: 4, rrdl: 8, faw: 24));
+        Assert.Null(c3);
+
+        // Only one change in the journal.
+        Assert.Single(detector.GetRecentChanges(10));
+    }
+
+    [Fact]
+    public void ClockZero_InPreviousSnapshot_SkippedInDelta()
+    {
+        // Edge case: _previous was somehow saved with FCLK=0 (shouldn't happen
+        // after the fix, but belt-and-suspenders via CheckClock).
+        using var detector = new ConfigChangeDetector(_tempDir);
+
+        // Write a previous snapshot with FCLK=0 directly to disk.
+        var prev = MakeSnapshot("boot_a", fclk: 0, uclk: 0, cl: 18);
+        var json = System.Text.Json.JsonSerializer.Serialize(prev,
+            RAMWatch.Core.RamWatchJsonContext.Default.TimingSnapshot);
+        File.WriteAllText(Path.Combine(_tempDir, "last_snapshot.json"), json);
+
+        var det = new ConfigChangeDetector(_tempDir);
+        det.LoadPrevious();
+
+        // Current read with FCLK=1900, same CL — only clock changed,
+        // but zero→nonzero is filtered by CheckClock.
+        var change = det.DetectChanges(MakeSnapshot("boot_b", fclk: 1900, uclk: 1900, cl: 18));
+        Assert.Null(change);
     }
 }

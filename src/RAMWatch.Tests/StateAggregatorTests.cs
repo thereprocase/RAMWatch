@@ -45,6 +45,7 @@ public class StateAggregatorTests : IDisposable
             SnapshotId  = Guid.NewGuid().ToString("N"),
             Timestamp   = DateTime.UtcNow,
             BootId      = bootId,
+            FclkMhz = 1900, UclkMhz = 1900, MemClockMhz = 1800,
             CL    = cl,    RCDRD = 18, RCDWR = 18,
             RP    = 18,    RAS   = 36, RC    = 54,    CWL  = 14,
             RFC   = 312,   RFC2  = 200, RFC4  = 100,
