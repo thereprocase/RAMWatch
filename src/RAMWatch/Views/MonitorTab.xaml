@@ -76,7 +76,7 @@
                                 <Setter.Value>
                                     <ControlTemplate TargetType="GroupItem">
                                         <StackPanel>
-                                            <ContentPresenter ContentSource="Header" />
+                                            <ContentPresenter />
                                             <ItemsPresenter />
                                         </StackPanel>
                                     </ControlTemplate>
