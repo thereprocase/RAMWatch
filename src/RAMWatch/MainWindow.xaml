@@ -4,6 +4,7 @@
         xmlns:vm="clr-namespace:RAMWatch.ViewModels"
         xmlns:views="clr-namespace:RAMWatch.Views"
         Title="RAMWatch"
+        Icon="app.ico"
         Width="520" Height="720"
         MinWidth="440" MinHeight="500"
         Style="{StaticResource DarkWindow}"
