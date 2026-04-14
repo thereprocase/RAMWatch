@@ -79,11 +79,11 @@ public class SnapshotDisplayNameTests
     // ── Build — custom label ──────────────────────────────────────────────────
 
     [Fact]
-    public void Build_CustomLabel_ReturnedAsIs()
+    public void Build_CustomLabel_ReturnedWithTimingSuffix()
     {
         var snap = MakeSnapshot("snap-001", label: "8000c36 my stable config");
         var name = SnapshotDisplayName.Build(snap, lookup: null);
-        Assert.Equal("8000c36 my stable config", name);
+        Assert.Equal("8000c36 my stable config" + Suffix, name);
     }
 
     [Fact]
@@ -94,7 +94,7 @@ public class SnapshotDisplayNameTests
 
         var name = SnapshotDisplayName.Build(snap, lookup);
 
-        Assert.Equal("daily driver", name);
+        Assert.Equal("daily driver" + Suffix, name);
     }
 
     // ── Build — validation match (pass) ──────────────────────────────────────
@@ -108,7 +108,7 @@ public class SnapshotDisplayNameTests
 
         var name = SnapshotDisplayName.Build(snap, lookup);
 
-        Assert.Equal("4/14 Karhu 8000% PASS", name);
+        Assert.Equal("4/14 Karhu 8000% PASS" + Suffix, name);
     }
 
     [Fact]
@@ -120,7 +120,7 @@ public class SnapshotDisplayNameTests
 
         var name = SnapshotDisplayName.Build(snap, lookup);
 
-        Assert.Equal("4/14 TM5 1.5x PASS", name);
+        Assert.Equal("4/14 TM5 1.5x PASS" + Suffix, name);
     }
 
     // ── Build — validation match (fail) ──────────────────────────────────────
@@ -135,7 +135,7 @@ public class SnapshotDisplayNameTests
 
         var name = SnapshotDisplayName.Build(snap, lookup);
 
-        Assert.Equal("4/14 TM5 FAIL (3 errors)", name);
+        Assert.Equal("4/14 TM5 FAIL (3 errors)" + Suffix, name);
     }
 
     [Fact]
@@ -148,7 +148,7 @@ public class SnapshotDisplayNameTests
 
         var name = SnapshotDisplayName.Build(snap, lookup);
 
-        Assert.Equal("4/14 Karhu FAIL", name);
+        Assert.Equal("4/14 Karhu FAIL" + Suffix, name);
     }
 
     // ── Build — no validation, fallback label ─────────────────────────────────
@@ -158,7 +158,7 @@ public class SnapshotDisplayNameTests
     {
         var snap = MakeSnapshot("snap-001", label: "Auto 2026-04-14 13:39");
         var name = SnapshotDisplayName.Build(snap, lookup: null);
-        Assert.Equal("Auto 2026-04-14 13:39", name);
+        Assert.Equal("Auto 2026-04-14 13:39" + Suffix, name);
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public class SnapshotDisplayNameTests
     {
         var snap = MakeSnapshot("snap-001", label: "Manual save");
         var name = SnapshotDisplayName.Build(snap, lookup: null);
-        Assert.Equal("Manual save", name);
+        Assert.Equal("Manual save" + Suffix, name);
     }
 
     [Fact]
@@ -175,7 +175,7 @@ public class SnapshotDisplayNameTests
         var ts = new DateTime(2026, 4, 14, 13, 39, 0, DateTimeKind.Local);
         var snap = MakeSnapshot("snap-001", label: "", timestamp: ts.ToUniversalTime());
         var name = SnapshotDisplayName.Build(snap, lookup: null);
-        Assert.Equal("Snapshot 04/14 13:39", name);
+        Assert.Equal("Snapshot 04/14 13:39" + Suffix, name);
     }
 
     [Fact]
@@ -186,7 +186,15 @@ public class SnapshotDisplayNameTests
 
         var name = SnapshotDisplayName.Build(snap, lookup);
 
-        Assert.Equal("Auto 2026-04-14 13:39", name);
+        Assert.Equal("Auto 2026-04-14 13:39" + Suffix, name);
+    }
+
+    [Fact]
+    public void Build_NoClocks_SuffixOmitsDdrSpeed()
+    {
+        var snap = MakeSnapshot("snap-001", label: "Auto 2026-04-14 13:39", memClock: 0);
+        var name = SnapshotDisplayName.Build(snap, lookup: null);
+        Assert.Equal("Auto 2026-04-14 13:39 \u2014 CL16-20-20-42", name);
     }
 
     // ── Build — multiple validations, most recent wins ────────────────────────
@@ -206,7 +214,7 @@ public class SnapshotDisplayNameTests
         var name = SnapshotDisplayName.Build(snap, lookup);
 
         // Newer (pass) result wins.
-        Assert.Equal("4/14 Karhu 8000% PASS", name);
+        Assert.Equal("4/14 Karhu 8000% PASS" + Suffix, name);
     }
 
     // ── BuildLkg ──────────────────────────────────────────────────────────────
@@ -257,10 +265,15 @@ public class SnapshotDisplayNameTests
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    // Timing suffix appended to all Build() results.
+    // MakeSnapshot produces "DDR4-3600 CL16-20-20-42".
+    private const string Suffix = " \u2014 DDR4-3600 CL16-20-20-42";
+
     private static TimingSnapshot MakeSnapshot(
         string id,
         string label,
-        DateTime? timestamp = null)
+        DateTime? timestamp = null,
+        int memClock = 1800)
     {
         return new TimingSnapshot
         {
@@ -268,8 +281,8 @@ public class SnapshotDisplayNameTests
             Timestamp   = timestamp ?? DateTime.UtcNow,
             BootId      = "boot_0414",
             Label       = label,
-            MemClockMhz = 4000,
-            CL          = 36,
+            MemClockMhz = memClock,
+            CL = 16, RCDRD = 20, RP = 20, RAS = 42,
         };
     }
 

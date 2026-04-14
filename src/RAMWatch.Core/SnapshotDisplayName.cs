@@ -18,6 +18,8 @@ public static class SnapshotDisplayName
 {
     /// <summary>
     /// Builds a display label for a single snapshot entry.
+    /// Every label gets a timing suffix (e.g. " — DDR4-3600 CL16-20-20-42")
+    /// so entries are distinguishable in the dropdown.
     /// </summary>
     /// <param name="snapshot">The snapshot to label.</param>
     /// <param name="lookup">
@@ -29,6 +31,8 @@ public static class SnapshotDisplayName
         TimingSnapshot snapshot,
         IReadOnlyDictionary<string, ValidationResult>? lookup)
     {
+        string baseName;
+
         // Rule 1: user-supplied label that is neither an auto-save nor a "Manual" prefix.
         // Auto-saves are labelled "Auto yyyy-MM-dd HH:mm"; manual saves are "Manual ...".
         // Any other non-empty label is a custom designation — show it verbatim.
@@ -36,13 +40,12 @@ public static class SnapshotDisplayName
             && !snapshot.Label.StartsWith("Auto ", StringComparison.Ordinal)
             && !snapshot.Label.StartsWith("Manual ", StringComparison.Ordinal))
         {
-            return snapshot.Label;
+            baseName = snapshot.Label;
         }
-
         // Rules 2 & 3: look for a validation result linked to this snapshot.
         // Guard against snapshots with a null/empty SnapshotId — these are legacy
         // entries that pre-date the journal ID field; skip the lookup for them.
-        if (lookup is not null
+        else if (lookup is not null
             && !string.IsNullOrEmpty(snapshot.SnapshotId)
             && lookup.TryGetValue(snapshot.SnapshotId, out var validation))
         {
@@ -55,21 +58,25 @@ public static class SnapshotDisplayName
                     ? ((long)validation.MetricValue).ToString()
                     : validation.MetricValue.ToString("G6");
 
-                return $"{date} {validation.TestTool} {metricStr}{validation.MetricUnit} PASS";
+                baseName = $"{date} {validation.TestTool} {metricStr}{validation.MetricUnit} PASS";
             }
             else
             {
                 var errorSuffix = validation.ErrorCount > 0
                     ? $" ({validation.ErrorCount} error{(validation.ErrorCount != 1 ? "s" : "")})"
                     : "";
-                return $"{date} {validation.TestTool} FAIL{errorSuffix}";
+                baseName = $"{date} {validation.TestTool} FAIL{errorSuffix}";
             }
         }
+        else
+        {
+            // Rule 4: fallback — original label or timestamp placeholder.
+            baseName = !string.IsNullOrEmpty(snapshot.Label)
+                ? snapshot.Label
+                : $"Snapshot {snapshot.Timestamp.ToLocalTime():MM/dd HH:mm}";
+        }
 
-        // Rule 4: fallback — original label or timestamp placeholder.
-        return !string.IsNullOrEmpty(snapshot.Label)
-            ? snapshot.Label
-            : $"Snapshot {snapshot.Timestamp.ToLocalTime():MM/dd HH:mm}";
+        return $"{baseName} — {TimingSuffix(snapshot)}";
     }
 
     /// <summary>
@@ -124,5 +131,17 @@ public static class SnapshotDisplayName
         }
 
         return lookup;
+    }
+
+    /// <summary>
+    /// Compact timing summary for dropdown labels: "DDR4-3600 CL16-20-20-42"
+    /// or "CL16-20-20-42" when clock data is missing.
+    /// </summary>
+    internal static string TimingSuffix(TimingSnapshot snap)
+    {
+        string primaries = $"CL{snap.CL}-{snap.RCDRD}-{snap.RP}-{snap.RAS}";
+        if (snap.MemClockMhz > 0)
+            return $"DDR4-{snap.MemClockMhz * 2} {primaries}";
+        return primaries;
     }
 }
