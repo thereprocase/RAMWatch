@@ -35,6 +35,12 @@ public partial class TimelineEntry : ObservableObject
     public required string TypeLabel { get; init; }
 
     /// <summary>
+    /// Compact timing summary for context, e.g. "DDR4-3600 CL16-20-20-42".
+    /// Null when no snapshot data is available for this entry.
+    /// </summary>
+    public string? TimingSummary { get; init; }
+
+    /// <summary>
     /// The service-side identifier for this entry (e.g. ValidationResult.Id).
     /// Null for entry types that have no service-side delete operation (config changes, drift).
     /// When non-null, the confirmed delete calls <see cref="OnConfirmedDeleteAsync"/>.
@@ -139,6 +145,17 @@ public partial class TimelineViewModel : ObservableObject
     {
         var entries = new List<TimelineEntry>();
 
+        // Build snapshot lookup for timing summaries on timeline entries.
+        var snapLookup = new Dictionary<string, TimingSnapshot>(StringComparer.Ordinal);
+        if (state.Snapshots is not null)
+        {
+            foreach (var snap in state.Snapshots)
+            {
+                if (!string.IsNullOrEmpty(snap.SnapshotId))
+                    snapLookup[snap.SnapshotId] = snap;
+            }
+        }
+
         // Config changes
         if (state.RecentChanges is { Count: > 0 })
         {
@@ -150,6 +167,11 @@ public partial class TimelineViewModel : ObservableObject
                     ? $"Config changed: {deltas}"
                     : $"{change.UserNotes} ({deltas})";
 
+                // Use the "after" snapshot for the timing summary (what we changed TO).
+                TimingSnapshot? snap = null;
+                if (change.SnapshotAfterId is not null)
+                    snapLookup.TryGetValue(change.SnapshotAfterId, out snap);
+
                 var changeEntry = new TimelineEntry
                 {
                     EntryId = Guid.NewGuid(),
@@ -158,14 +180,15 @@ public partial class TimelineViewModel : ObservableObject
                     Summary = summary,
                     TimestampDisplay = FormatTimestamp(change.Timestamp),
                     TypeLabel = "CHANGE",
-                    ServiceId = change.ChangeId
+                    ServiceId = change.ChangeId,
+                    TimingSummary = FormatTimingSummary(snap)
                 };
                 changeEntry.OnConfirmedDeleteAsync = _deleteChangeHandler;
                 entries.Add(changeEntry);
             }
         }
 
-        // Drift events
+        // Drift events — use current timings as context (drift happened this boot).
         if (state.DriftEvents is { Count: > 0 })
         {
             foreach (var drift in state.DriftEvents)
@@ -181,7 +204,8 @@ public partial class TimelineViewModel : ObservableObject
                     EntryType = TimelineEntryType.Drift,
                     Summary = summary,
                     TimestampDisplay = FormatTimestamp(drift.Timestamp),
-                    TypeLabel = "DRIFT"
+                    TypeLabel = "DRIFT",
+                    TimingSummary = FormatTimingSummary(state.Timings)
                 });
             }
         }
@@ -199,6 +223,11 @@ public partial class TimelineViewModel : ObservableObject
                 if (result.DurationMinutes > 0)
                     summary += $" [{result.DurationMinutes}m]";
 
+                // Look up the linked snapshot for timing context.
+                TimingSnapshot? snap = null;
+                if (result.ActiveSnapshotId is not null)
+                    snapLookup.TryGetValue(result.ActiveSnapshotId, out snap);
+
                 var entry = new TimelineEntry
                 {
                     EntryId          = Guid.NewGuid(),
@@ -210,7 +239,8 @@ public partial class TimelineViewModel : ObservableObject
                     TimestampDisplay = FormatTimestamp(result.Timestamp),
                     TypeLabel        = result.Passed ? "PASS" : "FAIL",
                     // Id on the ValidationResult is the service-side stable identifier.
-                    ServiceId        = result.Id
+                    ServiceId        = result.Id,
+                    TimingSummary    = FormatTimingSummary(snap)
                 };
                 // Wire the IPC delete callback so confirmed deletes reach the service.
                 entry.OnConfirmedDeleteAsync = _deleteValidationHandler;
@@ -242,5 +272,14 @@ public partial class TimelineViewModel : ObservableObject
             return "Yesterday " + local.ToString("HH:mm");
 
         return local.ToString("MM/dd HH:mm");
+    }
+
+    private static string? FormatTimingSummary(TimingSnapshot? snap)
+    {
+        if (snap is null) return null;
+        string primaries = $"CL{snap.CL}-{snap.RCDRD}-{snap.RP}-{snap.RAS}";
+        if (snap.MemClockMhz > 0)
+            return $"DDR4-{snap.MemClockMhz * 2} {primaries}";
+        return primaries;
     }
 }
