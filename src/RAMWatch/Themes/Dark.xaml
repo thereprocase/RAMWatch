@@ -19,6 +19,10 @@
     <Color x:Key="StatusAmberColor">#FFB300</Color>
     <Color x:Key="InteractiveBlueColor">#448AFF</Color>
 
+    <!-- Border -->
+    <Color x:Key="BorderSubtleColor">#2A2A4A</Color>
+    <Color x:Key="BorderFocusColor">#448AFF</Color>
+
     <!-- SolidColorBrushes for binding -->
     <SolidColorBrush x:Key="BgPrimary" Color="{StaticResource BgPrimaryColor}" />
     <SolidColorBrush x:Key="BgPanel" Color="{StaticResource BgPanelColor}" />
@@ -32,10 +36,24 @@
     <SolidColorBrush x:Key="StatusRed" Color="{StaticResource StatusRedColor}" />
     <SolidColorBrush x:Key="StatusAmber" Color="{StaticResource StatusAmberColor}" />
     <SolidColorBrush x:Key="InteractiveBlue" Color="{StaticResource InteractiveBlueColor}" />
+    <SolidColorBrush x:Key="BorderSubtle" Color="{StaticResource BorderSubtleColor}" />
+    <SolidColorBrush x:Key="BorderFocus" Color="{StaticResource BorderFocusColor}" />
 
     <!-- Typography -->
     <FontFamily x:Key="MonoFont">Cascadia Mono, Consolas, monospace</FontFamily>
     <FontFamily x:Key="UIFont">Segoe UI, system-ui, sans-serif</FontFamily>
+
+    <!-- Focus visual ring — keyboard navigation indicator -->
+    <Style x:Key="FocusVisual">
+        <Setter Property="Control.Template">
+            <Setter.Value>
+                <ControlTemplate>
+                    <Rectangle StrokeThickness="2" Stroke="{StaticResource InteractiveBlue}"
+                               SnapsToDevicePixels="true" Margin="-2" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
 
     <!-- Window -->
     <Style TargetType="Window" x:Key="DarkWindow">
@@ -55,6 +73,7 @@
         <Setter Property="Padding" Value="12,4" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -166,6 +185,71 @@
         <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
         <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
         <Setter Property="FontSize" Value="12" />
+    </Style>
+
+    <!-- Expander used in SettingsTab sections -->
+    <Style TargetType="Expander" x:Key="DarkExpander">
+        <Setter Property="Background" Value="{StaticResource BgPanel}" />
+        <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="IsExpanded" Value="True" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Expander">
+                    <StackPanel>
+                        <!-- Header toggle -->
+                        <ToggleButton x:Name="HeaderSite"
+                                      IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                                      Background="{StaticResource BgPanel}"
+                                      BorderThickness="0"
+                                      Padding="12,8"
+                                      HorizontalContentAlignment="Left"
+                                      FocusVisualStyle="{StaticResource FocusVisual}"
+                                      Cursor="Hand">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border Background="{TemplateBinding Background}"
+                                            CornerRadius="2,2,0,0"
+                                            Padding="{TemplateBinding Padding}">
+                                        <DockPanel>
+                                            <!-- Chevron -->
+                                            <TextBlock x:Name="Arrow"
+                                                       DockPanel.Dock="Right"
+                                                       Text="▾"
+                                                       Foreground="{StaticResource TextSecondary}"
+                                                       FontSize="10"
+                                                       VerticalAlignment="Center"
+                                                       Margin="8,0,0,0" />
+                                            <ContentPresenter />
+                                        </DockPanel>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsChecked" Value="False">
+                                            <Setter TargetName="Arrow" Property="Text" Value="▸" />
+                                        </Trigger>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="{StaticResource BgHover}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                            <ContentPresenter ContentSource="Header"
+                                              RecognizesAccessKey="True" />
+                        </ToggleButton>
+                        <!-- Collapsible body -->
+                        <ContentPresenter x:Name="ExpandSite"
+                                          Visibility="Collapsed" />
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsExpanded" Value="True">
+                            <Setter TargetName="ExpandSite" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <!-- Section header (e.g., "Error Monitor", "Integrity") -->

@@ -72,7 +72,7 @@ public partial class MainViewModel : ObservableObject
     // ── Commands ─────────────────────────────────────────────
 
     [RelayCommand]
-    private async Task CopyToClipboardAsync()
+    private void CopyToClipboard()
     {
         var text = BuildClipboardExport();
         Clipboard.SetText(text);
@@ -290,6 +290,10 @@ public partial class ErrorSourceVm : ObservableObject
     public string Name { get; }
     public string Category { get; }
 
+    // Severity string for SeverityToColorConverter — derived from source name at
+    // construction time. Hardware error sources are always Critical; others Warning.
+    public string DefaultSeverity { get; }
+
     [ObservableProperty]
     private int _count;
 
@@ -302,5 +306,16 @@ public partial class ErrorSourceVm : ObservableObject
         Category = source.Category.ToString();
         Count = source.Count;
         LastSeen = source.LastSeen?.ToLocalTime().ToString("HH:mm:ss");
+        DefaultSeverity = MapSeverity(source.Name);
     }
+
+    // Map well-known hardware error source names to severity levels understood
+    // by SeverityToColorConverter. Unrecognized names default to Warning so they
+    // still get amber rather than invisible gray.
+    private static string MapSeverity(string name) => name switch
+    {
+        "WHEA-Logger" or "MCE" or "Bugcheck" => "Critical",
+        "System" or "Application" => "Warning",
+        _ => "Warning"
+    };
 }

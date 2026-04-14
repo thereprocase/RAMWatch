@@ -12,15 +12,31 @@ public sealed class TrayIconManager : IDisposable
 {
     private TaskbarIcon? _trayIcon;
     private readonly Window _mainWindow;
+    private readonly Action? _onCopyDigest;
     private bool _firstMinimize = true;
 
-    public TrayIconManager(Window mainWindow)
+    // Pre-built icons — created once in Initialize(), swapped in SetState().
+    // Avoids per-update GDI handle allocation.
+    private Icon? _iconGreen;
+    private Icon? _iconRed;
+    private Icon? _iconGray;
+
+    // Status line menu item — updated in SetState/UpdateTooltip.
+    private System.Windows.Controls.MenuItem? _statusItem;
+
+    public TrayIconManager(Window mainWindow, Action? onCopyDigest = null)
     {
         _mainWindow = mainWindow;
+        _onCopyDigest = onCopyDigest;
     }
 
     public void Initialize()
     {
+        // Build icons once; reuse handles for all subsequent SetState calls.
+        _iconGreen = CreateColorIcon(Color.FromArgb(0x00, 0xC8, 0x53));
+        _iconRed   = CreateColorIcon(Color.FromArgb(0xFF, 0x17, 0x44));
+        _iconGray  = CreateColorIcon(Color.FromArgb(0x61, 0x61, 0x61));
+
         _trayIcon = new TaskbarIcon
         {
             ToolTipText = "RAMWatch — Connecting...",
@@ -36,20 +52,33 @@ public sealed class TrayIconManager : IDisposable
     {
         if (_trayIcon is null) return;
 
-        var color = state switch
+        _trayIcon.Icon = state switch
         {
-            TrayState.Green => Color.FromArgb(0x00, 0xC8, 0x53),
-            TrayState.Red => Color.FromArgb(0xFF, 0x17, 0x44),
-            _ => Color.FromArgb(0x61, 0x61, 0x61)
+            TrayState.Green => _iconGreen,
+            TrayState.Red   => _iconRed,
+            _               => _iconGray,
         };
 
-        _trayIcon.Icon = CreateColorIcon(color);
+        // Keep status line in sync with the current tray state.
+        if (_statusItem is not null)
+        {
+            _statusItem.Header = state switch
+            {
+                TrayState.Green => "Status: OK",
+                TrayState.Red   => "Status: Errors detected",
+                _               => "Status: Not connected",
+            };
+        }
     }
 
     public void UpdateTooltip(string text)
     {
         if (_trayIcon is not null)
             _trayIcon.ToolTipText = text;
+
+        // Mirror tooltip text into the status line for quick glance in the menu.
+        if (_statusItem is not null)
+            _statusItem.Header = text;
     }
 
     public void MinimizeToTray()
@@ -76,18 +105,41 @@ public sealed class TrayIconManager : IDisposable
     {
         var menu = new System.Windows.Controls.ContextMenu();
 
+        // Show RAMWatch
         var showItem = new System.Windows.Controls.MenuItem { Header = "Show RAMWatch" };
         showItem.Click += (_, _) => ShowWindow();
         menu.Items.Add(showItem);
 
         menu.Items.Add(new System.Windows.Controls.Separator());
 
-        var quitItem = new System.Windows.Controls.MenuItem { Header = "Quit" };
-        quitItem.Click += (_, _) =>
+        // Status line — disabled/gray; updated by SetState and UpdateTooltip.
+        _statusItem = new System.Windows.Controls.MenuItem
         {
-            Dispose();
-            Application.Current.Shutdown();
+            Header    = "Status: Not connected",
+            IsEnabled = false,
         };
+        menu.Items.Add(_statusItem);
+
+        menu.Items.Add(new System.Windows.Controls.Separator());
+
+        // Save Snapshot... — Phase 3 feature, disabled for now.
+        var snapshotItem = new System.Windows.Controls.MenuItem
+        {
+            Header    = "Save Snapshot...",
+            IsEnabled = false,
+        };
+        menu.Items.Add(snapshotItem);
+
+        // Copy Digest — fires the clipboard export on MainViewModel.
+        var copyDigestItem = new System.Windows.Controls.MenuItem { Header = "Copy Digest" };
+        copyDigestItem.Click += (_, _) => _onCopyDigest?.Invoke();
+        menu.Items.Add(copyDigestItem);
+
+        menu.Items.Add(new System.Windows.Controls.Separator());
+
+        // Quit — routes through QuitApplication() so OnClosing cleanup runs.
+        var quitItem = new System.Windows.Controls.MenuItem { Header = "Quit" };
+        quitItem.Click += (_, _) => ((MainWindow)_mainWindow).QuitApplication();
         menu.Items.Add(quitItem);
 
         return menu;
@@ -96,6 +148,7 @@ public sealed class TrayIconManager : IDisposable
     /// <summary>
     /// Generate a simple colored circle icon programmatically.
     /// 16x16, transparent background, filled circle in the given color.
+    /// Called once per color in Initialize(); never called during state updates.
     /// </summary>
     private static Icon CreateColorIcon(Color color)
     {
@@ -112,6 +165,14 @@ public sealed class TrayIconManager : IDisposable
     {
         _trayIcon?.Dispose();
         _trayIcon = null;
+
+        // Release the three pre-built GDI icon handles.
+        _iconGreen?.Dispose();
+        _iconRed?.Dispose();
+        _iconGray?.Dispose();
+        _iconGreen = null;
+        _iconRed   = null;
+        _iconGray  = null;
     }
 }
 

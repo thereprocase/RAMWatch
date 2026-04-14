@@ -7,178 +7,19 @@
         <StackPanel Margin="16,12,16,16">
 
             <!-- ── General ──────────────────────────────────── -->
-            <TextBlock Text="GENERAL"
-                       Style="{StaticResource SectionHeader}" />
-
-            <Border Background="{StaticResource BgPanel}"
-                    CornerRadius="2"
-                    Padding="12,8"
-                    Margin="0,4,0,0">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-
-                    <CheckBox Grid.Row="0" Grid.Column="0"
-                              Content="Start minimized"
-                              IsChecked="{Binding StartMinimized}"
-                              Foreground="{StaticResource TextPrimary}"
-                              Margin="0,4,16,4" />
-                    <CheckBox Grid.Row="0" Grid.Column="1"
-                              Content="Minimize to tray"
-                              IsChecked="{Binding MinimizeToTray}"
-                              Foreground="{StaticResource TextPrimary}"
-                              Margin="0,4,0,4" />
-                    <CheckBox Grid.Row="1" Grid.Column="0"
-                              Content="Always on top"
-                              IsChecked="{Binding AlwaysOnTop}"
-                              Foreground="{StaticResource TextPrimary}"
-                              Margin="0,4,16,4" />
-                    <CheckBox Grid.Row="1" Grid.Column="1"
-                              Content="Launch at logon"
-                              IsChecked="{Binding LaunchAtLogon}"
-                              Foreground="{StaticResource TextPrimary}"
-                              Margin="0,4,0,4" />
-                </Grid>
-            </Border>
-
-            <!-- ── Monitoring ────────────────────────────────── -->
-            <TextBlock Text="MONITORING"
-                       Style="{StaticResource SectionHeader}" />
-
-            <Border Background="{StaticResource BgPanel}"
-                    CornerRadius="2"
-                    Padding="12,8"
-                    Margin="0,4,0,0">
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="Refresh interval"
-                               Foreground="{StaticResource TextPrimary}"
-                               VerticalAlignment="Center"
-                               Margin="0,0,8,0" />
-                    <TextBox Width="60"
-                             Text="{Binding RefreshIntervalSeconds, UpdateSourceTrigger=PropertyChanged}"
-                             Background="{StaticResource BgAccent}"
-                             Foreground="{StaticResource TextPrimary}"
-                             BorderThickness="0"
-                             Padding="6,3"
-                             FontFamily="{StaticResource MonoFont}"
-                             VerticalAlignment="Center" />
-                    <TextBlock Text="seconds"
-                               Foreground="{StaticResource TextSecondary}"
-                               VerticalAlignment="Center"
-                               Margin="6,0,0,0" />
-                </StackPanel>
-            </Border>
-
-            <!-- ── Logging ────────────────────────────────────── -->
-            <TextBlock Text="LOGGING"
-                       Style="{StaticResource SectionHeader}" />
-
-            <Border Background="{StaticResource BgPanel}"
-                    CornerRadius="2"
-                    Padding="12,8"
-                    Margin="0,4,0,0">
-                <StackPanel>
-
-                    <CheckBox Content="Enable CSV logging"
-                              IsChecked="{Binding EnableCsvLogging}"
-                              Foreground="{StaticResource TextPrimary}"
-                              Margin="0,4,0,4" />
-
-                    <Grid Margin="0,6,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="60" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="60" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-
-                        <TextBlock Grid.Column="0"
-                                   Text="Retain"
-                                   Foreground="{StaticResource TextPrimary}"
-                                   VerticalAlignment="Center"
-                                   Margin="0,0,8,0" />
-                        <TextBox Grid.Column="1"
-                                 Text="{Binding LogRetentionDays, UpdateSourceTrigger=PropertyChanged}"
-                                 Background="{StaticResource BgAccent}"
-                                 Foreground="{StaticResource TextPrimary}"
-                                 BorderThickness="0"
-                                 Padding="6,3"
-                                 FontFamily="{StaticResource MonoFont}"
-                                 VerticalAlignment="Center" />
-                        <TextBlock Grid.Column="2"
-                                   Text="days"
-                                   Foreground="{StaticResource TextSecondary}"
-                                   VerticalAlignment="Center"
-                                   Margin="6,0,24,0" />
-
-                        <TextBlock Grid.Column="3"
-                                   Text="Max size"
-                                   Foreground="{StaticResource TextPrimary}"
-                                   VerticalAlignment="Center"
-                                   Margin="0,0,8,0" />
-                        <TextBox Grid.Column="4"
-                                 Text="{Binding MaxLogSizeMb, UpdateSourceTrigger=PropertyChanged}"
-                                 Background="{StaticResource BgAccent}"
-                                 Foreground="{StaticResource TextPrimary}"
-                                 BorderThickness="0"
-                                 Padding="6,3"
-                                 FontFamily="{StaticResource MonoFont}"
-                                 VerticalAlignment="Center" />
-                        <TextBlock Grid.Column="5"
-                                   Text="MB"
-                                   Foreground="{StaticResource TextSecondary}"
-                                   VerticalAlignment="Center"
-                                   Margin="6,0,0,0" />
-                    </Grid>
-
-                    <StackPanel Margin="0,10,0,0">
-                        <TextBlock Text="Mirror directory"
-                                   Foreground="{StaticResource TextSecondary}"
-                                   FontSize="11"
-                                   Margin="0,0,0,3" />
-                        <TextBox Text="{Binding MirrorDirectory, UpdateSourceTrigger=PropertyChanged}"
-                                 Background="{StaticResource BgAccent}"
-                                 Foreground="{StaticResource TextPrimary}"
-                                 BorderThickness="0"
-                                 Padding="6,4"
-                                 FontFamily="{StaticResource MonoFont}"
-                                 FontSize="11"
-                                 HorizontalAlignment="Stretch" />
-                        <TextBlock Text="Leave empty to disable log mirroring."
-                                   Foreground="{StaticResource TextSecondary}"
-                                   FontSize="10"
-                                   Margin="0,3,0,0" />
-                    </StackPanel>
-
-                </StackPanel>
-            </Border>
-
-            <!-- ── Notifications ──────────────────────────────── -->
-            <TextBlock Text="NOTIFICATIONS"
-                       Style="{StaticResource SectionHeader}" />
-
-            <Border Background="{StaticResource BgPanel}"
-                    CornerRadius="2"
-                    Padding="12,8"
-                    Margin="0,4,0,0">
-                <StackPanel>
-
-                    <CheckBox Content="Enable toast notifications"
-                              IsChecked="{Binding EnableToastNotifications}"
-                              Foreground="{StaticResource TextPrimary}"
-                              Margin="0,4,0,6" />
-
+            <Expander Style="{StaticResource DarkExpander}"
+                      AutomationProperties.Name="General settings"
+                      Margin="0,4,0,0">
+                <Expander.Header>
+                    <TextBlock Text="GENERAL"
+                               Style="{StaticResource SectionHeader}"
+                               Margin="0" />
+                </Expander.Header>
+                <Border Background="{StaticResource BgPanel}"
+                        CornerRadius="0,0,2,2"
+                        Padding="12,8">
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
@@ -188,77 +29,275 @@
                         </Grid.RowDefinitions>
 
                         <CheckBox Grid.Row="0" Grid.Column="0"
-                                  Content="WHEA errors"
-                                  IsChecked="{Binding NotifyOnWhea}"
+                                  Content="Start minimized"
+                                  IsChecked="{Binding StartMinimized}"
                                   Foreground="{StaticResource TextPrimary}"
-                                  Margin="0,3,8,3" />
+                                  Margin="0,4,16,4" />
                         <CheckBox Grid.Row="0" Grid.Column="1"
-                                  Content="BSODs"
-                                  IsChecked="{Binding NotifyOnBsod}"
+                                  Content="Minimize to tray"
+                                  IsChecked="{Binding MinimizeToTray}"
                                   Foreground="{StaticResource TextPrimary}"
-                                  Margin="0,3,8,3" />
-                        <CheckBox Grid.Row="0" Grid.Column="2"
-                                  Content="Timing drift"
-                                  IsChecked="{Binding NotifyOnDrift}"
-                                  Foreground="{StaticResource TextPrimary}"
-                                  Margin="0,3,0,3" />
+                                  Margin="0,4,0,4" />
                         <CheckBox Grid.Row="1" Grid.Column="0"
-                                  Content="Code integrity"
-                                  IsChecked="{Binding NotifyOnCodeIntegrity}"
+                                  Content="Always on top"
+                                  IsChecked="{Binding AlwaysOnTop}"
                                   Foreground="{StaticResource TextPrimary}"
-                                  Margin="0,3,8,3" />
+                                  Margin="0,4,16,4" />
                         <CheckBox Grid.Row="1" Grid.Column="1"
-                                  Content="App crashes"
-                                  IsChecked="{Binding NotifyOnAppCrash}"
+                                  Content="Launch at logon"
+                                  IsChecked="{Binding LaunchAtLogon}"
                                   Foreground="{StaticResource TextPrimary}"
-                                  Margin="0,3,0,3" />
+                                  Margin="0,4,0,4" />
                     </Grid>
+                </Border>
+            </Expander>
 
-                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                        <TextBlock Text="Cooldown"
+            <!-- ── Monitoring ────────────────────────────────── -->
+            <Expander Style="{StaticResource DarkExpander}"
+                      AutomationProperties.Name="Monitoring settings"
+                      Margin="0,8,0,0">
+                <Expander.Header>
+                    <TextBlock Text="MONITORING"
+                               Style="{StaticResource SectionHeader}"
+                               Margin="0" />
+                </Expander.Header>
+                <Border Background="{StaticResource BgPanel}"
+                        CornerRadius="0,0,2,2"
+                        Padding="12,8">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Refresh interval"
                                    Foreground="{StaticResource TextPrimary}"
                                    VerticalAlignment="Center"
                                    Margin="0,0,8,0" />
                         <TextBox Width="60"
-                                 Text="{Binding NotifyCooldownSeconds, UpdateSourceTrigger=PropertyChanged}"
+                                 Text="{Binding RefreshIntervalSeconds, UpdateSourceTrigger=PropertyChanged}"
                                  Background="{StaticResource BgAccent}"
                                  Foreground="{StaticResource TextPrimary}"
                                  BorderThickness="0"
                                  Padding="6,3"
                                  FontFamily="{StaticResource MonoFont}"
                                  VerticalAlignment="Center" />
-                        <TextBlock Text="seconds between repeated notifications"
+                        <TextBlock Text="seconds"
                                    Foreground="{StaticResource TextSecondary}"
                                    VerticalAlignment="Center"
                                    Margin="6,0,0,0" />
                     </StackPanel>
+                </Border>
+            </Expander>
 
-                </StackPanel>
-            </Border>
+            <!-- ── Logging ────────────────────────────────────── -->
+            <Expander Style="{StaticResource DarkExpander}"
+                      AutomationProperties.Name="Logging settings"
+                      Margin="0,8,0,0">
+                <Expander.Header>
+                    <TextBlock Text="LOGGING"
+                               Style="{StaticResource SectionHeader}"
+                               Margin="0" />
+                </Expander.Header>
+                <Border Background="{StaticResource BgPanel}"
+                        CornerRadius="0,0,2,2"
+                        Padding="12,8">
+                    <StackPanel>
+
+                        <CheckBox Content="Enable CSV logging"
+                                  IsChecked="{Binding EnableCsvLogging}"
+                                  Foreground="{StaticResource TextPrimary}"
+                                  Margin="0,4,0,4" />
+
+                        <Grid Margin="0,6,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="60" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="60" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0"
+                                       Text="Retain"
+                                       Foreground="{StaticResource TextPrimary}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0" />
+                            <TextBox Grid.Column="1"
+                                     Text="{Binding LogRetentionDays, UpdateSourceTrigger=PropertyChanged}"
+                                     Background="{StaticResource BgAccent}"
+                                     Foreground="{StaticResource TextPrimary}"
+                                     BorderThickness="0"
+                                     Padding="6,3"
+                                     FontFamily="{StaticResource MonoFont}"
+                                     VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="2"
+                                       Text="days"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       VerticalAlignment="Center"
+                                       Margin="6,0,24,0" />
+
+                            <TextBlock Grid.Column="3"
+                                       Text="Max size"
+                                       Foreground="{StaticResource TextPrimary}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0" />
+                            <TextBox Grid.Column="4"
+                                     Text="{Binding MaxLogSizeMb, UpdateSourceTrigger=PropertyChanged}"
+                                     Background="{StaticResource BgAccent}"
+                                     Foreground="{StaticResource TextPrimary}"
+                                     BorderThickness="0"
+                                     Padding="6,3"
+                                     FontFamily="{StaticResource MonoFont}"
+                                     VerticalAlignment="Center" />
+                            <TextBlock Grid.Column="5"
+                                       Text="MB"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       VerticalAlignment="Center"
+                                       Margin="6,0,0,0" />
+                        </Grid>
+
+                        <StackPanel Margin="0,10,0,0">
+                            <TextBlock Text="Mirror directory"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       FontSize="11"
+                                       Margin="0,0,0,3" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="MirrorDirectoryBox"
+                                         Grid.Column="0"
+                                         Text="{Binding MirrorDirectory, UpdateSourceTrigger=PropertyChanged}"
+                                         Background="{StaticResource BgAccent}"
+                                         Foreground="{StaticResource TextPrimary}"
+                                         BorderThickness="0"
+                                         Padding="6,4"
+                                         FontFamily="{StaticResource MonoFont}"
+                                         FontSize="11"
+                                         VerticalAlignment="Center" />
+                                <Button Grid.Column="1"
+                                        Content="Browse..."
+                                        Style="{StaticResource DarkButton}"
+                                        AutomationProperties.Name="Browse for mirror directory"
+                                        Click="OnBrowseMirrorDirectory"
+                                        Margin="6,0,0,0" />
+                            </Grid>
+                            <TextBlock Text="Leave empty to disable log mirroring."
+                                       Foreground="{StaticResource TextSecondary}"
+                                       FontSize="10"
+                                       Margin="0,3,0,0" />
+                        </StackPanel>
+
+                    </StackPanel>
+                </Border>
+            </Expander>
+
+            <!-- ── Notifications ──────────────────────────────── -->
+            <Expander Style="{StaticResource DarkExpander}"
+                      AutomationProperties.Name="Notification settings"
+                      Margin="0,8,0,0">
+                <Expander.Header>
+                    <TextBlock Text="NOTIFICATIONS"
+                               Style="{StaticResource SectionHeader}"
+                               Margin="0" />
+                </Expander.Header>
+                <Border Background="{StaticResource BgPanel}"
+                        CornerRadius="0,0,2,2"
+                        Padding="12,8">
+                    <StackPanel>
+
+                        <CheckBox Content="Enable toast notifications"
+                                  IsChecked="{Binding EnableToastNotifications}"
+                                  Foreground="{StaticResource TextPrimary}"
+                                  Margin="0,4,0,6" />
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <CheckBox Grid.Row="0" Grid.Column="0"
+                                      Content="WHEA errors"
+                                      IsChecked="{Binding NotifyOnWhea}"
+                                      Foreground="{StaticResource TextPrimary}"
+                                      Margin="0,3,8,3" />
+                            <CheckBox Grid.Row="0" Grid.Column="1"
+                                      Content="BSODs"
+                                      IsChecked="{Binding NotifyOnBsod}"
+                                      Foreground="{StaticResource TextPrimary}"
+                                      Margin="0,3,8,3" />
+                            <CheckBox Grid.Row="0" Grid.Column="2"
+                                      Content="Timing drift"
+                                      IsChecked="{Binding NotifyOnDrift}"
+                                      Foreground="{StaticResource TextPrimary}"
+                                      Margin="0,3,0,3" />
+                            <CheckBox Grid.Row="1" Grid.Column="0"
+                                      Content="Code integrity"
+                                      IsChecked="{Binding NotifyOnCodeIntegrity}"
+                                      Foreground="{StaticResource TextPrimary}"
+                                      Margin="0,3,8,3" />
+                            <CheckBox Grid.Row="1" Grid.Column="1"
+                                      Content="App crashes"
+                                      IsChecked="{Binding NotifyOnAppCrash}"
+                                      Foreground="{StaticResource TextPrimary}"
+                                      Margin="0,3,0,3" />
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <TextBlock Text="Cooldown"
+                                       Foreground="{StaticResource TextPrimary}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0" />
+                            <TextBox Width="60"
+                                     Text="{Binding NotifyCooldownSeconds, UpdateSourceTrigger=PropertyChanged}"
+                                     Background="{StaticResource BgAccent}"
+                                     Foreground="{StaticResource TextPrimary}"
+                                     BorderThickness="0"
+                                     Padding="6,3"
+                                     FontFamily="{StaticResource MonoFont}"
+                                     VerticalAlignment="Center" />
+                            <TextBlock Text="seconds between repeated notifications"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       VerticalAlignment="Center"
+                                       Margin="6,0,0,0" />
+                        </StackPanel>
+
+                    </StackPanel>
+                </Border>
+            </Expander>
 
             <!-- ── Display ────────────────────────────────────── -->
-            <TextBlock Text="DISPLAY"
-                       Style="{StaticResource SectionHeader}" />
-
-            <Border Background="{StaticResource BgPanel}"
-                    CornerRadius="2"
-                    Padding="12,8"
-                    Margin="0,4,0,0">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="Theme"
-                               Foreground="{StaticResource TextPrimary}"
-                               VerticalAlignment="Center"
-                               Margin="0,0,8,0" />
-                    <TextBlock Text="Dark"
-                               Foreground="{StaticResource TextSecondary}"
-                               VerticalAlignment="Center" />
-                    <TextBlock Text="(additional themes in a future phase)"
-                               Foreground="{StaticResource TextDisabled}"
-                               FontSize="10"
-                               VerticalAlignment="Center"
-                               Margin="8,0,0,0" />
-                </StackPanel>
-            </Border>
+            <Expander Style="{StaticResource DarkExpander}"
+                      AutomationProperties.Name="Display settings"
+                      Margin="0,8,0,0">
+                <Expander.Header>
+                    <TextBlock Text="DISPLAY"
+                               Style="{StaticResource SectionHeader}"
+                               Margin="0" />
+                </Expander.Header>
+                <Border Background="{StaticResource BgPanel}"
+                        CornerRadius="0,0,2,2"
+                        Padding="12,8">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Theme"
+                                   Foreground="{StaticResource TextPrimary}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0" />
+                        <TextBlock Text="Dark"
+                                   Foreground="{StaticResource TextSecondary}"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Text="(additional themes in a future phase)"
+                                   Foreground="{StaticResource TextDisabled}"
+                                   FontSize="10"
+                                   VerticalAlignment="Center"
+                                   Margin="8,0,0,0" />
+                    </StackPanel>
+                </Border>
+            </Expander>
 
             <!-- ── Save row ───────────────────────────────────── -->
             <Grid Margin="0,16,0,0">
@@ -271,6 +310,7 @@
                         Content="Save"
                         Command="{Binding SaveCommand}"
                         Style="{StaticResource DarkButton}"
+                        AutomationProperties.Name="Save"
                         Width="80" />
                 <TextBlock Grid.Column="1"
                            Text="{Binding SaveStatus}"

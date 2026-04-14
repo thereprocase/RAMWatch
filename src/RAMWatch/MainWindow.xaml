@@ -6,7 +6,8 @@
         Title="RAMWatch" Width="520" Height="640"
         MinWidth="440" MinHeight="400"
         Style="{StaticResource DarkWindow}"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        AutomationProperties.Name="RAMWatch">
 
     <Grid>
         <Grid.RowDefinitions>
@@ -42,7 +43,8 @@
                     </Ellipse>
 
                     <!-- Status text -->
-                    <TextBlock FontSize="14" FontWeight="Bold" VerticalAlignment="Center">
+                    <TextBlock FontSize="14" FontWeight="Bold" VerticalAlignment="Center"
+                               AutomationProperties.LiveSetting="Polite">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Foreground" Value="{StaticResource TextDisabled}" />
@@ -57,9 +59,24 @@
                             </Style>
                         </TextBlock.Style>
                         <Run Text="{Binding StatusText, Mode=OneWay}" />
-                        <Run Text=" — " Foreground="{StaticResource TextSecondary}" />
-                        <Run Text="{Binding TotalErrorCount, Mode=OneWay, StringFormat='{}{0} errors since boot'}"
-                             Foreground="{StaticResource TextSecondary}" />
+                    </TextBlock>
+
+                    <!-- Error count — separate TextBlock so DataTrigger can change its color -->
+                    <TextBlock FontSize="14" FontWeight="Bold" VerticalAlignment="Center"
+                               Margin="0,0,0,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+                                <Style.Triggers>
+                                    <!-- Count > 0: show in red to match the status dot -->
+                                    <DataTrigger Binding="{Binding StatusColor}" Value="Red">
+                                        <Setter Property="Foreground" Value="{StaticResource StatusRed}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                        <Run Text=" — " />
+                        <Run Text="{Binding TotalErrorCount, Mode=OneWay, StringFormat='{}{0} errors since boot'}" />
                     </TextBlock>
                 </StackPanel>
 
@@ -80,13 +97,16 @@
         <!-- Tab Control -->
         <TabControl Grid.Row="2" x:Name="MainTabControl"
                     Style="{StaticResource DarkTabControl}">
-            <TabItem Header="Monitor" Style="{StaticResource DarkTabItem}">
+            <TabItem Header="Monitor" Style="{StaticResource DarkTabItem}"
+                     AutomationProperties.Name="Monitor">
                 <views:MonitorTab />
             </TabItem>
-            <TabItem Header="Timings" Style="{StaticResource DarkTabItem}">
+            <TabItem Header="Timings" Style="{StaticResource DarkTabItem}"
+                     AutomationProperties.Name="Timings">
                 <views:TimingsTab DataContext="{Binding Timings}" />
             </TabItem>
-            <TabItem Header="Settings" Style="{StaticResource DarkTabItem}">
+            <TabItem Header="Settings" Style="{StaticResource DarkTabItem}"
+                     AutomationProperties.Name="Settings">
                 <views:SettingsTab x:Name="SettingsTabContent" />
             </TabItem>
         </TabControl>
@@ -100,10 +120,12 @@
                 <Button Content="Copy to Clipboard"
                         Style="{StaticResource DarkButton}"
                         Command="{Binding CopyToClipboardCommand}"
+                        AutomationProperties.Name="Copy to Clipboard"
                         Margin="0,0,8,0" />
                 <Button Content="Refresh"
                         Style="{StaticResource DarkButton}"
-                        Command="{Binding RefreshCommand}" />
+                        Command="{Binding RefreshCommand}"
+                        AutomationProperties.Name="Refresh" />
             </StackPanel>
         </Border>
 
