@@ -157,6 +157,18 @@ AMD Ryzen 7 5800X3D, MSI B550 TOMAHAWK MAX WIFI, DDR4-3600 CL16-20-20-42, PawnIO
 | `src/RAMWatch/TrayIconManager.cs` | Tray icon with Lucide circuit-board |
 | `src/RAMWatch/MainWindow.xaml.cs` | Window sizing, start-minimized, tray behavior |
 
+## Window Sizing & Layout Density (User Feedback)
+
+The Timings tab is the widest content — it drives the minimum window width. The Monitor tab has wasted vertical space below the error table. Two linked changes:
+
+1. **Timings tab: increase density** — reduce padding/margins in the masonry layout so the same content fits in a narrower column. The current layout has generous panel padding and spacing between timing groups. Tighten without making it ugly — less whitespace between groups, smaller section header margins, compact the voltage bar. Goal: same readability, ~15-20% narrower.
+
+2. **Monitor tab: fill the dead space** — the bottom half is empty between the error table and the integrity panel. Either pull integrity up closer to the table, or add OC quick-glance content (timing summary, last test result, uptime-since-change, WHEA count history, action buttons) as discussed in Session C.
+
+3. **Default window size: derive from Timings tab** — set width to exactly what the Timings tab needs at the tightened density (with padding for scrollbar + window chrome). Height should be just tall enough to show full timings without scrolling. Both values derived from DPI-aware measurements, not hardcoded pixels. The current 28%/60% of work area approach over-sizes on large monitors and under-sizes on small ones. Better: compute from content, clamp to work area.
+
+4. **FCLK still showing 1902** — the SnapClockMhz fix was committed but the user saw 1902 in the Timings tab screenshot (taken before update). Verify after next update that it shows 1900.
+
 ## Rules
 
 - `timeout: 30000` on every Bash call. Use `"$USERPROFILE/.dotnet/dotnet.exe"` not `dotnet`
