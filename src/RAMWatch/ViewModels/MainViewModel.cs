@@ -59,6 +59,10 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private int _systemEventCount;
 
+    // Shown next to the status text — separates stability from system counts.
+    [ObservableProperty]
+    private string _statusDetail = "";
+
     [ObservableProperty]
     private string _bootTimeText = "Boot: --";
 
@@ -443,28 +447,31 @@ public partial class MainViewModel : ObservableObject
         });
 
         // Status header — color and text driven by stability count only.
-        // System events are informational and do not trigger the red alarm state.
+        // StatusDetail shows the secondary count info next to the main status.
         if (!state.Ready)
         {
             StatusText = "INITIALIZING";
+            StatusDetail = "";
             StatusColor = "Gray";
         }
         else if (StabilityErrorCount == 0 && SystemEventCount == 0)
         {
             StatusText = "CLEAN";
+            StatusDetail = "";
             StatusColor = "Green";
         }
         else if (StabilityErrorCount == 0)
         {
-            StatusText = $"CLEAN — {SystemEventCount} system event{(SystemEventCount != 1 ? "s" : "")}";
+            StatusText = "CLEAN";
+            StatusDetail = $" — {SystemEventCount} system event{(SystemEventCount != 1 ? "s" : "")} since boot";
             StatusColor = "Green";
         }
         else
         {
-            var systemSuffix = SystemEventCount > 0
-                ? $" — {SystemEventCount} system event{(SystemEventCount != 1 ? "s" : "")}"
+            StatusText = $"{StabilityErrorCount} STABILITY ERROR{(StabilityErrorCount != 1 ? "S" : "")}";
+            StatusDetail = SystemEventCount > 0
+                ? $" + {SystemEventCount} system event{(SystemEventCount != 1 ? "s" : "")}"
                 : "";
-            StatusText = $"{StabilityErrorCount} STABILITY ERROR{(StabilityErrorCount != 1 ? "S" : "")}{systemSuffix}";
             StatusColor = "Red";
         }
 
@@ -526,19 +533,21 @@ public partial class MainViewModel : ObservableObject
             if (StabilityErrorCount == 0 && SystemEventCount == 0)
             {
                 StatusText = "CLEAN";
+                StatusDetail = "";
                 StatusColor = "Green";
             }
             else if (StabilityErrorCount == 0)
             {
-                StatusText = $"CLEAN — {SystemEventCount} system event{(SystemEventCount != 1 ? "s" : "")}";
+                StatusText = "CLEAN";
+                StatusDetail = $" — {SystemEventCount} system event{(SystemEventCount != 1 ? "s" : "")} since boot";
                 StatusColor = "Green";
             }
             else
             {
-                var systemSuffix = SystemEventCount > 0
-                    ? $" — {SystemEventCount} system event{(SystemEventCount != 1 ? "s" : "")}"
+                StatusText = $"{StabilityErrorCount} STABILITY ERROR{(StabilityErrorCount != 1 ? "S" : "")}";
+                StatusDetail = SystemEventCount > 0
+                    ? $" + {SystemEventCount} system event{(SystemEventCount != 1 ? "s" : "")}"
                     : "";
-                StatusText = $"{StabilityErrorCount} STABILITY ERROR{(StabilityErrorCount != 1 ? "S" : "")}{systemSuffix}";
                 StatusColor = "Red";
             }
 

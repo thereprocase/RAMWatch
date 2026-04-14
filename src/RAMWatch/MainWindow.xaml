@@ -62,9 +62,9 @@
                         <Run Text="{Binding StatusText, Mode=OneWay}" />
                     </TextBlock>
 
-                    <!-- Error count — separate TextBlock so DataTrigger can change its color -->
-                    <TextBlock FontSize="14" FontWeight="Bold" VerticalAlignment="Center"
-                               Margin="0,0,0,0">
+                    <!-- Detail count — dimmer than main status, separates stability from system -->
+                    <TextBlock FontSize="12" FontWeight="Normal" VerticalAlignment="Center"
+                               Margin="4,1,0,0">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
@@ -76,8 +76,7 @@
                                 </Style.Triggers>
                             </Style>
                         </TextBlock.Style>
-                        <Run Text=" — " />
-                        <Run Text="{Binding TotalErrorCount, Mode=OneWay, StringFormat='{}{0} errors since boot'}" />
+                        <Run Text="{Binding StatusDetail, Mode=OneWay}" />
                     </TextBlock>
                 </StackPanel>
 
