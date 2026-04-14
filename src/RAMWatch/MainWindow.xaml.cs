@@ -31,6 +31,12 @@ public partial class MainWindow : System.Windows.Window
         // toggles in ApplyEvent and forward designation responses to the UI.
         _viewModel.Settings = _settingsVm;
 
+        // Apply size and position BEFORE the window is shown.
+        // CenterScreen computes position from Width/Height at show time —
+        // if these are 0 (no hardcoded XAML values), it positions at 0,0.
+        ApplyDefaultSize();
+        RestoreWindowPosition();
+
         Loaded += OnLoaded;
         Closing += OnClosing;
 
@@ -53,12 +59,6 @@ public partial class MainWindow : System.Windows.Window
     {
         // Dark title bar on Windows 11 (Frodo warning #9)
         EnableDarkTitleBar();
-
-        // Apply responsive defaults, then restore saved position if available.
-        // ApplyDefaultSize must run first so the window has a sensible size before
-        // RestoreWindowPosition overwrites it with the saved values.
-        ApplyDefaultSize();
-        RestoreWindowPosition();
 
         _tray = new TrayIconManager(
             this,
@@ -286,7 +286,11 @@ internal sealed record WindowPrefs
 /// </summary>
 internal sealed class RelayCommand(Action execute) : ICommand
 {
-    public event EventHandler? CanExecuteChanged;
+    public event EventHandler? CanExecuteChanged
+    {
+        add => CommandManager.RequerySuggested += value;
+        remove => CommandManager.RequerySuggested -= value;
+    }
     public bool CanExecute(object? parameter) => true;
     public void Execute(object? parameter) => execute();
 }

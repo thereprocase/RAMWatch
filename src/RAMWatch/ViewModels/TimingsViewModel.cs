@@ -280,9 +280,9 @@ public partial class TimingsViewModel : ObservableObject
         if (clocks == 0) return "—";
         if (mclkMhz <= 0) return clocks.ToString();
 
-        // MCLK is the half-rate. One DDR clock period = 1 / (2 * MCLK) µs.
-        // In nanoseconds: clocks * (1000 / (2 * MCLK)).
-        double ns = clocks * 1000.0 / (2.0 * mclkMhz);
+        // tRFC is counted in MCLK cycles. One MCLK cycle = 1000/MCLK_MHz ns.
+        // (DDR is double data rate but timing registers count MCLK, not DDR clocks.)
+        double ns = clocks * 1000.0 / mclkMhz;
         return $"{clocks} ({ns:F0}ns)";
     }
 }

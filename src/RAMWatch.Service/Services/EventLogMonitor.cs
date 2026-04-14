@@ -253,7 +253,6 @@ public sealed class EventLogMonitor : IDisposable
     private static string BuildXPathQuery(WatchedSource source, DateTime since)
     {
         var sinceUtc = since.ToUniversalTime();
-        long ticks = sinceUtc.ToFileTimeUtc();
         string ids = string.Join(" or ", source.EventIds.Select(id => $"EventID={id}"));
         return $"*[System[({ids}) and TimeCreated[@SystemTime>='{sinceUtc:o}']]]";
     }
