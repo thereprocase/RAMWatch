@@ -1,0 +1,67 @@
+<Window x:Class="RAMWatch.Views.SnapshotNameDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Save Snapshot"
+        Width="380" Height="148"
+        MinWidth="320" MinHeight="148"
+        MaxHeight="148"
+        Style="{StaticResource DarkWindow}"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        AutomationProperties.Name="Save Snapshot">
+
+    <Grid Margin="20,16,20,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />   <!-- Label -->
+            <RowDefinition Height="Auto" />   <!-- TextBox -->
+            <RowDefinition Height="Auto" />   <!-- Buttons -->
+        </Grid.RowDefinitions>
+
+        <!-- Label -->
+        <TextBlock Grid.Row="0"
+                   Text="Snapshot name"
+                   Foreground="{StaticResource TextSecondary}"
+                   FontFamily="{StaticResource UIFont}"
+                   FontSize="11"
+                   Margin="0,0,0,4" />
+
+        <!-- Name input -->
+        <TextBox Grid.Row="1"
+                 x:Name="NameBox"
+                 Background="{StaticResource BgAccent}"
+                 Foreground="{StaticResource TextPrimary}"
+                 BorderThickness="0"
+                 Padding="8,5"
+                 FontFamily="{StaticResource UIFont}"
+                 FontSize="12"
+                 Margin="0,0,0,12"
+                 AutomationProperties.Name="Snapshot name" />
+
+        <!-- Buttons -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Button Grid.Column="1"
+                    Content="Save"
+                    Style="{StaticResource DarkButton}"
+                    Width="70"
+                    Click="OnSave"
+                    IsDefault="True"
+                    AutomationProperties.Name="Save snapshot" />
+
+            <Button Grid.Column="3"
+                    Content="Cancel"
+                    Style="{StaticResource DarkButton}"
+                    Width="70"
+                    Click="OnCancel"
+                    IsCancel="True"
+                    AutomationProperties.Name="Cancel" />
+        </Grid>
+    </Grid>
+</Window>

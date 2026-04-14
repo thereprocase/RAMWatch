@@ -109,11 +109,30 @@
                     </TextBlock.Style>
                 </TextBlock>
 
+                <!-- Two-column group layout.
+                     WrapPanel with explicit item width gives each group exactly
+                     half the available width. Groups flow left-to-right, then
+                     wrap to the next row — no group is ever split across columns. -->
                 <ItemsControl ItemsSource="{Binding TimingDisplayGroups}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemContainerStyle>
+                        <!-- Each container takes half the available width minus the gutter.
+                             The 4px right margin gives an 8px gutter between the two columns
+                             while the container width compensates so items reach the edge. -->
+                        <Style TargetType="ContentPresenter">
+                            <Setter Property="Width" Value="NaN" />
+                        </Style>
+                    </ItemsControl.ItemContainerStyle>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <!-- One vendor-defined group (e.g. "Primary", "tRFC", "Turn-around") -->
-                            <StackPanel Margin="0,0,0,8">
+                            <!-- One vendor-defined group (e.g. "Primary", "tRFC", "Turn-around").
+                                 MinWidth keeps very short groups from looking odd when there is
+                                 only one column's worth of items. -->
+                            <StackPanel Margin="0,0,8,8" MinWidth="140">
                                 <TextBlock Text="{Binding GroupName}"
                                            Style="{StaticResource SectionHeader}" />
                                 <Border Background="{StaticResource BgPanel}"
@@ -188,11 +207,11 @@
                     <StackPanel Orientation="Horizontal"
                                 HorizontalAlignment="Right">
                         <Button Content="Save Snapshot"
-                                Command="{Binding DataContext.SaveSnapshotCommand,
-                                          RelativeSource={RelativeSource AncestorType=Window}}"
+                                Click="OnSaveSnapshot"
                                 Padding="12,5"
                                 FontFamily="{StaticResource UIFont}"
-                                FontSize="12" />
+                                FontSize="12"
+                                AutomationProperties.Name="Save Snapshot" />
                     </StackPanel>
                 </Border>
 

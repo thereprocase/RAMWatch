@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using RAMWatch.Core.Models;
 
 namespace RAMWatch.ViewModels;
@@ -20,14 +21,63 @@ public enum TimelineEntryType
 /// <summary>
 /// A single row in the timeline logbook. Wraps config changes, drift events,
 /// and validation results into a unified chronological list.
+/// Delete uses a two-click confirmation with a 3-second timeout.
 /// </summary>
-public sealed class TimelineEntry
+public partial class TimelineEntry : ObservableObject
 {
+    // Stable identifier so the service-side delete IPC can reference this entry.
+    // Set to the event's source timestamp at construction time.
+    public required Guid EntryId { get; init; }
     public required DateTime Timestamp { get; init; }
     public required TimelineEntryType EntryType { get; init; }
     public required string Summary { get; init; }
     public required string TimestampDisplay { get; init; }
     public required string TypeLabel { get; init; }
+
+    // ── Delete confirmation state ────────────────────────────
+
+    [ObservableProperty]
+    private bool _deleteConfirmPending;
+
+    // The owning collection — injected so the entry can remove itself.
+    private ObservableCollection<TimelineEntry>? _owner;
+
+    private System.Threading.Timer? _confirmTimer;
+
+    internal void AttachOwner(ObservableCollection<TimelineEntry> owner)
+        => _owner = owner;
+
+    [RelayCommand]
+    private void RequestDelete()
+    {
+        if (!DeleteConfirmPending)
+        {
+            // First click — enter confirmation state and start the 3-second window.
+            DeleteConfirmPending = true;
+            _confirmTimer?.Dispose();
+            _confirmTimer = new System.Threading.Timer(
+                _ => ResetConfirm(),
+                null,
+                dueTime: TimeSpan.FromSeconds(3),
+                period: System.Threading.Timeout.InfiniteTimeSpan);
+        }
+        else
+        {
+            // Second click within window — execute the delete.
+            _confirmTimer?.Dispose();
+            _confirmTimer = null;
+            _owner?.Remove(this);
+        }
+    }
+
+    private void ResetConfirm()
+    {
+        _confirmTimer?.Dispose();
+        _confirmTimer = null;
+        // Property change must happen on the UI thread.
+        System.Windows.Application.Current?.Dispatcher.Invoke(
+            () => DeleteConfirmPending = false);
+    }
 }
 
 /// <summary>
@@ -62,6 +112,7 @@ public partial class TimelineViewModel : ObservableObject
 
                 entries.Add(new TimelineEntry
                 {
+                    EntryId = Guid.NewGuid(),
                     Timestamp = change.Timestamp,
                     EntryType = TimelineEntryType.ConfigChange,
                     Summary = summary,
@@ -82,6 +133,7 @@ public partial class TimelineViewModel : ObservableObject
 
                 entries.Add(new TimelineEntry
                 {
+                    EntryId = Guid.NewGuid(),
                     Timestamp = drift.Timestamp,
                     EntryType = TimelineEntryType.Drift,
                     Summary = summary,
@@ -106,6 +158,7 @@ public partial class TimelineViewModel : ObservableObject
 
                 entries.Add(new TimelineEntry
                 {
+                    EntryId = Guid.NewGuid(),
                     Timestamp = result.Timestamp,
                     EntryType = result.Passed
                         ? TimelineEntryType.ValidationPass
@@ -122,7 +175,10 @@ public partial class TimelineViewModel : ObservableObject
 
         Entries.Clear();
         foreach (var entry in entries)
+        {
+            entry.AttachOwner(Entries);
             Entries.Add(entry);
+        }
 
         HasEntries = Entries.Count > 0;
     }

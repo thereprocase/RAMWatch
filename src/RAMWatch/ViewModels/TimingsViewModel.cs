@@ -82,6 +82,13 @@ public partial class TimingsViewModel : ObservableObject
 
     public ObservableCollection<TimingDisplayGroup> TimingDisplayGroups { get; } = [];
 
+    // ── Summary label ────────────────────────────────────────
+
+    // "CL16-20-20-42" — built from primary timings, empty when no timings available.
+    // Used as the default snapshot name suggestion in the naming dialog.
+    [ObservableProperty]
+    private string _primaryTimingsLabel = "";
+
     // ── Public API ───────────────────────────────────────────
 
     /// <summary>
@@ -101,9 +108,13 @@ public partial class TimingsViewModel : ObservableObject
         if (snapshot is null)
         {
             HasTimings = false;
+            PrimaryTimingsLabel = "";
             TimingDisplayGroups.Clear();
             return;
         }
+
+        // Primary timings summary label — "CL16-20-20-42" format used in snapshot names.
+        PrimaryTimingsLabel = $"CL{snapshot.CL}-{snapshot.RCDRD}-{snapshot.RP}-{snapshot.RAS}";
 
         // Clocks
         MclkDisplay = $"{snapshot.MemClockMhz} MHz";

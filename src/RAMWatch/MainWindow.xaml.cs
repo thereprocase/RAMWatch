@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using RAMWatch.Core.Models;
 using RAMWatch.ViewModels;
+using RAMWatch.Views;
 
 namespace RAMWatch;
 
@@ -30,6 +31,7 @@ public partial class MainWindow : System.Windows.Window
         Closing += OnClosing;
 
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        _settingsVm.PropertyChanged += OnSettingsPropertyChanged;
 
         // Keyboard shortcuts (Critical fix #2)
         InputBindings.Add(new KeyBinding(_viewModel.CopyToClipboardCommand, Key.C, ModifierKeys.Control));
@@ -39,6 +41,8 @@ public partial class MainWindow : System.Windows.Window
         InputBindings.Add(new KeyBinding(new RelayCommand(() => MainTabControl.SelectedIndex = 2), Key.D3, ModifierKeys.Control));
         InputBindings.Add(new KeyBinding(new RelayCommand(() => MainTabControl.SelectedIndex = 3), Key.D4, ModifierKeys.Control));
         InputBindings.Add(new KeyBinding(new RelayCommand(() => MainTabControl.SelectedIndex = 4), Key.D5, ModifierKeys.Control));
+        // Ctrl+S — show snapshot naming dialog then save
+        InputBindings.Add(new KeyBinding(new RelayCommand(ShowSnapshotDialogAndSave), Key.S, ModifierKeys.Control));
     }
 
     private async void OnLoaded(object sender, System.Windows.RoutedEventArgs e)
@@ -55,7 +59,7 @@ public partial class MainWindow : System.Windows.Window
         _tray = new TrayIconManager(
             this,
             onCopyDigest: () => _viewModel.CopyDigestCommand.Execute(null),
-            onSaveSnapshot: () => _viewModel.SaveSnapshotCommand.Execute(null));
+            onSaveSnapshot: () => Dispatcher.Invoke(ShowSnapshotDialogAndSave));
         _tray.Initialize();
 
         await _viewModel.StartAsync();
@@ -120,6 +124,36 @@ public partial class MainWindow : System.Windows.Window
                 ? ""
                 : $"(detected: {vendor})";
         }
+    }
+
+    private void OnSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SettingsViewModel.AlwaysOnTop))
+            Topmost = _settingsVm.AlwaysOnTop;
+    }
+
+    /// <summary>
+    /// Shows the snapshot naming dialog. If the user confirms, executes SaveSnapshotCommand
+    /// with the label they entered. Called from Ctrl+S, the tray icon, and the Timings tab button.
+    /// </summary>
+    internal void ShowSnapshotDialogAndSave()
+    {
+        // Build a default label from current timings — falls back to date when no timings.
+        // PrimaryTimingsLabel is "CL16-20-20-42" when timings are available, empty otherwise.
+        var t = _viewModel.Timings;
+        string defaultLabel = string.IsNullOrEmpty(t.PrimaryTimingsLabel)
+            ? DateTime.Today.ToString("yyyy-MM-dd")
+            : $"{t.PrimaryTimingsLabel} {DateTime.Today:yyyy-MM-dd}";
+
+        var dialog = new SnapshotNameDialog(defaultLabel)
+        {
+            Owner = this
+        };
+
+        if (dialog.ShowDialog() != true)
+            return;
+
+        _viewModel.SaveSnapshotCommand.Execute(dialog.Label);
     }
 
     internal void QuitApplication()
