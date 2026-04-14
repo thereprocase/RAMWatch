@@ -53,7 +53,7 @@ public sealed class GitCommitter : IAsyncDisposable
         _settings   = settings;
         _logger     = logger;
         _runProcess = processRunner;
-        RepoPath    = repoPath ?? RepoPath;
+        RepoPath    = repoPath ?? DataDirectory.HistoryRepoPath;
 
         _channel = Channel.CreateUnbounded<GitCommitRequest>(
             new UnboundedChannelOptions { SingleReader = true });

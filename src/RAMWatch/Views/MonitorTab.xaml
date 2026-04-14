@@ -36,12 +36,15 @@
                    Text="ERROR MONITOR"
                    Style="{StaticResource SectionHeader}" />
 
-        <!-- Error source table — grouped by severity tier (Stability / System). -->
+        <!-- Error source table — grouped by severity tier (Stability / System).
+             CanContentScroll=False forces pixel-based scrolling which measures columns
+             correctly when GroupStyle is active (virtualized scrolling breaks column widths). -->
         <DataGrid Grid.Row="1"
                   Style="{StaticResource DarkDataGrid}"
                   ItemsSource="{Binding Source={StaticResource GroupedErrorSources}}"
                   ColumnHeaderStyle="{StaticResource DarkColumnHeader}"
                   AutomationProperties.Name="Error Monitor"
+                  ScrollViewer.CanContentScroll="False"
                   Margin="0,4,0,16">
 
             <!-- Group header row: "STABILITY" or "SYSTEM" label separates the two tiers. -->
@@ -113,7 +116,7 @@
             </DataGrid.CellStyle>
 
             <DataGrid.Columns>
-                <DataGridTextColumn Header="Source" Binding="{Binding Name}" Width="180">
+                <DataGridTextColumn Header="Source" Binding="{Binding Name}" Width="*" MinWidth="150">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock">
                             <!-- Default: severity color (red for WHEA/MCE/Bugcheck, amber for others) -->
@@ -131,7 +134,7 @@
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
-                <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="100">
+                <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="Auto" MinWidth="80">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock">
                             <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
@@ -140,7 +143,7 @@
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
-                <DataGridTextColumn Header="Count" Binding="{Binding Count}" Width="60">
+                <DataGridTextColumn Header="Count" Binding="{Binding Count}" Width="Auto" MinWidth="50">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock">
                             <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
@@ -156,7 +159,7 @@
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
-                <DataGridTextColumn Header="Last Seen" Binding="{Binding LastSeen, TargetNullValue='-'}" Width="*">
+                <DataGridTextColumn Header="Last Seen" Binding="{Binding LastSeen, TargetNullValue='-'}" Width="Auto" MinWidth="70">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock">
                             <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
