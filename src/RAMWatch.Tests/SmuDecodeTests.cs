@@ -226,4 +226,23 @@ public class SmuDecodeTests
             Timestamp = DateTime.UtcNow,
             BootId = "test_boot",
         };
+
+    // ── SnapClockMhz tests ──────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(1900.0f, 1900)]   // exact
+    [InlineData(1901.7f, 1900)]   // +1.7 jitter → snap to 1900
+    [InlineData(1898.3f, 1900)]   // -1.7 jitter → snap to 1900
+    [InlineData(1902.0f, 1900)]   // +2 → snap (within 3)
+    [InlineData(1903.0f, 1900)]   // +3 → snap (boundary)
+    [InlineData(1904.0f, 1904)]   // +4 → too far, keep raw
+    [InlineData(1800.0f, 1800)]   // DDR4-3600 exact
+    [InlineData(1801.5f, 1800)]   // DDR4-3600 with jitter
+    [InlineData(2000.0f, 2000)]   // DDR4-4000 exact
+    [InlineData(1933.3f, 1933)]   // DDR4-3866 = 1933.33, snaps to 1933
+    [InlineData(1966.7f, 1967)]   // DDR4-3933 = 1966.67, snaps to 1967
+    public void SnapClockMhz_SnapsToNearestIncrement(float raw, int expected)
+    {
+        Assert.Equal(expected, SmuPowerTableReader.SnapClockMhz(raw));
+    }
 }

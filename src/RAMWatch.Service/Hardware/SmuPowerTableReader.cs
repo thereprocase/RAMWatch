@@ -139,10 +139,10 @@ public sealed class SmuPowerTableReader : IDisposable
             int uclkIndex = (int)(_layout.UclkByteOffset / 4);
 
             if (fclkIndex < table.Length && table[fclkIndex] > 0)
-                snapshot.FclkMhz = (int)Math.Round(table[fclkIndex]);
+                snapshot.FclkMhz = SnapClockMhz(table[fclkIndex]);
 
             if (uclkIndex < table.Length && table[uclkIndex] > 0)
-                snapshot.UclkMhz = (int)Math.Round(table[uclkIndex]);
+                snapshot.UclkMhz = SnapClockMhz(table[uclkIndex]);
         }
         catch
         {
@@ -155,6 +155,20 @@ public sealed class SmuPowerTableReader : IDisposable
         _driver?.Dispose();
         _driver = null;
         _available = false;
+    }
+
+    /// <summary>
+    /// Snap a raw SMU clock reading to the nearest logical increment.
+    /// FCLK/UCLK/MCLK are multiples of BCLK/3 (≈33.33 MHz with BCLK=100).
+    /// The SMU power table reports them as floats with ±2-3 MHz jitter.
+    /// If the raw value is within 3 MHz of a clean multiple, snap to it.
+    /// </summary>
+    internal static int SnapClockMhz(float raw)
+    {
+        const double step = 100.0 / 3.0; // ~33.333 MHz
+        double nearest = Math.Round(raw / step) * step;
+        int snapped = (int)Math.Round(nearest);
+        return Math.Abs(raw - snapped) <= 3 ? snapped : (int)Math.Round(raw);
     }
 
     // ── Internal helpers ─────────────────────────────────────────────────
