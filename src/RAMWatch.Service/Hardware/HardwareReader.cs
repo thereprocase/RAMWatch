@@ -11,6 +11,7 @@ public sealed class HardwareReader : IDisposable
 {
     private readonly IHardwareAccess _driver;
     private readonly UmcDecode? _umcDecode;
+    private readonly SmuDecode? _smuDecode;
     private readonly CpuDetect.CpuFamily _cpuFamily;
 
     public bool IsAvailable => _driver.IsAvailable;
@@ -27,11 +28,13 @@ public sealed class HardwareReader : IDisposable
         if (_driver.IsAvailable && _cpuFamily != CpuDetect.CpuFamily.Unknown)
         {
             _umcDecode = new UmcDecode(_driver);
+            _smuDecode = new SmuDecode(_driver, _cpuFamily);
         }
     }
 
     /// <summary>
     /// Read current DRAM timings. Returns null if driver or CPU unsupported.
+    /// On success, also populates FCLK, UCLK, and VSoc from SMU data.
     /// </summary>
     public TimingSnapshot? ReadTimings(string bootId)
     {
@@ -39,7 +42,13 @@ public sealed class HardwareReader : IDisposable
 
         try
         {
-            return _umcDecode.ReadTimings(bootId);
+            var snapshot = _umcDecode.ReadTimings(bootId);
+            if (snapshot is null) return null;
+
+            // SMU reads are best-effort: FCLK/UCLK/VSoc stay at 0 on failure.
+            _smuDecode?.PopulateClockVoltage(snapshot);
+
+            return snapshot;
         }
         catch
         {
@@ -49,6 +58,7 @@ public sealed class HardwareReader : IDisposable
 
     public void Dispose()
     {
+        _smuDecode?.Dispose();
         _driver.Dispose();
     }
 

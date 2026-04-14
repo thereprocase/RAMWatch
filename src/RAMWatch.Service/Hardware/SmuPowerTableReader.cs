@@ -1,0 +1,340 @@
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using RAMWatch.Core.Models;
+using RAMWatch.Service.Hardware.PawnIo;
+
+namespace RAMWatch.Service.Hardware;
+
+/// <summary>
+/// Reads FCLK and UCLK from the AMD SMU (System Management Unit) power table
+/// via the RyzenSMU.bin PawnIO module.
+///
+/// Uses a separate PawnIO handle from the AMDFamily17.bin timing reader.
+/// Each pawnio_open call returns an independent handle; the two modules
+/// coexist without conflict.
+///
+/// The SMU power table is a version-stamped array of floats in DRAM.
+/// The ioctl_resolve_pm_table call returns:
+///   [0] = PM table version (uint32)
+///   [1] = DRAM base address (int64)
+///
+/// ioctl_update_pm_table asks the SMU to refresh the table in DRAM.
+/// ioctl_read_pm_table reads N floats starting from the DRAM base.
+///
+/// FCLK and UCLK offsets are float-indexed (offset / 4 = array index).
+/// They differ by PM table version. Known desktop versions are listed in
+/// the PmTableOffsets table below.
+///
+/// Version data sourced from ZenStates-Core PowerTable.cs (GPL-3.0).
+/// Register offsets are hardware facts; the decode implementation is original.
+/// </summary>
+public sealed class SmuPowerTableReader : IDisposable
+{
+    private PawnIoDriver? _driver;
+    private bool _available;
+    private uint _pmTableVersion;
+    private PmTableLayout _layout;
+
+    // SHA-256 of the bundled RyzenSMU.bin (B8: module integrity)
+    private const string ExpectedHash =
+        "0CF0FE1296C5C38F4BEE0F96352B35F14D32AB97CB58FD17600646D98507D8AA";
+
+    // PawnIO IOCTL function names exported by RyzenSMU.bin
+    private const string IoctlResolvePmTable = "ioctl_resolve_pm_table";
+    private const string IoctlUpdatePmTable = "ioctl_update_pm_table";
+    private const string IoctlReadPmTable = "ioctl_read_pm_table";
+
+    // Minimum table size to attempt reading (in bytes).
+    // Even the smallest known PM table is 0x514 bytes.
+    private const uint MinPmTableBytes = 0x514;
+
+    // Maximum PM table size we will allocate for.
+    // The largest known table (Storm Peak) is ~0x1E48 bytes.
+    private const uint MaxPmTableBytes = 0x2000;
+
+    public bool IsAvailable => _available;
+
+    public void Initialize()
+    {
+        try
+        {
+            if (!PawnIoDriver.IsInstalled) return;
+
+            _driver = new PawnIoDriver();
+            if (!_driver.Open())
+            {
+                _driver.Dispose();
+                _driver = null;
+                return;
+            }
+
+            byte[]? module = LoadEmbeddedModule("RyzenSMU.bin");
+            if (module is null)
+            {
+                _driver.Dispose();
+                _driver = null;
+                return;
+            }
+
+            // Verify integrity before loading kernel code
+            if (!HashMatches(module, ExpectedHash))
+            {
+                _driver.Dispose();
+                _driver = null;
+                return;
+            }
+
+            if (!_driver.LoadModule(module))
+            {
+                _driver.Dispose();
+                _driver = null;
+                return;
+            }
+
+            // Resolve PM table version and DRAM base address
+            if (!TryResolvePmTable(out _pmTableVersion, out long dramBase) || dramBase == 0)
+            {
+                _driver.Dispose();
+                _driver = null;
+                return;
+            }
+
+            // Map version to layout. If version is unknown, we cannot read clocks.
+            _layout = GetLayout(_pmTableVersion);
+            if (!_layout.IsValid)
+            {
+                // Unknown PM table version — cannot map FCLK/UCLK offsets.
+                // Leave available=false so the caller skips FCLK/UCLK reads.
+                _driver.Dispose();
+                _driver = null;
+                return;
+            }
+
+            _available = true;
+        }
+        catch
+        {
+            _driver?.Dispose();
+            _driver = null;
+        }
+    }
+
+    /// <summary>
+    /// Populate FclkMhz and UclkMhz in the snapshot.
+    /// Returns immediately if not available.
+    /// </summary>
+    public void ReadFclkUclk(TimingSnapshot snapshot)
+    {
+        if (_driver is null || !_available) return;
+
+        try
+        {
+            float[]? table = ReadPmTable();
+            if (table is null) return;
+
+            // Offsets are byte offsets into the float array.
+            // Convert to float-array index: byteOffset / 4.
+            int fclkIndex = (int)(_layout.FclkByteOffset / 4);
+            int uclkIndex = (int)(_layout.UclkByteOffset / 4);
+
+            if (fclkIndex < table.Length && table[fclkIndex] > 0)
+                snapshot.FclkMhz = (int)Math.Round(table[fclkIndex]);
+
+            if (uclkIndex < table.Length && table[uclkIndex] > 0)
+                snapshot.UclkMhz = (int)Math.Round(table[uclkIndex]);
+        }
+        catch
+        {
+            // Non-fatal — snapshot retains 0 for FCLK/UCLK
+        }
+    }
+
+    public void Dispose()
+    {
+        _driver?.Dispose();
+        _driver = null;
+        _available = false;
+    }
+
+    // ── Internal helpers ─────────────────────────────────────────────────
+
+    private bool TryResolvePmTable(out uint version, out long dramBase)
+    {
+        version = 0;
+        dramBase = 0;
+
+        try
+        {
+            // ioctl_resolve_pm_table returns [version, dramBaseAddress] as two uint64 slots.
+            // dramBase is a physical address — treat as signed long per ZenStates-Core convention.
+            var result = _driver!.Execute(IoctlResolvePmTable, [0UL, 0UL], 2);
+            if (result is null || result.Length < 2) return false;
+
+            version = unchecked((uint)(result[0] & 0xFFFFFFFF));
+            dramBase = unchecked((long)result[1]);
+            return dramBase != 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private float[]? ReadPmTable()
+    {
+        if (_driver is null) return null;
+
+        // Ask the SMU to refresh the DRAM-mapped table
+        try
+        {
+            _driver.Execute(IoctlUpdatePmTable, [], 0);
+        }
+        catch
+        {
+            // If update fails, try reading the stale table anyway
+        }
+
+        // Table size is in bytes; ioctl_read_pm_table takes a count of uint64 slots
+        // and returns that many uint64 values packed with the float data.
+        uint tableBytes = _layout.TableSizeBytes;
+        if (tableBytes == 0 || tableBytes > MaxPmTableBytes) return null;
+
+        uint qwordCount = (tableBytes + 7) / 8;
+        try
+        {
+            var raw = _driver.Execute(IoctlReadPmTable, new ulong[qwordCount], (int)qwordCount);
+            if (raw is null || raw.Length == 0) return null;
+
+            // Reinterpret the uint64 array as a float array.
+            // raw is ulong[] — each element holds 8 bytes, so the byte capacity is raw.Length * 8.
+            int floatCount = (int)(tableBytes / 4);
+            var floats = new float[floatCount];
+            int bytesToCopy = Math.Min(floatCount * 4, raw.Length * 8);
+            Buffer.BlockCopy(raw, 0, floats, 0, bytesToCopy);
+            return floats;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static byte[]? LoadEmbeddedModule(string fileName)
+    {
+        var assembly = Assembly.GetExecutingAssembly();
+        var resourceName = assembly.GetManifestResourceNames()
+            .FirstOrDefault(n => n.EndsWith(fileName, StringComparison.OrdinalIgnoreCase));
+
+        if (resourceName is null) return null;
+
+        using var stream = assembly.GetManifestResourceStream(resourceName);
+        if (stream is null) return null;
+
+        using var ms = new MemoryStream();
+        stream.CopyTo(ms);
+        return ms.ToArray();
+    }
+
+    private static bool HashMatches(byte[] data, string expectedHex)
+    {
+        byte[] hash = SHA256.HashData(data);
+        string actual = Convert.ToHexString(hash);
+        return string.Equals(actual, expectedHex, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ── PM table layout table ────────────────────────────────────────────
+    //
+    // Byte offsets and table sizes are hardware facts from AMD SMU firmware.
+    // Sourced from ZenStates-Core PowerTable.cs (GPL-3.0).
+    // The struct below is an original abstraction.
+    //
+    // Layout: { tableVersion, tableSizeBytes, fclkByteOffset, uclkByteOffset }
+    //
+    // Comment format: "version — codename"
+    // Versions whose offsets match the generic entry for their Zen generation
+    // share one entry; the generic entry is keyed to 0 (see GetLayout below).
+    //
+    // Zen2 CPU (desktop Matisse + Castle Peak Threadripper):
+    //   offsetFclk 0xB0 / offsetUclk 0xB8  — generic v1 (0x000200)
+    //   offsetFclk 0xBC / offsetUclk 0xC4  — later revisions (0x000202/0x000203)
+    //
+    // Zen3 CPU (desktop Vermeer + Chagall Threadripper):
+    //   offsetFclk 0xC0 / offsetUclk 0xC8  — (0x000300)
+
+    // Internal so the test project can call GetLayout directly.
+    // The test project is listed in InternalsVisibleTo in RAMWatch.Service.csproj.
+    internal readonly struct PmTableLayout
+    {
+        public uint TableSizeBytes { get; init; }
+        public uint FclkByteOffset { get; init; }
+        public uint UclkByteOffset { get; init; }
+        public bool IsValid => TableSizeBytes > 0 && FclkByteOffset > 0 && UclkByteOffset > 0;
+    }
+
+    /// <summary>
+    /// Look up the PM table layout for a given version.
+    /// Returns an invalid layout if the version is unknown.
+    /// </summary>
+    internal static PmTableLayout GetLayout(uint version)
+    {
+        // Exact version matches first, then family-generic fallbacks.
+        return version switch
+        {
+            // ── Zen2 CPU ────────────────────────────────────────────────
+            // Generic v1 — offsetFclk 0xB0, offsetUclk 0xB8 (ZenStates 0x000200)
+            0x000200 => new PmTableLayout { TableSizeBytes = 0x7E4, FclkByteOffset = 0xB0, UclkByteOffset = 0xB8 },
+            0x240003 => new PmTableLayout { TableSizeBytes = 0x18AC, FclkByteOffset = 0xB0, UclkByteOffset = 0xB8 },
+
+            // v2 revisions — offsetFclk 0xBC, offsetUclk 0xC4
+            0x240802 => new PmTableLayout { TableSizeBytes = 0x7E0, FclkByteOffset = 0xBC, UclkByteOffset = 0xC4 },
+            0x240902 => new PmTableLayout { TableSizeBytes = 0x514, FclkByteOffset = 0xBC, UclkByteOffset = 0xC4 },
+            0x000202 => new PmTableLayout { TableSizeBytes = 0x7E4, FclkByteOffset = 0xBC, UclkByteOffset = 0xC4 },
+
+            // v3 revisions — offsetFclk 0xC0, offsetUclk 0xC8
+            0x240503 => new PmTableLayout { TableSizeBytes = 0xD7C, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
+            0x240603 => new PmTableLayout { TableSizeBytes = 0xAB0, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
+            0x240703 => new PmTableLayout { TableSizeBytes = 0x7E4, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
+            0x240803 => new PmTableLayout { TableSizeBytes = 0x7E4, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
+            0x240903 => new PmTableLayout { TableSizeBytes = 0x518, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
+            0x000203 => new PmTableLayout { TableSizeBytes = 0x7E4, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
+
+            // ── Zen3 CPU ────────────────────────────────────────────────
+            // offsetFclk 0xBC, offsetUclk 0xC4
+            0x2D0008 => new PmTableLayout { TableSizeBytes = 0x1AB0, FclkByteOffset = 0xBC, UclkByteOffset = 0xC4 },
+            0x2D0803 => new PmTableLayout { TableSizeBytes = 0x894, FclkByteOffset = 0xBC, UclkByteOffset = 0xC4 },
+            0x2D0903 => new PmTableLayout { TableSizeBytes = 0x7E4, FclkByteOffset = 0xBC, UclkByteOffset = 0xC4 },
+
+            // offsetFclk 0xC0, offsetUclk 0xC8
+            0x380005 => new PmTableLayout { TableSizeBytes = 0x1BB0, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
+            0x380505 => new PmTableLayout { TableSizeBytes = 0xF30, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
+            0x380605 => new PmTableLayout { TableSizeBytes = 0xC10, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
+            0x380705 => new PmTableLayout { TableSizeBytes = 0x8F0, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
+            0x380804 => new PmTableLayout { TableSizeBytes = 0x8A4, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
+            0x380805 => new PmTableLayout { TableSizeBytes = 0x8F0, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
+            0x380904 => new PmTableLayout { TableSizeBytes = 0x5A4, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
+            0x380905 => new PmTableLayout { TableSizeBytes = 0x5D0, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
+            // Generic Zen3 CPU
+            0x000300 => new PmTableLayout { TableSizeBytes = 0x948, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
+
+            // ── Zen4 CPU (Raphael / Granite Ridge) ─────────────────────
+            // offsetFclk 0x118, offsetUclk 0x128
+            0x540100 => new PmTableLayout { TableSizeBytes = 0x618, FclkByteOffset = 0x118, UclkByteOffset = 0x128 },
+            0x540101 => new PmTableLayout { TableSizeBytes = 0x61C, FclkByteOffset = 0x118, UclkByteOffset = 0x128 },
+            0x540102 => new PmTableLayout { TableSizeBytes = 0x66C, FclkByteOffset = 0x118, UclkByteOffset = 0x128 },
+            0x540103 => new PmTableLayout { TableSizeBytes = 0x68C, FclkByteOffset = 0x118, UclkByteOffset = 0x128 },
+            0x540104 => new PmTableLayout { TableSizeBytes = 0x6A8, FclkByteOffset = 0x118, UclkByteOffset = 0x128 },
+            0x540105 => new PmTableLayout { TableSizeBytes = 0x6B4, FclkByteOffset = 0x118, UclkByteOffset = 0x128 },
+            0x540108 => new PmTableLayout { TableSizeBytes = 0x6BC, FclkByteOffset = 0x118, UclkByteOffset = 0x128 },
+            0x540000 => new PmTableLayout { TableSizeBytes = 0x828, FclkByteOffset = 0x118, UclkByteOffset = 0x128 },
+            0x540001 => new PmTableLayout { TableSizeBytes = 0x82C, FclkByteOffset = 0x118, UclkByteOffset = 0x128 },
+            0x540002 => new PmTableLayout { TableSizeBytes = 0x87C, FclkByteOffset = 0x118, UclkByteOffset = 0x128 },
+            0x540003 => new PmTableLayout { TableSizeBytes = 0x89C, FclkByteOffset = 0x118, UclkByteOffset = 0x128 },
+            0x540004 => new PmTableLayout { TableSizeBytes = 0x8BC, FclkByteOffset = 0x118, UclkByteOffset = 0x128 },
+            0x540005 => new PmTableLayout { TableSizeBytes = 0x8C8, FclkByteOffset = 0x118, UclkByteOffset = 0x128 },
+            0x540208 => new PmTableLayout { TableSizeBytes = 0x8D0, FclkByteOffset = 0x11C, UclkByteOffset = 0x12C },
+
+            _ => default  // IsValid == false
+        };
+    }
+}
