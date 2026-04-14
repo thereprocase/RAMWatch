@@ -38,7 +38,7 @@ IPC is JSON-over-newline. Message types: `state` (full push on connect + periodi
 - **.NET 10 LTS** (`net10.0-windows`), `win-x64`, self-contained. (.NET 8 EOL Nov 2026 — insufficient runway)
 - **Service:** Native AOT (`PublishAot=true`). **GUI:** Self-contained single-file, not AOT (WPF incompatible — see Key Design Constraints)
 - **WPF** for GUI (not WinUI 3, not MAUI — weight class decision)
-- **InpOutx64** for PCI config space / physical memory reads (user-provided, not bundled). Consider PawnIO as modern alternative (ZenTimings has migrated).
+- **PawnIO** for PCI config space / MSR / MMIO reads (signed driver, replaces InpOutx64). ZenTimings has migrated to PawnIO. GPL-2+ with IOCTL linking exception.
 - **System.Text.Json** with source generators — single `RamWatchJsonContext.cs` in Core for all serializable types
 - `[LibraryImport]` for P/Invoke in service (source-generated, not `[DllImport]`). Wrap every call in try/catch — missing DLL throws `DllNotFoundException` at call site, not load time.
 - Use `NativeLibrary.Load(path)` + `NativeLibrary.TryGetExport` for runtime path scanning (the `[LibraryImport]` fixed name can't implement multi-path scan)
@@ -131,7 +131,7 @@ Register maps derived from AMD PPRs / ZenTimings reference. Offsets can shift be
 
 - **File concurrency:** All JSON writes use write-to-temp-then-rename (atomic on NTFS). Single-writer principle per file. Service owns all data file writes; GUI sends changes via pipe.
 - **IPC protocol version:** Every message includes `protocolVersion` field. Service returns error for unknown message types. GUI checks version on connect.
-- **DLL loading:** Use `NativeLibrary.Load()` for runtime path scanning. Wrap all P/Invoke in try/catch. Only scan admin-owned paths (own directory, System32). Never load from PATH or user-writable locations.
+- **Driver loading:** PawnIO is installed system-wide with its own signed driver. Service detects availability via IOCTL, not a user-supplied DLL path. No `inpOutDllPath` in settings (B5 fix).
 - **Subprocess execution:** Always use `Process.Start` with `ArgumentList` (array form). Never string-interpolate into shell commands. Validate IPC enum fields against allowlist.
 - **Git operations:** Must run on a dedicated background thread/Task. Never block the service's main event loop. Enqueue commit requests, drain asynchronously.
 
