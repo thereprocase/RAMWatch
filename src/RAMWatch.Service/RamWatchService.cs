@@ -1,19 +1,25 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using RAMWatch.Core.Ipc;
+using RAMWatch.Core.Models;
 using RAMWatch.Service.Services;
 
 namespace RAMWatch.Service;
 
 /// <summary>
-/// Main service entry point. Manages the pipe server and monitoring lifecycle.
-/// Phase 1: pipe server + settings. Event monitors added in later commits.
+/// Main service entry point. Manages the pipe server and all monitoring components.
+/// Lifecycle: load settings → start pipe → historical scan → mark ready → periodic refresh.
 /// </summary>
 public sealed class RamWatchService : BackgroundService
 {
     private readonly SettingsManager _settings;
     private readonly ILogger<RamWatchService> _logger;
     private PipeServer? _pipeServer;
+    private EventLogMonitor? _eventLog;
+    private StateAggregator? _aggregator;
+    private CsvLogger? _csvLogger;
+    private IntegrityChecker? _integrity;
+    private string _bootId = "";
 
     public RamWatchService(SettingsManager settings, ILogger<RamWatchService> logger)
     {
@@ -23,16 +29,53 @@ public sealed class RamWatchService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _settings.Load();
+        var config = _settings.Load();
         _logger.LogInformation("RAMWatch service starting. Data directory: {Path}", DataDirectory.BasePath);
 
+        // Boot ID for CSV grouping
+        var bootTime = DateTime.UtcNow - TimeSpan.FromMilliseconds(Environment.TickCount64);
+        _bootId = CsvLogger.GenerateBootId(bootTime);
+
+        // CSV logger with retention
+        _csvLogger = new CsvLogger(
+            string.IsNullOrEmpty(config.LogDirectory) ? DataDirectory.LogsPath : config.LogDirectory,
+            config.LogRetentionDays,
+            config.MaxLogSizeMb);
+        _csvLogger.RunRetention();
+
+        // Pipe server
         _pipeServer = new PipeServer(OnClientMessage);
         _pipeServer.Start();
         _logger.LogInformation("Pipe server started on \\\\.\\pipe\\{PipeName}", PipeConstants.PipeName);
 
+        // Integrity checker
+        _integrity = new IntegrityChecker();
+
+        // Event log monitor
+        _eventLog = new EventLogMonitor();
+        _eventLog.EventDetected += OnEventDetected;
+
+        // State aggregator
+        _aggregator = new StateAggregator(_eventLog, _settings, _pipeServer);
+
+        // Historical scan (blocks briefly, populates error counts from boot)
+        _eventLog.Start();
+        _integrity.ScanCbsLog();
+        _aggregator.MarkReady();
+        _logger.LogInformation("Monitoring active. Boot ID: {BootId}", _bootId);
+
+        // Periodic refresh loop
         try
         {
-            await Task.Delay(Timeout.Infinite, stoppingToken);
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                await _aggregator.BroadcastStateAsync();
+                _integrity.ScanCbsLog();
+
+                await Task.Delay(
+                    TimeSpan.FromSeconds(_settings.Current.RefreshIntervalSeconds),
+                    stoppingToken);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -43,20 +86,85 @@ public sealed class RamWatchService : BackgroundService
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("RAMWatch service stopping");
+        _eventLog?.Dispose();
+        _csvLogger?.Dispose();
         if (_pipeServer is not null)
             await _pipeServer.DisposeAsync();
         await base.StopAsync(cancellationToken);
     }
 
-    private Task OnClientMessage(string line, ConnectedClient client)
+    private void OnEventDetected(MonitoredEvent evt)
+    {
+        // Log to CSV
+        if (_settings.Current.EnableCsvLogging)
+        {
+            _csvLogger?.LogEvent(evt, _bootId);
+        }
+
+        // Broadcast to connected GUI clients
+        _ = _aggregator?.BroadcastEventAsync(evt);
+    }
+
+    private async Task OnClientMessage(string line, ConnectedClient client)
     {
         var message = MessageSerializer.Deserialize(line);
         if (message is null)
-            return Task.CompletedTask;
+            return;
 
-        // Phase 1: handle getState and updateSettings.
-        // Additional message handlers added in later commits.
-        _logger.LogDebug("Received message type: {Type}", message.Type);
-        return Task.CompletedTask;
+        switch (message)
+        {
+            case GetStateMessage:
+                if (_aggregator is not null)
+                {
+                    var state = _aggregator.BuildState();
+                    var response = new StateMessage { Type = "state", State = state };
+                    await client.SendAsync(MessageSerializer.Serialize(response));
+                }
+                break;
+
+            case UpdateSettingsMessage update:
+                _settings.Update(update.Settings);
+                await client.SendAsync(MessageSerializer.Serialize(
+                    new ResponseMessage
+                    {
+                        Type = "response",
+                        RequestId = update.RequestId,
+                        Status = "ok"
+                    }));
+                break;
+
+            case RunIntegrityMessage run:
+                // Phase 1: validate the check value, return not-implemented for SFC/DISM
+                var allowed = new[] { "sfc", "dism_check", "dism_scan" };
+                if (!allowed.Contains(run.Check))
+                {
+                    await client.SendAsync(MessageSerializer.Serialize(
+                        new ResponseMessage
+                        {
+                            Type = "response",
+                            RequestId = run.RequestId,
+                            Status = "error",
+                            Code = "invalid_check",
+                            Message = $"Unknown check type: {run.Check}"
+                        }));
+                }
+                else
+                {
+                    await client.SendAsync(MessageSerializer.Serialize(
+                        new ResponseMessage
+                        {
+                            Type = "response",
+                            RequestId = run.RequestId,
+                            Status = "error",
+                            Code = "not_implemented",
+                            Message = "SFC/DISM execution available in a future release"
+                        }));
+                }
+                break;
+
+            default:
+                _logger.LogDebug("Unhandled message type: {Type}", message.Type);
+                break;
+        }
     }
 }
