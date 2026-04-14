@@ -109,49 +109,96 @@
                     </TextBlock.Style>
                 </TextBlock>
 
-                <!-- Two-column group layout.
-                     UniformGrid Columns=2 forces equal-width cells — no jiggling.
-                     Groups flow left-to-right, top-to-bottom. -->
-                <ItemsControl ItemsSource="{Binding TimingDisplayGroups}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <UniformGrid Columns="2" />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <StackPanel Margin="0,0,8,8">
-                                <TextBlock Text="{Binding GroupName}"
-                                           Style="{StaticResource SectionHeader}" />
-                                <Border Background="{StaticResource BgPanel}"
-                                        CornerRadius="2"
-                                        Padding="12,8"
-                                        Margin="0,4,0,0">
-                                    <!-- Rows within the group: one row per timing field -->
-                                    <ItemsControl ItemsSource="{Binding Rows}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <StackPanel Orientation="Horizontal"
-                                                            Height="24"
-                                                            VerticalAlignment="Center">
-                                                    <TextBlock Text="{Binding Name}"
-                                                               Foreground="{StaticResource TextSecondary}"
-                                                               FontFamily="{StaticResource UIFont}"
-                                                               FontSize="12"
-                                                               Width="80"
-                                                               VerticalAlignment="Center" />
-                                                    <TextBlock Text="{Binding Value}"
-                                                               Style="{StaticResource MonoText}"
-                                                               VerticalAlignment="Center" />
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </Border>
-                            </StackPanel>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                <!-- Two-column masonry layout.
+                     Each column is an independent StackPanel so groups pack tight
+                     with no row alignment forced across columns (fixes wasted space
+                     when groups have different heights).
+                     GroupColumnConverter does greedy bin-packing by estimated height. -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Left column -->
+                    <ItemsControl Grid.Column="0"
+                                  ItemsSource="{Binding TimingDisplayGroups,
+                                      Converter={StaticResource GroupsToLeftColumn},
+                                      ConverterParameter=0}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,0,0,8">
+                                    <TextBlock Text="{Binding GroupName}"
+                                               Style="{StaticResource SectionHeader}" />
+                                    <Border Background="{StaticResource BgPanel}"
+                                            CornerRadius="2"
+                                            Padding="12,8"
+                                            Margin="0,4,0,0">
+                                        <ItemsControl ItemsSource="{Binding Rows}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal"
+                                                                Height="24"
+                                                                VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Name}"
+                                                                   Foreground="{StaticResource TextSecondary}"
+                                                                   FontFamily="{StaticResource UIFont}"
+                                                                   FontSize="12"
+                                                                   Width="80"
+                                                                   VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding Value}"
+                                                                   Style="{StaticResource MonoText}"
+                                                                   VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Border>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Right column -->
+                    <ItemsControl Grid.Column="2"
+                                  ItemsSource="{Binding TimingDisplayGroups,
+                                      Converter={StaticResource GroupsToRightColumn},
+                                      ConverterParameter=1}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,0,0,8">
+                                    <TextBlock Text="{Binding GroupName}"
+                                               Style="{StaticResource SectionHeader}" />
+                                    <Border Background="{StaticResource BgPanel}"
+                                            CornerRadius="2"
+                                            Padding="12,8"
+                                            Margin="0,4,0,0">
+                                        <ItemsControl ItemsSource="{Binding Rows}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal"
+                                                                Height="24"
+                                                                VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Name}"
+                                                                   Foreground="{StaticResource TextSecondary}"
+                                                                   FontFamily="{StaticResource UIFont}"
+                                                                   FontSize="12"
+                                                                   Width="80"
+                                                                   VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding Value}"
+                                                                   Style="{StaticResource MonoText}"
+                                                                   VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Border>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Grid>
 
                 <!-- ── VOLTAGES ────────────────────────────────────────── -->
                 <TextBlock Text="VOLTAGES" Style="{StaticResource SectionHeader}" />

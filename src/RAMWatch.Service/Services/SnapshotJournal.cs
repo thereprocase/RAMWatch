@@ -100,6 +100,44 @@ public sealed class SnapshotJournal
         }
     }
 
+    /// <summary>
+    /// Remove the snapshot with the given SnapshotId and persist.
+    /// Returns true when an entry was found and removed; false when not found.
+    /// </summary>
+    public bool DeleteById(string snapshotId)
+    {
+        lock (_lock)
+        {
+            int idx = _snapshots.FindIndex(s => s.SnapshotId == snapshotId);
+            if (idx < 0)
+                return false;
+
+            _snapshots.RemoveAt(idx);
+            Persist();
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Update the label of the snapshot with the given SnapshotId and persist.
+    /// Returns true when an entry was found and updated; false when not found.
+    /// NewLabel is truncated to 256 characters.
+    /// </summary>
+    public bool RenameById(string snapshotId, string newLabel)
+    {
+        lock (_lock)
+        {
+            int idx = _snapshots.FindIndex(s => s.SnapshotId == snapshotId);
+            if (idx < 0)
+                return false;
+
+            string label = newLabel is { Length: > 256 } ? newLabel[..256] : newLabel;
+            _snapshots[idx] = _snapshots[idx].WithIdAndLabel(_snapshots[idx].SnapshotId, label);
+            Persist();
+            return true;
+        }
+    }
+
     // Write-to-temp-then-rename. Caller must hold _lock.
     private void Persist()
     {

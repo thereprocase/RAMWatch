@@ -169,3 +169,26 @@ public sealed class DigestResponseMessage : IpcMessage
     /// </summary>
     public string? DigestText { get; init; }
 }
+
+// ── Phase 3 — Snapshot management (Client → Service) ──────────────
+
+/// <summary>
+/// Permanently delete a snapshot from the journal.
+/// Service removes the entry, persists, and broadcasts updated state.
+/// </summary>
+public sealed class DeleteSnapshotMessage : IpcMessage
+{
+    public required string RequestId { get; init; }
+    public required string SnapshotId { get; init; }
+}
+
+/// <summary>
+/// Rename a snapshot in the journal.
+/// Service updates the label, persists, and broadcasts updated state.
+/// </summary>
+public sealed class RenameSnapshotMessage : IpcMessage
+{
+    public required string RequestId { get; init; }
+    public required string SnapshotId { get; init; }
+    public required string NewLabel { get; init; }
+}

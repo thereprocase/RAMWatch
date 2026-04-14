@@ -12,6 +12,8 @@
             <conv:SeverityToColorConverter x:Key="SeverityToColor" />
             <conv:BoolToVisibilityConverter x:Key="BoolToVisibility" />
             <conv:ComparisonDirectionToColorConverter x:Key="DirectionToColor" />
+            <conv:GroupColumnConverter x:Key="GroupsToLeftColumn" />
+            <conv:GroupColumnConverter x:Key="GroupsToRightColumn" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

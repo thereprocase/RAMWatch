@@ -64,6 +64,8 @@ public static class MessageSerializer
                 "saveSnapshot" => JsonSerializer.Deserialize(line, typeof(SaveSnapshotMessage), Options) as IpcMessage,
                 "getSnapshots" => JsonSerializer.Deserialize(line, typeof(GetSnapshotsMessage), Options) as IpcMessage,
                 "getDigest" => JsonSerializer.Deserialize(line, typeof(GetDigestMessage), Options) as IpcMessage,
+                "deleteSnapshot" => JsonSerializer.Deserialize(line, typeof(DeleteSnapshotMessage), Options) as IpcMessage,
+                "renameSnapshot" => JsonSerializer.Deserialize(line, typeof(RenameSnapshotMessage), Options) as IpcMessage,
                 // Phase 3 — service → client
                 "designationsResponse" => JsonSerializer.Deserialize(line, typeof(DesignationsResponseMessage), Options) as IpcMessage,
                 "snapshotsResponse" => JsonSerializer.Deserialize(line, typeof(SnapshotsResponseMessage), Options) as IpcMessage,

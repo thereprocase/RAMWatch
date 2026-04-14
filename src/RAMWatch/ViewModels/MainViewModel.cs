@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RAMWatch.Core.Ipc;
 using RAMWatch.Core.Models;
+using RAMWatch.Services;
 using RAMWatch.Views;
 
 namespace RAMWatch.ViewModels;
@@ -16,6 +17,17 @@ public partial class MainViewModel : ObservableObject
 {
     private readonly PipeClient _pipe = new();
     private CancellationTokenSource? _cts;
+
+    // Lazily populated when MainWindow wires this up after construction.
+    // Used to read notification toggle settings in ApplyEvent.
+    internal SettingsViewModel? Settings;
+
+    // Last-received designation map from the service (string-keyed wire format).
+    // Updated on DesignationsResponseMessage; forwarded to Timings on each state push.
+    private IReadOnlyDictionary<string, string>? _currentDesignations;
+
+    // Timestamps for per-event-type notification cooldown.
+    private readonly Dictionary<string, DateTime> _lastNotified = new();
 
     // ── Connection state ─────────────────────────────────────
 
@@ -79,6 +91,17 @@ public partial class MainViewModel : ObservableObject
 
     public TimelineViewModel Timeline { get; } = new();
     public SnapshotsViewModel Snapshots { get; } = new();
+
+    public MainViewModel()
+    {
+        // Wire the IPC delete callback into the Timeline so confirmed deletes reach
+        // the service rather than only removing the row from the local collection.
+        Timeline.SetDeleteValidationHandler(SendDeleteValidationAsync);
+
+        // Wire IPC callbacks into the Snapshots view model for delete and rename.
+        Snapshots.SetDeleteHandler(SendDeleteSnapshotAsync);
+        Snapshots.SetRenameHandler(SendRenameSnapshotAsync);
+    }
 
     // ── Integrity ────────────────────────────────────────────
 
@@ -228,6 +251,89 @@ public partial class MainViewModel : ObservableObject
         await _pipe.SendAsync(MessageSerializer.Serialize(msg));
     }
 
+    /// <summary>
+    /// Sends a DeleteValidationMessage to the service for the given validation ID.
+    /// Called by Timeline entries on confirmed delete. No-op if not connected.
+    /// </summary>
+    public async Task SendDeleteValidationAsync(string validationId)
+    {
+        if (!_pipe.IsConnected) return;
+        var msg = new DeleteValidationMessage
+        {
+            Type         = "deleteValidation",
+            RequestId    = Guid.NewGuid().ToString("N"),
+            ValidationId = validationId
+        };
+        await _pipe.SendAsync(MessageSerializer.Serialize(msg));
+    }
+
+    /// <summary>
+    /// Sends a DeleteSnapshotMessage to the service for the given snapshot ID.
+    /// Called by SnapshotsViewModel on confirmed delete. No-op if not connected.
+    /// </summary>
+    public async Task SendDeleteSnapshotAsync(string snapshotId)
+    {
+        if (!_pipe.IsConnected) return;
+        var msg = new DeleteSnapshotMessage
+        {
+            Type       = "deleteSnapshot",
+            RequestId  = Guid.NewGuid().ToString("N"),
+            SnapshotId = snapshotId
+        };
+        await _pipe.SendAsync(MessageSerializer.Serialize(msg));
+    }
+
+    /// <summary>
+    /// Sends a RenameSnapshotMessage to the service.
+    /// Called by SnapshotsViewModel on rename confirm. No-op if not connected.
+    /// </summary>
+    public async Task SendRenameSnapshotAsync(string snapshotId, string newLabel)
+    {
+        if (!_pipe.IsConnected) return;
+        var msg = new RenameSnapshotMessage
+        {
+            Type       = "renameSnapshot",
+            RequestId  = Guid.NewGuid().ToString("N"),
+            SnapshotId = snapshotId,
+            NewLabel   = newLabel
+        };
+        await _pipe.SendAsync(MessageSerializer.Serialize(msg));
+    }
+
+    /// <summary>
+    /// Sends a GetDesignationsMessage to the service. The response arrives
+    /// asynchronously as a DesignationsResponseMessage in ProcessMessage,
+    /// which then calls SettingsViewModel.LoadDesignations.
+    /// No-op if the pipe is not connected.
+    /// </summary>
+    public async Task SendGetDesignationsAsync()
+    {
+        if (!_pipe.IsConnected) return;
+        var msg = new GetDesignationsMessage
+        {
+            Type = "getDesignations",
+            RequestId = Guid.NewGuid().ToString("N")
+        };
+        await _pipe.SendAsync(MessageSerializer.Serialize(msg));
+    }
+
+    /// <summary>
+    /// Sends an UpdateDesignationsMessage to the service. Called by SettingsViewModel
+    /// whenever the user changes a designation dropdown.
+    /// No-op if the pipe is not connected.
+    /// </summary>
+    public async Task SendUpdateDesignationsAsync(Dictionary<string, string> designations)
+    {
+        if (!_pipe.IsConnected) return;
+        var msg = new UpdateDesignationsMessage
+        {
+            Type = "updateDesignations",
+            RequestId = Guid.NewGuid().ToString("N"),
+            Designations = designations
+        };
+        await _pipe.SendAsync(MessageSerializer.Serialize(msg));
+    }
+
     // ── Lifecycle ────────────────────────────────────────────
 
     public async Task StartAsync()
@@ -254,6 +360,10 @@ public partial class MainViewModel : ObservableObject
 
             IsConnected = true;
             ConnectionStatus = "Connected";
+
+            // Fetch the current designation map so the Settings tab populates
+            // without requiring the user to open it first.
+            await SendGetDesignationsAsync();
 
             try
             {
@@ -292,6 +402,13 @@ public partial class MainViewModel : ObservableObject
                 {
                     _lastDigestText = digest.DigestText;
                 }
+                break;
+            case DesignationsResponseMessage desig:
+                // Cache the map for use in subsequent state pushes to TimingsViewModel.
+                _currentDesignations = desig.Designations;
+                // Forward to the Settings tab so the dropdowns reflect current state.
+                Application.Current?.Dispatcher.Invoke(() =>
+                    Settings?.LoadDesignations(desig.Designations));
                 break;
         }
     }
@@ -375,8 +492,10 @@ public partial class MainViewModel : ObservableObject
         _currentTimings = state.Timings;
         var vendor = BiosLayouts.ParseSetting(state.BiosLayoutVendor);
         var resolvedVendor = vendor == BoardVendor.Auto ? BoardVendor.Default : vendor;
+        // Capture the designation map for use inside the Dispatcher lambda.
+        var designationsSnapshot = _currentDesignations;
         Application.Current?.Dispatcher.Invoke(() =>
-            Timings.LoadFromSnapshot(state.Timings, resolvedVendor));
+            Timings.LoadFromSnapshot(state.Timings, resolvedVendor, designationsSnapshot));
 
         // Timeline — interleave config changes, drift events, validation results
         Application.Current?.Dispatcher.Invoke(() =>
@@ -425,6 +544,49 @@ public partial class MainViewModel : ObservableObject
 
             LastUpdateText = $"Updated: {DateTime.Now:HH:mm:ss}";
         });
+
+        // Send toast notification if enabled and not rate-limited.
+        MaybeSendNotification(evt);
+    }
+
+    /// <summary>
+    /// Checks notification settings and the per-source cooldown before sending a toast.
+    /// Called from ApplyEvent on the I/O thread — NotificationHelper is thread-safe.
+    /// </summary>
+    private void MaybeSendNotification(MonitoredEvent evt)
+    {
+        if (Settings is null) return;
+        if (!Settings.EnableToastNotifications) return;
+
+        bool shouldNotify = evt.Source switch
+        {
+            var s when s.Contains("WHEA", StringComparison.OrdinalIgnoreCase)
+                || s.Contains("MCE",  StringComparison.OrdinalIgnoreCase)   => Settings.NotifyOnWhea,
+            var s when s.Contains("Bugcheck", StringComparison.OrdinalIgnoreCase)
+                || s.Contains("BSOD", StringComparison.OrdinalIgnoreCase)   => Settings.NotifyOnBsod,
+            var s when s.Contains("Drift", StringComparison.OrdinalIgnoreCase) => Settings.NotifyOnDrift,
+            var s when s.Contains("Code Integrity", StringComparison.OrdinalIgnoreCase)
+                || s.Contains("Kernel", StringComparison.OrdinalIgnoreCase) => Settings.NotifyOnCodeIntegrity,
+            var s when s.Contains("Crash", StringComparison.OrdinalIgnoreCase)
+                || s.Contains("Application Error", StringComparison.OrdinalIgnoreCase) => Settings.NotifyOnAppCrash,
+            _ => false
+        };
+
+        if (!shouldNotify) return;
+
+        // Per-source cooldown: suppress if another notification for the same source
+        // was sent within NotifyCooldownSeconds.
+        var cooldown = TimeSpan.FromSeconds(Math.Max(0, Settings.NotifyCooldownSeconds));
+        var key = evt.Source;
+        var now = DateTime.UtcNow;
+        lock (_lastNotified)
+        {
+            if (_lastNotified.TryGetValue(key, out var last) && (now - last) < cooldown)
+                return;
+            _lastNotified[key] = now;
+        }
+
+        NotificationHelper.SendToast("RAMWatch", $"{evt.Source}: {evt.Summary}");
     }
 
     private string BuildClipboardExport()

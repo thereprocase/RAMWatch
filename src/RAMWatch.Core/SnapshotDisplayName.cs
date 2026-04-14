@@ -40,7 +40,10 @@ public static class SnapshotDisplayName
         }
 
         // Rules 2 & 3: look for a validation result linked to this snapshot.
+        // Guard against snapshots with a null/empty SnapshotId — these are legacy
+        // entries that pre-date the journal ID field; skip the lookup for them.
         if (lookup is not null
+            && !string.IsNullOrEmpty(snapshot.SnapshotId)
             && lookup.TryGetValue(snapshot.SnapshotId, out var validation))
         {
             var date = validation.Timestamp.ToLocalTime().ToString("M/d");

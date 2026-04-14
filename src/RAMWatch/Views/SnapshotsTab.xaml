@@ -1,165 +1,367 @@
 <UserControl x:Class="RAMWatch.Views.SnapshotsTab"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:RAMWatch.ViewModels">
 
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />   <!-- Section header -->
-            <RowDefinition Height="Auto" />   <!-- Dropdown selectors -->
-            <RowDefinition Height="*" />      <!-- Comparison grid -->
+            <RowDefinition Height="*" />      <!-- Sub-tab content -->
         </Grid.RowDefinitions>
 
-        <!-- Section header with filter toggle -->
-        <Grid Grid.Row="0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0"
-                       Text="SNAPSHOT COMPARISON"
-                       Style="{StaticResource SectionHeader}" />
-            <CheckBox Grid.Column="1"
-                      Content="Show all"
-                      IsChecked="{Binding ShowAllSnapshots}"
-                      Foreground="{StaticResource TextSecondary}"
-                      VerticalAlignment="Center"
-                      AutomationProperties.Name="Show all snapshots" />
-        </Grid>
+        <TextBlock Grid.Row="0"
+                   Text="SNAPSHOTS"
+                   Style="{StaticResource SectionHeader}" />
 
-        <!-- Empty state (no snapshots at all) -->
-        <TextBlock Grid.Row="2"
-                   Text="Save a snapshot to enable comparison."
-                   Foreground="{StaticResource TextSecondary}"
-                   FontStyle="Italic"
-                   VerticalAlignment="Center"
-                   HorizontalAlignment="Center"
-                   Visibility="{Binding HasSnapshots, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"
-                   AutomationProperties.Name="Snapshots empty" />
+        <!-- Sub-tabs: Compare | Manage -->
+        <TabControl Grid.Row="1"
+                    Style="{StaticResource DarkTabControl}"
+                    Margin="0,4,0,0">
 
-        <!-- Dropdowns row -->
-        <Grid Grid.Row="1" Margin="0,4,0,8"
-              Visibility="{Binding HasSnapshots, Converter={StaticResource BoolToVisibility}}">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
+            <!-- ── Compare sub-tab ─────────────────────────────── -->
+            <TabItem Header="Compare"
+                     Style="{StaticResource DarkTabItem}">
+                <Grid Margin="0,8,0,0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />   <!-- Dropdowns + show-all checkbox -->
+                        <RowDefinition Height="*" />      <!-- Comparison grid -->
+                    </Grid.RowDefinitions>
 
-            <TextBlock Grid.Column="0"
-                       Text="Compare:"
-                       Foreground="{StaticResource TextSecondary}"
-                       VerticalAlignment="Center"
-                       Margin="0,0,8,0" />
-            <ComboBox Grid.Column="1"
-                      ItemsSource="{Binding AvailableSnapshots}"
-                      SelectedItem="{Binding LeftSelection}"
-                      DisplayMemberPath="DisplayName"
-                      Style="{StaticResource DarkComboBox}"
-                      ItemContainerStyle="{StaticResource DarkComboBoxItem}"
-                      AutomationProperties.Name="Left snapshot"
-                      Margin="0,0,8,0" />
+                    <!-- Empty state (no snapshots at all) -->
+                    <TextBlock Grid.Row="1"
+                               Text="Save a snapshot to enable comparison."
+                               Foreground="{StaticResource TextSecondary}"
+                               FontStyle="Italic"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center"
+                               Visibility="{Binding HasSnapshots, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"
+                               AutomationProperties.Name="Snapshots empty" />
 
-            <TextBlock Grid.Column="2"
-                       Text="vs"
-                       Foreground="{StaticResource TextSecondary}"
-                       VerticalAlignment="Center"
-                       Margin="0,0,8,0" />
-            <ComboBox Grid.Column="3"
-                      ItemsSource="{Binding AvailableSnapshots}"
-                      SelectedItem="{Binding RightSelection}"
-                      DisplayMemberPath="DisplayName"
-                      Style="{StaticResource DarkComboBox}"
-                      ItemContainerStyle="{StaticResource DarkComboBoxItem}"
-                      AutomationProperties.Name="Right snapshot" />
-        </Grid>
+                    <!-- Dropdowns row + "Show all" checkbox -->
+                    <Grid Grid.Row="0" Margin="0,0,0,8"
+                          Visibility="{Binding HasSnapshots, Converter={StaticResource BoolToVisibility}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
 
-        <!-- Comparison DataGrid -->
-        <DataGrid Grid.Row="2"
-                  Style="{StaticResource DarkDataGrid}"
-                  ItemsSource="{Binding ComparisonRows}"
-                  ColumnHeaderStyle="{StaticResource DarkColumnHeader}"
-                  AutomationProperties.Name="Snapshot comparison"
-                  Visibility="{Binding HasComparison, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Grid.Column="0"
+                                   Text="Compare:"
+                                   Foreground="{StaticResource TextSecondary}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0" />
+                        <ComboBox Grid.Column="1"
+                                  ItemsSource="{Binding AvailableSnapshots}"
+                                  SelectedItem="{Binding LeftSelection}"
+                                  DisplayMemberPath="DisplayName"
+                                  Style="{StaticResource DarkComboBox}"
+                                  ItemContainerStyle="{StaticResource DarkComboBoxItem}"
+                                  AutomationProperties.Name="Left snapshot"
+                                  Margin="0,0,8,0" />
 
-            <!-- Override default WPF blue row selection highlight -->
-            <DataGrid.RowStyle>
-                <Style TargetType="DataGridRow">
-                    <Style.Triggers>
-                        <Trigger Property="IsSelected" Value="True">
-                            <Setter Property="Background" Value="{StaticResource BgHover}" />
-                            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
-                        </Trigger>
-                    </Style.Triggers>
-                </Style>
-            </DataGrid.RowStyle>
+                        <TextBlock Grid.Column="2"
+                                   Text="vs"
+                                   Foreground="{StaticResource TextSecondary}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0" />
+                        <ComboBox Grid.Column="3"
+                                  ItemsSource="{Binding AvailableSnapshots}"
+                                  SelectedItem="{Binding RightSelection}"
+                                  DisplayMemberPath="DisplayName"
+                                  Style="{StaticResource DarkComboBox}"
+                                  ItemContainerStyle="{StaticResource DarkComboBoxItem}"
+                                  AutomationProperties.Name="Right snapshot"
+                                  Margin="0,0,8,0" />
 
-            <!-- Suppress default cell selection highlight -->
-            <DataGrid.CellStyle>
-                <Style TargetType="DataGridCell">
-                    <Setter Property="BorderThickness" Value="0" />
-                    <Style.Triggers>
-                        <Trigger Property="IsSelected" Value="True">
-                            <Setter Property="Background" Value="Transparent" />
-                            <Setter Property="BorderBrush" Value="Transparent" />
-                        </Trigger>
-                    </Style.Triggers>
-                </Style>
-            </DataGrid.CellStyle>
+                        <CheckBox Grid.Column="4"
+                                  Content="Show all"
+                                  IsChecked="{Binding ShowAllSnapshots}"
+                                  Foreground="{StaticResource TextSecondary}"
+                                  VerticalAlignment="Center"
+                                  AutomationProperties.Name="Show all snapshots" />
+                    </Grid>
 
-            <DataGrid.Columns>
-                <!-- Timing name -->
-                <DataGridTextColumn Header="Timing" Binding="{Binding TimingName}" Width="90">
-                    <DataGridTextColumn.ElementStyle>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
-                            <Setter Property="Padding" Value="8,0" />
-                            <Setter Property="VerticalAlignment" Value="Center" />
-                        </Style>
-                    </DataGridTextColumn.ElementStyle>
-                </DataGridTextColumn>
+                    <!-- Comparison DataGrid -->
+                    <DataGrid Grid.Row="1"
+                              Style="{StaticResource DarkDataGrid}"
+                              ItemsSource="{Binding ComparisonRows}"
+                              ColumnHeaderStyle="{StaticResource DarkColumnHeader}"
+                              AutomationProperties.Name="Snapshot comparison"
+                              Visibility="{Binding HasComparison, Converter={StaticResource BoolToVisibility}}">
 
-                <!-- Left value -->
-                <DataGridTextColumn Header="Left" Binding="{Binding LeftValue}" Width="*">
-                    <DataGridTextColumn.ElementStyle>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
-                            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
-                            <Setter Property="TextAlignment" Value="Right" />
-                            <Setter Property="Padding" Value="0,0,8,0" />
-                            <Setter Property="VerticalAlignment" Value="Center" />
-                        </Style>
-                    </DataGridTextColumn.ElementStyle>
-                </DataGridTextColumn>
+                        <DataGrid.RowStyle>
+                            <Style TargetType="DataGridRow">
+                                <Style.Triggers>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter Property="Background" Value="{StaticResource BgHover}" />
+                                        <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.RowStyle>
 
-                <!-- Right value -->
-                <DataGridTextColumn Header="Right" Binding="{Binding RightValue}" Width="*">
-                    <DataGridTextColumn.ElementStyle>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
-                            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
-                            <Setter Property="TextAlignment" Value="Right" />
-                            <Setter Property="Padding" Value="0,0,8,0" />
-                            <Setter Property="VerticalAlignment" Value="Center" />
-                        </Style>
-                    </DataGridTextColumn.ElementStyle>
-                </DataGridTextColumn>
+                        <DataGrid.CellStyle>
+                            <Style TargetType="DataGridCell">
+                                <Setter Property="BorderThickness" Value="0" />
+                                <Style.Triggers>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter Property="Background" Value="Transparent" />
+                                        <Setter Property="BorderBrush" Value="Transparent" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.CellStyle>
 
-                <!-- Delta -->
-                <DataGridTextColumn Header="Delta" Binding="{Binding Delta}" Width="70">
-                    <DataGridTextColumn.ElementStyle>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
-                            <Setter Property="Foreground"
-                                    Value="{Binding Direction,
-                                            Converter={StaticResource DirectionToColor}}" />
-                            <Setter Property="TextAlignment" Value="Right" />
-                            <Setter Property="Padding" Value="0,0,8,0" />
-                            <Setter Property="VerticalAlignment" Value="Center" />
-                        </Style>
-                    </DataGridTextColumn.ElementStyle>
-                </DataGridTextColumn>
-            </DataGrid.Columns>
-        </DataGrid>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Timing" Binding="{Binding TimingName}" Width="90">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+                                        <Setter Property="Padding" Value="8,0" />
+                                        <Setter Property="VerticalAlignment" Value="Center" />
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Header="Left" Binding="{Binding LeftValue}" Width="*">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+                                        <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                                        <Setter Property="TextAlignment" Value="Right" />
+                                        <Setter Property="Padding" Value="0,0,8,0" />
+                                        <Setter Property="VerticalAlignment" Value="Center" />
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Header="Right" Binding="{Binding RightValue}" Width="*">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+                                        <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                                        <Setter Property="TextAlignment" Value="Right" />
+                                        <Setter Property="Padding" Value="0,0,8,0" />
+                                        <Setter Property="VerticalAlignment" Value="Center" />
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+
+                            <DataGridTextColumn Header="Delta" Binding="{Binding Delta}" Width="70">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+                                        <Setter Property="Foreground"
+                                                Value="{Binding Direction,
+                                                        Converter={StaticResource DirectionToColor}}" />
+                                        <Setter Property="TextAlignment" Value="Right" />
+                                        <Setter Property="Padding" Value="0,0,8,0" />
+                                        <Setter Property="VerticalAlignment" Value="Center" />
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
+            <!-- ── Manage sub-tab ──────────────────────────────── -->
+            <TabItem Header="Manage"
+                     Style="{StaticResource DarkTabItem}">
+                <Grid Margin="0,8,0,0">
+
+                    <!-- Empty state -->
+                    <TextBlock Text="No saved snapshots."
+                               Foreground="{StaticResource TextSecondary}"
+                               FontStyle="Italic"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center"
+                               Visibility="{Binding HasManageRows, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"
+                               AutomationProperties.Name="Manage snapshots empty" />
+
+                    <!-- Snapshot list — visible when there is at least one saved snapshot -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Visibility="{Binding HasManageRows, Converter={StaticResource BoolToVisibility}}">
+
+                        <ItemsControl ItemsSource="{Binding ManageRows}"
+                                      AutomationProperties.Name="Saved snapshots list">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:SnapshotManageRow}">
+                                    <Border Margin="0,0,0,4"
+                                            Background="{StaticResource BgPanel}"
+                                            CornerRadius="2">
+                                        <Grid Margin="12,8,8,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Left: label row + timing info row -->
+                                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+
+                                                <!-- Normal display mode -->
+                                                <TextBlock Text="{Binding Snapshot.Label}"
+                                                           Foreground="{StaticResource TextPrimary}"
+                                                           FontFamily="{StaticResource UIFont}"
+                                                           FontSize="12"
+                                                           TextTrimming="CharacterEllipsis">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsRenaming}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+
+                                                <!-- Rename inline edit -->
+                                                <StackPanel Orientation="Horizontal">
+                                                    <StackPanel.Style>
+                                                        <Style TargetType="StackPanel">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsRenaming}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </StackPanel.Style>
+                                                    <TextBox Text="{Binding Label, UpdateSourceTrigger=PropertyChanged}"
+                                                             Background="{StaticResource BgAccent}"
+                                                             Foreground="{StaticResource TextPrimary}"
+                                                             BorderBrush="{StaticResource BorderSubtle}"
+                                                             BorderThickness="1"
+                                                             Padding="4,2"
+                                                             FontFamily="{StaticResource UIFont}"
+                                                             FontSize="12"
+                                                             MinWidth="180"
+                                                             VerticalAlignment="Center"
+                                                             AutomationProperties.Name="New snapshot name">
+                                                        <!-- Enter confirms; Escape cancels -->
+                                                        <TextBox.InputBindings>
+                                                            <KeyBinding Key="Return"
+                                                                        Command="{Binding ConfirmRenameCommand}" />
+                                                            <KeyBinding Key="Escape"
+                                                                        Command="{Binding CancelRenameCommand}" />
+                                                        </TextBox.InputBindings>
+                                                    </TextBox>
+                                                    <Button Content="OK"
+                                                            Command="{Binding ConfirmRenameCommand}"
+                                                            Style="{StaticResource DarkButton}"
+                                                            Padding="8,2"
+                                                            Height="24"
+                                                            Margin="4,0,0,0"
+                                                            AutomationProperties.Name="Confirm rename" />
+                                                    <Button Content="×"
+                                                            Command="{Binding CancelRenameCommand}"
+                                                            Style="{StaticResource DarkButton}"
+                                                            Padding="8,2"
+                                                            Height="24"
+                                                            Margin="4,0,0,0"
+                                                            Foreground="{StaticResource TextSecondary}"
+                                                            AutomationProperties.Name="Cancel rename" />
+                                                </StackPanel>
+
+                                                <!-- Secondary info row: timings + date + validation badge -->
+                                                <StackPanel Orientation="Horizontal"
+                                                            Margin="0,2,0,0">
+                                                    <TextBlock Text="{Binding PrimaryTimings}"
+                                                               Foreground="{StaticResource TextSecondary}"
+                                                               FontFamily="{StaticResource MonoFont}"
+                                                               FontSize="11" />
+                                                    <TextBlock Text=" · "
+                                                               Foreground="{StaticResource TextDisabled}"
+                                                               FontSize="11" />
+                                                    <TextBlock Text="{Binding DateDisplay}"
+                                                               Foreground="{StaticResource TextSecondary}"
+                                                               FontFamily="{StaticResource MonoFont}"
+                                                               FontSize="11" />
+                                                    <!-- Validation badge — only visible when non-empty -->
+                                                    <TextBlock Text=" · VALIDATED"
+                                                               Foreground="{StaticResource StatusGreen}"
+                                                               FontFamily="{StaticResource UIFont}"
+                                                               FontSize="10"
+                                                               FontWeight="SemiBold">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding ValidationDisplay}" Value="Yes">
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </StackPanel>
+
+                                            <!-- Right: Rename + Delete buttons -->
+                                            <StackPanel Grid.Column="1"
+                                                        Orientation="Horizontal"
+                                                        VerticalAlignment="Center">
+
+                                                <!-- Rename button — hidden while renaming -->
+                                                <Button Command="{Binding StartRenameCommand}"
+                                                        Content="Rename"
+                                                        Padding="8,2"
+                                                        Height="24"
+                                                        Margin="0,0,4,0"
+                                                        FontSize="11"
+                                                        AutomationProperties.Name="Rename snapshot">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource DarkButton}">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsRenaming}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+
+                                                <!-- Delete button — two-click confirmation -->
+                                                <Button Command="{Binding RequestDeleteCommand}"
+                                                        Width="64"
+                                                        Height="24"
+                                                        FontFamily="{StaticResource UIFont}"
+                                                        FontSize="11"
+                                                        Padding="0"
+                                                        Cursor="Hand"
+                                                        AutomationProperties.Name="Delete snapshot"
+                                                        FocusVisualStyle="{StaticResource FocusVisual}">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource DarkButton}">
+                                                            <Setter Property="Content" Value="×" />
+                                                            <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+                                                            <Setter Property="Background" Value="Transparent" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding DeleteConfirmPending}" Value="True">
+                                                                    <Setter Property="Content" Value="Confirm?" />
+                                                                    <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                                                                    <Setter Property="Background" Value="{StaticResource StatusRed}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
+        </TabControl>
     </Grid>
 </UserControl>

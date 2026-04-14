@@ -34,6 +34,20 @@ public partial class TimelineEntry : ObservableObject
     public required string TimestampDisplay { get; init; }
     public required string TypeLabel { get; init; }
 
+    /// <summary>
+    /// The service-side identifier for this entry (e.g. ValidationResult.Id).
+    /// Null for entry types that have no service-side delete operation (config changes, drift).
+    /// When non-null, the confirmed delete calls <see cref="OnConfirmedDeleteAsync"/>.
+    /// </summary>
+    public string? ServiceId { get; init; }
+
+    /// <summary>
+    /// Async delete callback injected by the view model. Receives <see cref="ServiceId"/>.
+    /// Called on the second (confirmed) click for entries that have a ServiceId.
+    /// The entry removes itself from the collection regardless of callback result.
+    /// </summary>
+    internal Func<string, Task>? OnConfirmedDeleteAsync { get; set; }
+
     // ── Delete confirmation state ────────────────────────────
 
     [ObservableProperty]
@@ -66,7 +80,14 @@ public partial class TimelineEntry : ObservableObject
             // Second click within window — execute the delete.
             _confirmTimer?.Dispose();
             _confirmTimer = null;
+
+            // Remove from the UI collection immediately so the entry disappears.
             _owner?.Remove(this);
+
+            // If this entry maps to a service-side object, fire the IPC delete.
+            // Fire-and-forget: if the service is unavailable the UI is still cleaned up.
+            if (ServiceId is not null && OnConfirmedDeleteAsync is not null)
+                _ = OnConfirmedDeleteAsync(ServiceId);
         }
     }
 
@@ -90,6 +111,16 @@ public partial class TimelineViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _hasEntries;
+
+    // Injected by MainViewModel so each validation entry can send DeleteValidationMessage.
+    private Func<string, Task>? _deleteValidationHandler;
+
+    /// <summary>
+    /// Injects the async callback used to send DeleteValidationMessage to the service.
+    /// Must be set before the first LoadFromState call that includes validation results.
+    /// </summary>
+    public void SetDeleteValidationHandler(Func<string, Task> handler)
+        => _deleteValidationHandler = handler;
 
     /// <summary>
     /// Rebuilds the timeline from the latest service state push.
@@ -156,17 +187,22 @@ public partial class TimelineViewModel : ObservableObject
                 if (result.DurationMinutes > 0)
                     summary += $" [{result.DurationMinutes}m]";
 
-                entries.Add(new TimelineEntry
+                var entry = new TimelineEntry
                 {
-                    EntryId = Guid.NewGuid(),
-                    Timestamp = result.Timestamp,
-                    EntryType = result.Passed
+                    EntryId          = Guid.NewGuid(),
+                    Timestamp        = result.Timestamp,
+                    EntryType        = result.Passed
                         ? TimelineEntryType.ValidationPass
                         : TimelineEntryType.ValidationFail,
-                    Summary = summary,
+                    Summary          = summary,
                     TimestampDisplay = FormatTimestamp(result.Timestamp),
-                    TypeLabel = result.Passed ? "PASS" : "FAIL"
-                });
+                    TypeLabel        = result.Passed ? "PASS" : "FAIL",
+                    // Id on the ValidationResult is the service-side stable identifier.
+                    ServiceId        = result.Id
+                };
+                // Wire the IPC delete callback so confirmed deletes reach the service.
+                entry.OnConfirmedDeleteAsync = _deleteValidationHandler;
+                entries.Add(entry);
             }
         }
 

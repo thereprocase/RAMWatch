@@ -33,6 +33,8 @@ namespace RAMWatch.Core;
 [JsonSerializable(typeof(GetDigestMessage))]
 [JsonSerializable(typeof(SnapshotsResponseMessage))]
 [JsonSerializable(typeof(DigestResponseMessage))]
+[JsonSerializable(typeof(DeleteSnapshotMessage))]
+[JsonSerializable(typeof(RenameSnapshotMessage))]
 [JsonSerializable(typeof(Dictionary<string, string>))]
 [JsonSerializable(typeof(List<ErrorSource>))]
 [JsonSerializable(typeof(List<MonitoredEvent>))]

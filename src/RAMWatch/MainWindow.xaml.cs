@@ -27,6 +27,10 @@ public partial class MainWindow : System.Windows.Window
         _settingsVm = new SettingsViewModel(_viewModel);
         SettingsTabContent.DataContext = _settingsVm;
 
+        // Give MainViewModel a reference to Settings so it can read notification
+        // toggles in ApplyEvent and forward designation responses to the UI.
+        _viewModel.Settings = _settingsVm;
+
         Loaded += OnLoaded;
         Closing += OnClosing;
 
@@ -174,14 +178,15 @@ public partial class MainWindow : System.Windows.Window
     {
         var workArea = SystemParameters.WorkArea;
 
-        // Target roughly 35% of work-area width, 75% of work-area height.
-        // These are device-independent pixel fractions — WPF handles scaling.
-        double targetW = workArea.Width  * 0.35;
-        double targetH = workArea.Height * 0.75;
+        // Target 40% of work-area width, 60% of work-area height.
+        // The Monitor tab has ~600–650 px of content at standard DPI;
+        // 75% was too tall and left significant dead space below the content.
+        double targetW = workArea.Width  * 0.40;
+        double targetH = workArea.Height * 0.60;
 
         // Clamp to reasonable bounds so the window is never absurdly small or large.
-        Width  = Math.Clamp(targetW, 440, 720);
-        Height = Math.Clamp(targetH, 500, 1100);
+        Width  = Math.Clamp(targetW, 440, 700);
+        Height = Math.Clamp(targetH, 500, 850);
     }
 
     // ── Window position persistence (Critical fix #3) ────────

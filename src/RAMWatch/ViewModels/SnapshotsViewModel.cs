@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using RAMWatch.Core;
 using RAMWatch.Core.Models;
 
@@ -48,6 +49,93 @@ public sealed class SnapshotOption
 }
 
 /// <summary>
+/// One row in the Manage sub-tab snapshot list.
+/// Carries the full snapshot for delete/rename operations.
+/// </summary>
+public partial class SnapshotManageRow : ObservableObject
+{
+    private readonly SnapshotsViewModel _owner;
+
+    public required TimingSnapshot Snapshot { get; init; }
+    public required string PrimaryTimings { get; init; }
+    public required string DateDisplay { get; init; }
+    public required string ValidationDisplay { get; init; }
+
+    [ObservableProperty]
+    private string _label = "";
+
+    [ObservableProperty]
+    private bool _isRenaming;
+
+    [ObservableProperty]
+    private bool _deleteConfirmPending;
+
+    private System.Threading.Timer? _confirmTimer;
+
+    // Inject the owner so commands can call back into the ViewModel.
+    public SnapshotManageRow(SnapshotsViewModel owner) => _owner = owner;
+
+    [RelayCommand]
+    private void StartRename()
+    {
+        // Populate the editable field with the current label before entering edit mode.
+        Label = Snapshot.Label;
+        IsRenaming = true;
+    }
+
+    [RelayCommand]
+    private void ConfirmRename()
+    {
+        if (string.IsNullOrWhiteSpace(Label))
+        {
+            // Revert — empty label is not allowed.
+            Label = Snapshot.Label;
+        }
+        else
+        {
+            _owner.CommitRename(this, Label.Trim());
+        }
+        IsRenaming = false;
+    }
+
+    [RelayCommand]
+    private void CancelRename()
+    {
+        Label = Snapshot.Label;
+        IsRenaming = false;
+    }
+
+    [RelayCommand]
+    private void RequestDelete()
+    {
+        if (!DeleteConfirmPending)
+        {
+            DeleteConfirmPending = true;
+            _confirmTimer?.Dispose();
+            _confirmTimer = new System.Threading.Timer(
+                _ => ResetConfirm(),
+                null,
+                dueTime: TimeSpan.FromSeconds(3),
+                period: System.Threading.Timeout.InfiniteTimeSpan);
+        }
+        else
+        {
+            _confirmTimer?.Dispose();
+            _confirmTimer = null;
+            _owner.CommitDelete(this);
+        }
+    }
+
+    private void ResetConfirm()
+    {
+        _confirmTimer?.Dispose();
+        _confirmTimer = null;
+        System.Windows.Application.Current?.Dispatcher.Invoke(
+            () => DeleteConfirmPending = false);
+    }
+}
+
+/// <summary>
 /// Backing view model for SnapshotsTab. Manages two snapshot slots
 /// and produces a comparison grid showing deltas and direction.
 /// </summary>
@@ -60,6 +148,58 @@ public partial class SnapshotsViewModel : ObservableObject
     public ObservableCollection<SnapshotOption> AvailableSnapshots { get; } = [];
     public ObservableCollection<ComparisonRow> ComparisonRows { get; } = [];
 
+    // ── Manage sub-tab ───────────────────────────────────────
+
+    /// <summary>
+    /// All saved snapshots in reverse-chronological order for the Manage sub-tab.
+    /// Synthetic "Current" and "LKG" entries are NOT included — those cannot be deleted.
+    /// </summary>
+    public ObservableCollection<SnapshotManageRow> ManageRows { get; } = [];
+
+    // Delegates injected by MainViewModel for IPC operations.
+    private Func<string, Task>? _deleteSnapshotHandler;
+    private Func<string, string, Task>? _renameSnapshotHandler;
+
+    /// <summary>
+    /// Injects the IPC callback used to delete a snapshot on the service side.
+    /// </summary>
+    public void SetDeleteHandler(Func<string, Task> handler)
+        => _deleteSnapshotHandler = handler;
+
+    /// <summary>
+    /// Injects the IPC callback used to rename a snapshot on the service side.
+    /// </summary>
+    public void SetRenameHandler(Func<string, string, Task> handler)
+        => _renameSnapshotHandler = handler;
+
+    /// <summary>
+    /// Called by SnapshotManageRow.ConfirmRename. Sends rename IPC and updates the
+    /// compare dropdown label optimistically (the next state push will confirm).
+    /// </summary>
+    internal void CommitRename(SnapshotManageRow row, string newLabel)
+    {
+        if (string.IsNullOrWhiteSpace(row.Snapshot.SnapshotId)) return;
+        _ = _renameSnapshotHandler?.Invoke(row.Snapshot.SnapshotId, newLabel);
+    }
+
+    /// <summary>
+    /// Called by SnapshotManageRow.RequestDelete on confirmed second click.
+    /// Removes the row from the local list immediately and sends delete IPC.
+    /// </summary>
+    internal void CommitDelete(SnapshotManageRow row)
+    {
+        ManageRows.Remove(row);
+        // Also remove from the compare dropdown if it's present.
+        var option = AvailableSnapshots.FirstOrDefault(
+            o => o.Snapshot?.SnapshotId == row.Snapshot.SnapshotId);
+        if (option is not null)
+            AvailableSnapshots.Remove(option);
+
+        if (string.IsNullOrWhiteSpace(row.Snapshot.SnapshotId)) return;
+        // Fire-and-forget — the UI is already updated; we don't block on the IPC response.
+        _ = _deleteSnapshotHandler?.Invoke(row.Snapshot.SnapshotId);
+    }
+
     [ObservableProperty]
     private SnapshotOption? _leftSelection;
 
@@ -71,6 +211,12 @@ public partial class SnapshotsViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _hasComparison;
+
+    /// <summary>
+    /// True when ManageRows has at least one entry. Drives the Manage sub-tab empty state.
+    /// </summary>
+    [ObservableProperty]
+    private bool _hasManageRows;
 
     /// <summary>
     /// When false (default), only show snapshots where timings differ from
@@ -124,6 +270,20 @@ public partial class SnapshotsViewModel : ObservableObject
 
         ApplyFilter();
 
+        // Rebuild ManageRows from the saved (non-synthetic) snapshots in reverse-chronological order.
+        // The service sends them in insertion order (oldest first); reverse here for display.
+        ManageRows.Clear();
+        if (available is { Count: > 0 })
+        {
+            for (int i = available.Count - 1; i >= 0; i--)
+            {
+                var snap = available[i];
+                var hasValidation = validationLookup.ContainsKey(snap.SnapshotId ?? "");
+                ManageRows.Add(BuildManageRow(snap, hasValidation));
+            }
+        }
+        HasManageRows = ManageRows.Count > 0;
+
         // Restore selections or pick sensible defaults.
         // The LKG entry's DisplayName can vary ("LKG" or "LKG (tool ...)") so we
         // match on IsSynthetic + DisplayName prefix rather than the exact string.
@@ -131,6 +291,28 @@ public partial class SnapshotsViewModel : ObservableObject
                          ?? AvailableSnapshots.FirstOrDefault(o => o.DisplayName == "Current");
         RightSelection = AvailableSnapshots.FirstOrDefault(o => o.DisplayName == rightName)
                          ?? AvailableSnapshots.FirstOrDefault(o => o.IsSynthetic && o.DisplayName.StartsWith("LKG", StringComparison.Ordinal));
+    }
+
+    private SnapshotManageRow BuildManageRow(TimingSnapshot snap, bool hasValidation)
+    {
+        var local = snap.Timestamp.Kind == DateTimeKind.Utc
+            ? snap.Timestamp.ToLocalTime()
+            : snap.Timestamp;
+
+        string primary = snap.MemClockMhz > 0
+            ? $"CL{snap.CL}-{snap.RCDRD}-{snap.RP}-{snap.RAS} @ DDR{snap.MemClockMhz * 2}"
+            : $"CL{snap.CL}-{snap.RCDRD}-{snap.RP}-{snap.RAS}";
+
+        string validation = hasValidation ? "Yes" : "";
+
+        return new SnapshotManageRow(this)
+        {
+            Snapshot          = snap,
+            Label             = snap.Label,
+            PrimaryTimings    = primary,
+            DateDisplay       = local.ToString("yyyy-MM-dd HH:mm"),
+            ValidationDisplay = validation
+        };
     }
 
     /// <summary>
@@ -171,6 +353,15 @@ public partial class SnapshotsViewModel : ObservableObject
 
                 // Manual label: always show.
                 if (IsManualLabel(opt))
+                {
+                    AvailableSnapshots.Add(opt);
+                    continue;
+                }
+
+                // Legacy snapshot with no SnapshotId — always include.
+                // These were created before the journal wired in the ID field;
+                // we cannot reliably de-duplicate them so always show them.
+                if (opt.Snapshot is not null && string.IsNullOrEmpty(opt.Snapshot.SnapshotId))
                 {
                     AvailableSnapshots.Add(opt);
                     continue;

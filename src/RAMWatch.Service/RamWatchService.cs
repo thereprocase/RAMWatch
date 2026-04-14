@@ -56,9 +56,8 @@ public sealed class RamWatchService : BackgroundService
         var config = _settings.Load();
         _logger.LogInformation("RAMWatch service starting. Data directory: {Path}", DataDirectory.BasePath);
 
-        // Boot ID for CSV grouping
-        var bootTime = DateTime.UtcNow - TimeSpan.FromMilliseconds(Environment.TickCount64);
-        _bootId = CsvLogger.GenerateBootId(bootTime);
+        // Boot ID — sequential counter persisted to disk; never collides.
+        _bootId = CsvLogger.GenerateBootId(DataDirectory.BasePath);
 
         // CSV logger with retention
         _csvLogger = new CsvLogger(
@@ -481,6 +480,14 @@ public sealed class RamWatchService : BackgroundService
                 await HandleGetDigestAsync(getDigest, client);
                 break;
 
+            case DeleteSnapshotMessage delSnap:
+                await HandleDeleteSnapshotAsync(delSnap, client);
+                break;
+
+            case RenameSnapshotMessage renSnap:
+                await HandleRenameSnapshotAsync(renSnap, client);
+                break;
+
             default:
                 _logger.LogDebug("Unhandled message type: {Type}", message.Type);
                 break;
@@ -787,6 +794,109 @@ public sealed class RamWatchService : BackgroundService
                 Type = "response",
                 RequestId = msg.RequestId,
                 Status = "ok"
+            }));
+    }
+
+    private async Task HandleDeleteSnapshotAsync(DeleteSnapshotMessage msg, ConnectedClient client)
+    {
+        if (_snapshotJournal is null)
+        {
+            await client.SendAsync(MessageSerializer.Serialize(
+                new ResponseMessage
+                {
+                    Type      = "response",
+                    RequestId = msg.RequestId,
+                    Status    = "error",
+                    Code      = "not_ready",
+                    Message   = "Snapshot journal not initialised"
+                }));
+            return;
+        }
+
+        bool removed = _snapshotJournal.DeleteById(msg.SnapshotId);
+        if (!removed)
+        {
+            await client.SendAsync(MessageSerializer.Serialize(
+                new ResponseMessage
+                {
+                    Type      = "response",
+                    RequestId = msg.RequestId,
+                    Status    = "error",
+                    Code      = "not_found",
+                    Message   = $"No snapshot with id {msg.SnapshotId}"
+                }));
+            return;
+        }
+
+        // Broadcast updated state so all connected GUIs refresh snapshot lists.
+        if (_aggregator is not null)
+            await _aggregator.BroadcastStateAsync();
+
+        await client.SendAsync(MessageSerializer.Serialize(
+            new ResponseMessage
+            {
+                Type      = "response",
+                RequestId = msg.RequestId,
+                Status    = "ok"
+            }));
+    }
+
+    private async Task HandleRenameSnapshotAsync(RenameSnapshotMessage msg, ConnectedClient client)
+    {
+        if (_snapshotJournal is null)
+        {
+            await client.SendAsync(MessageSerializer.Serialize(
+                new ResponseMessage
+                {
+                    Type      = "response",
+                    RequestId = msg.RequestId,
+                    Status    = "error",
+                    Code      = "not_ready",
+                    Message   = "Snapshot journal not initialised"
+                }));
+            return;
+        }
+
+        // Reject blank labels — the service never stores a snapshot with no label.
+        if (string.IsNullOrWhiteSpace(msg.NewLabel))
+        {
+            await client.SendAsync(MessageSerializer.Serialize(
+                new ResponseMessage
+                {
+                    Type      = "response",
+                    RequestId = msg.RequestId,
+                    Status    = "error",
+                    Code      = "invalid_label",
+                    Message   = "NewLabel must not be empty"
+                }));
+            return;
+        }
+
+        bool updated = _snapshotJournal.RenameById(msg.SnapshotId, msg.NewLabel);
+        if (!updated)
+        {
+            await client.SendAsync(MessageSerializer.Serialize(
+                new ResponseMessage
+                {
+                    Type      = "response",
+                    RequestId = msg.RequestId,
+                    Status    = "error",
+                    Code      = "not_found",
+                    Message   = $"No snapshot with id {msg.SnapshotId}"
+                }));
+            return;
+        }
+
+        // Broadcast updated state so all connected GUIs refresh snapshot labels.
+        if (_aggregator is not null)
+            await _aggregator.BroadcastStateAsync();
+
+        await client.SendAsync(MessageSerializer.Serialize(
+            new ResponseMessage
+            {
+                Type      = "response",
+                RequestId = msg.RequestId,
+                Status    = "ok"
             }));
     }
 }
