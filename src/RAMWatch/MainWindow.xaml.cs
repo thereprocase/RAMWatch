@@ -66,6 +66,14 @@ public partial class MainWindow : System.Windows.Window
             onSaveSnapshot: () => Dispatcher.Invoke(ShowSnapshotDialogAndSave));
         _tray.Initialize();
 
+        // Start minimized to tray if launched with --minimized (autostart)
+        // or if the StartMinimized setting is enabled.
+        bool cliMinimized = Application.Current is App app && app.StartMinimized;
+        if (cliMinimized || _settingsVm.StartMinimized)
+        {
+            _tray.MinimizeToTray();
+        }
+
         await _viewModel.StartAsync();
     }
 
@@ -134,6 +142,8 @@ public partial class MainWindow : System.Windows.Window
     {
         if (e.PropertyName == nameof(SettingsViewModel.AlwaysOnTop))
             Topmost = _settingsVm.AlwaysOnTop;
+        if (e.PropertyName == nameof(SettingsViewModel.MinimizeToTray))
+            _minimizeToTray = _settingsVm.MinimizeToTray;
     }
 
     /// <summary>

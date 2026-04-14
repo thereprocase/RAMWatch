@@ -8,6 +8,12 @@ public partial class App : System.Windows.Application
 {
     private Mutex? _instanceMutex;
 
+    /// <summary>
+    /// True when launched with --minimized (e.g. from autostart registry entry).
+    /// MainWindow reads this to start hidden in the system tray.
+    /// </summary>
+    public bool StartMinimized { get; private set; }
+
     protected override void OnStartup(StartupEventArgs e)
     {
         _instanceMutex = new Mutex(true, "RAMWatch_SingleInstance", out bool isNew);
@@ -17,6 +23,9 @@ public partial class App : System.Windows.Application
             Shutdown();
             return;
         }
+
+        // Parse CLI args — Install-RAMWatch.ps1 registers autostart with --minimized.
+        StartMinimized = e.Args.Contains("--minimized", StringComparer.OrdinalIgnoreCase);
 
         base.OnStartup(e);
     }
