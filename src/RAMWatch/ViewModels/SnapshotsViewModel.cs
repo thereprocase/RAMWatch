@@ -403,25 +403,19 @@ public partial class SnapshotsViewModel : ObservableObject
     {
         if (current is null) return null;
 
-        // AvailableSnapshots has synthetics first, then saved entries in chronological order.
-        // Walk backwards to find the most recent saved snapshot with different timings.
-        for (int i = AvailableSnapshots.Count - 1; i >= 0; i--)
+        // AvailableSnapshots has synthetics first, then saved entries newest-first.
+        // Walk forward — the first non-synthetic with different timings is the most recent.
+        SnapshotOption? firstSaved = null;
+        foreach (var opt in AvailableSnapshots)
         {
-            var opt = AvailableSnapshots[i];
             if (opt.IsSynthetic || opt.Snapshot is null) continue;
+            firstSaved ??= opt;
             if (!TimingsEqual(opt.Snapshot, current))
                 return opt;
         }
 
         // All saved snapshots match current — fall back to the most recent saved one.
-        for (int i = AvailableSnapshots.Count - 1; i >= 0; i--)
-        {
-            var opt = AvailableSnapshots[i];
-            if (!opt.IsSynthetic && opt.Snapshot is not null)
-                return opt;
-        }
-
-        return null;
+        return firstSaved;
     }
 
     /// <summary>
