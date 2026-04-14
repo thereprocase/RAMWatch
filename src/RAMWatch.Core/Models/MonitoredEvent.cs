@@ -33,3 +33,13 @@ public sealed record ErrorSource(
     int Count,
     DateTime? LastSeen
 );
+
+/// <summary>
+/// Per-source event counts for a single boot. Stored in boot_baselines.json.
+/// </summary>
+public sealed class BootCountEntry
+{
+    public required string BootId { get; init; }
+    public required DateTime Timestamp { get; init; }
+    public required Dictionary<string, int> Counts { get; init; }
+}

@@ -445,16 +445,17 @@ public partial class MainViewModel : ObservableObject
             int total = 0;
             int stability = 0;
             int system = 0;
+            var baselines = state.SourceBaselines;
             // Stability sources first so they appear at the top of the table.
             foreach (var src in state.Errors.Where(s => s.Category == EventCategory.Hardware).OrderByDescending(s => s.Count))
             {
-                ErrorSources.Add(new ErrorSourceVm(src));
+                ErrorSources.Add(new ErrorSourceVm(src, baselines));
                 total += src.Count;
                 stability += src.Count;
             }
             foreach (var src in state.Errors.Where(s => s.Category != EventCategory.Hardware).OrderByDescending(s => s.Count))
             {
-                ErrorSources.Add(new ErrorSourceVm(src));
+                ErrorSources.Add(new ErrorSourceVm(src, baselines));
                 total += src.Count;
                 system += src.Count;
             }
@@ -694,6 +695,7 @@ public partial class MainViewModel : ObservableObject
 /// <summary>
 /// Observable wrapper for ErrorSource — supports in-place count updates
 /// from live events without rebuilding the entire collection.
+/// Computes CountSeverity from boot baseline when available.
 /// </summary>
 public partial class ErrorSourceVm : ObservableObject
 {
@@ -709,13 +711,21 @@ public partial class ErrorSourceVm : ObservableObject
     // (red), all others are Warning (amber).
     public string DefaultSeverity { get; }
 
+    /// <summary>
+    /// Baseline-aware severity for the Count column color.
+    /// "None" = zero count (dim grey), "Normal" = within baseline (grey/bold),
+    /// "Elevated" = above baseline (amber), "High" = well above baseline (red).
+    /// Hardware sources with count > 0 are always "High".
+    /// </summary>
+    public string CountSeverity { get; }
+
     [ObservableProperty]
     private int _count;
 
     [ObservableProperty]
     private string? _lastSeen;
 
-    public ErrorSourceVm(ErrorSource source)
+    public ErrorSourceVm(ErrorSource source, Dictionary<string, double>? baselines = null)
     {
         Name = source.Name;
         Category = source.Category.ToString();
@@ -723,5 +733,38 @@ public partial class ErrorSourceVm : ObservableObject
         LastSeen = source.LastSeen?.ToLocalTime().ToString("HH:mm:ss");
         IsStability = source.Category == EventCategory.Hardware;
         DefaultSeverity = IsStability ? "Critical" : "Warning";
+        CountSeverity = ComputeCountSeverity(source, baselines);
+    }
+
+    private static string ComputeCountSeverity(ErrorSource source, Dictionary<string, double>? baselines)
+    {
+        if (source.Count == 0)
+            return "None";
+
+        // Hardware errors are always alarming when present.
+        if (source.Category == EventCategory.Hardware)
+            return "High";
+
+        // No baseline data — fall back to amber for any non-zero system source.
+        if (baselines is null || !baselines.TryGetValue(source.Name, out double mean))
+            return "Elevated";
+
+        // Baseline thresholds:
+        // <= mean * 1.5 → Normal (within 50% of average)
+        // <= mean * 2.5 → Elevated (sketchy)
+        // > mean * 2.5  → High (very sketchy)
+        // Special case: if mean is 0, any count is unusual.
+        if (mean < 0.5)
+        {
+            // Source is normally zero — any count is at least elevated.
+            return source.Count <= 2 ? "Elevated" : "High";
+        }
+
+        double ratio = source.Count / mean;
+        if (ratio <= 1.5)
+            return "Normal";
+        if (ratio <= 2.5)
+            return "Elevated";
+        return "High";
     }
 }

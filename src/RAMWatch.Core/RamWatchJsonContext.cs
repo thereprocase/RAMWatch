@@ -60,6 +60,9 @@ namespace RAMWatch.Core;
 [JsonSerializable(typeof(BootEntry))]
 [JsonSerializable(typeof(List<BootEntry>))]
 [JsonSerializable(typeof(Dictionary<string, int>))]
+[JsonSerializable(typeof(Dictionary<string, double>))]
+[JsonSerializable(typeof(BootCountEntry))]
+[JsonSerializable(typeof(List<BootCountEntry>))]
 public partial class RamWatchJsonContext : JsonSerializerContext
 {
 }

@@ -34,6 +34,9 @@ public sealed class StateAggregator
     // BoardVendor enum in the serialised ServiceState.
     private string? _biosLayoutVendor;
 
+    // Boot baseline — per-source mean counts from past boots
+    private BootBaselineJournal? _baselineJournal;
+
     // Phase 3 — current-boot drift events, accumulated here so they survive
     // until the next periodic state push.
     private readonly List<DriftEvent> _currentBootDrift = new();
@@ -93,6 +96,14 @@ public sealed class StateAggregator
     }
 
     /// <summary>
+    /// Wire the boot baseline journal so baselines are included in state pushes.
+    /// </summary>
+    public void SetBaselineJournal(BootBaselineJournal journal)
+    {
+        lock (_lock) { _baselineJournal = journal; }
+    }
+
+    /// <summary>
     /// Record drift events detected during the current boot so they are
     /// included in the next state push.
     /// </summary>
@@ -124,6 +135,7 @@ public sealed class StateAggregator
         ValidationTestLogger? validationLogger;
         LkgTracker? lkgTracker;
         SnapshotJournal? snapshotJournal;
+        BootBaselineJournal? baselineJournal;
 
         lock (_lock)
         {
@@ -137,6 +149,7 @@ public sealed class StateAggregator
             validationLogger     = _validationLogger;
             lkgTracker           = _lkgTracker;
             snapshotJournal      = _snapshotJournal;
+            baselineJournal      = _baselineJournal;
         }
 
         // Step 2: call methods that acquire their own locks OUTSIDE _lock.
@@ -166,6 +179,15 @@ public sealed class StateAggregator
                 snapshots = all;
         }
 
+        // Boot baselines — computed once per state push (cheap: just averaging in-memory lists).
+        Dictionary<string, double>? baselines = null;
+        if (baselineJournal is not null)
+        {
+            var computed = baselineJournal.ComputeBaselines();
+            if (computed.Count > 0)
+                baselines = computed;
+        }
+
         var bootTime = GetLastBootTime();
 
         return new ServiceState
@@ -186,7 +208,8 @@ public sealed class StateAggregator
             DriftEvents = driftEvents,
             RecentValidations = recentValidations,
             Lkg = lkg,
-            Snapshots = snapshots
+            Snapshots = snapshots,
+            SourceBaselines = baselines
         };
     }
 

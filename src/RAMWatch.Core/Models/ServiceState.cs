@@ -35,4 +35,11 @@ public sealed class ServiceState
     public TimingSnapshot? Lkg { get; init; }
     /// <summary>All saved snapshots for the snapshot comparison tab.</summary>
     public List<TimingSnapshot>? Snapshots { get; init; }
+
+    /// <summary>
+    /// Per-source baseline means from past boots (IQR-filtered).
+    /// Null when fewer than 3 boots of history exist.
+    /// Used by the GUI to color-code event counts relative to normal.
+    /// </summary>
+    public Dictionary<string, double>? SourceBaselines { get; init; }
 }

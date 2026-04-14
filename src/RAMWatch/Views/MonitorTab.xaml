@@ -119,16 +119,22 @@
                 <DataGridTextColumn Header="Source" Binding="{Binding Name}" Width="*" MinWidth="150">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock">
-                            <!-- Default: severity color (red for WHEA/MCE/Bugcheck, amber for others) -->
-                            <Setter Property="Foreground"
-                                    Value="{Binding DefaultSeverity,
-                                            Converter={StaticResource SeverityToColor}}" />
+                            <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
                             <Setter Property="Padding" Value="8,0" />
                             <Setter Property="VerticalAlignment" Value="Center" />
                             <Style.Triggers>
-                                <!-- No active errors: dim to TextSecondary -->
-                                <DataTrigger Binding="{Binding Count}" Value="0">
-                                    <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+                                <!-- Normal: baseline-expected count — bold but not alarming -->
+                                <DataTrigger Binding="{Binding CountSeverity}" Value="Normal">
+                                    <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                </DataTrigger>
+                                <!-- Elevated: above baseline — amber -->
+                                <DataTrigger Binding="{Binding CountSeverity}" Value="Elevated">
+                                    <Setter Property="Foreground" Value="{StaticResource StatusAmber}" />
+                                </DataTrigger>
+                                <!-- High: well above baseline or hardware error — red -->
+                                <DataTrigger Binding="{Binding CountSeverity}" Value="High">
+                                    <Setter Property="Foreground" Value="{StaticResource StatusRed}" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
@@ -147,13 +153,22 @@
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock">
                             <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
-                            <Setter Property="Foreground" Value="{StaticResource StatusRed}" />
+                            <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
                             <Setter Property="TextAlignment" Value="Right" />
                             <Setter Property="Padding" Value="0,0,8,0" />
                             <Setter Property="VerticalAlignment" Value="Center" />
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding Count}" Value="0">
-                                    <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+                                <DataTrigger Binding="{Binding CountSeverity}" Value="Normal">
+                                    <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding CountSeverity}" Value="Elevated">
+                                    <Setter Property="Foreground" Value="{StaticResource StatusAmber}" />
+                                    <Setter Property="FontWeight" Value="Bold" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding CountSeverity}" Value="High">
+                                    <Setter Property="Foreground" Value="{StaticResource StatusRed}" />
+                                    <Setter Property="FontWeight" Value="Bold" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>

@@ -42,6 +42,9 @@ public sealed class RamWatchService : BackgroundService
     // Resets to false on each service start; set to true after the first save.
     private bool _autoSavedThisBoot;
 
+    // Boot baseline — rolling 50-boot event count history for normal/elevated coloring
+    private BootBaselineJournal? _baselineJournal;
+
     // Phase 4 — git-backed history
     private GitCommitter? _gitCommitter;
 
@@ -101,6 +104,9 @@ public sealed class RamWatchService : BackgroundService
         _snapshotJournal = new SnapshotJournal(DataDirectory.BasePath);
         _snapshotJournal.Load();
 
+        _baselineJournal = new BootBaselineJournal(DataDirectory.BasePath);
+        _baselineJournal.Load();
+
         // Phase 4 — git committer (initialise after LKG so commit context is available)
         _gitCommitter = new GitCommitter(_settings, _logger);
         await _gitCommitter.InitializeAsync(stoppingToken);
@@ -136,6 +142,9 @@ public sealed class RamWatchService : BackgroundService
             _validationLogger,
             _lkgTracker,
             _snapshotJournal);
+
+        // Wire boot baseline journal for per-source normal/elevated coloring.
+        _aggregator.SetBaselineJournal(_baselineJournal);
 
         // Set initial driver status (even if no timings yet)
         _aggregator.SetTimings(null, _hardwareReader.DriverStatus);
@@ -175,6 +184,11 @@ public sealed class RamWatchService : BackgroundService
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("RAMWatch service stopping");
+
+        // Record this boot's event counts before disposing the event log.
+        if (_baselineJournal is not null && _eventLog is not null)
+            _baselineJournal.RecordBoot(_bootId, _eventLog.GetErrorSources());
+
         _eventLog?.Dispose();
         _csvLogger?.Dispose();
         _timingCsvLogger?.Dispose();
