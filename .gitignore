@@ -1,0 +1,39 @@
+# .NET build output
+bin/
+obj/
+publish/
+
+# Native AOT artifacts
+*.ilk
+*.pdb
+*.exp
+*.lib
+*.obj
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.cache
+*.sln.DotSettings.user
+*.DotSettings.user
+
+# JetBrains Rider
+.idea/
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# InpOutx64 driver (user-provided, never committed)
+InpOutx64.dll
+inpoutx64.dll
+
+# Reference directory (cloned separately, not project source)
+reference/
