@@ -47,18 +47,25 @@ if (-not $SkipPublish) {
     if (-not $GuiOnly) {
         Write-Host "Publishing service..." -ForegroundColor Cyan
         $serviceOut = Join-Path $distRoot 'service'
+
+        # Try Native AOT first — suppress errors, check exit code
+        $ErrorActionPreference = 'Continue'
         & $dotnet publish (Join-Path $repoRoot 'src\RAMWatch.Service') `
             -c $Configuration -r win-x64 -o $serviceOut 2>&1 | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            # Fallback to non-AOT
+        $aotResult = $LASTEXITCODE
+
+        if ($aotResult -ne 0) {
+            Write-Host "  AOT failed, falling back to single-file..." -ForegroundColor Yellow
             & $dotnet publish (Join-Path $repoRoot 'src\RAMWatch.Service') `
                 -c $Configuration -r win-x64 -o $serviceOut `
-                -p:PublishAot=false -p:SelfContained=true -p:PublishSingleFile=true 2>&1 | Out-Null
+                -p:PublishAot=false -p:SelfContained=true -p:PublishSingleFile=true 2>&1
             if ($LASTEXITCODE -ne 0) {
                 Write-Host "Service publish failed." -ForegroundColor Red
+                $ErrorActionPreference = 'Stop'
                 exit 1
             }
         }
+        $ErrorActionPreference = 'Stop'
         Write-Host "  Service published" -ForegroundColor Green
     }
 
@@ -66,7 +73,7 @@ if (-not $SkipPublish) {
         Write-Host "Publishing GUI..." -ForegroundColor Cyan
         $guiOut = Join-Path $distRoot 'gui'
         & $dotnet publish (Join-Path $repoRoot 'src\RAMWatch') `
-            -c $Configuration -r win-x64 -o $guiOut 2>&1 | Out-Null
+            -c $Configuration -r win-x64 -o $guiOut 2>&1
         if ($LASTEXITCODE -ne 0) {
             Write-Host "GUI publish failed." -ForegroundColor Red
             exit 1
@@ -132,10 +139,11 @@ if (-not $GuiOnly) {
     }
 }
 
-# 6. Relaunch GUI if it was running
+# 6. Relaunch GUI if it was running — as the interactive user, not admin
 if (-not $ServiceOnly -and $guiWasRunning -and (Test-Path $guiExe)) {
-    Write-Host "Relaunching GUI..." -ForegroundColor Cyan
-    Start-Process $guiExe
+    Write-Host "Relaunching GUI (as current user, not admin)..." -ForegroundColor Cyan
+    # Use explorer.exe to launch — it de-elevates to the interactive user token
+    explorer.exe $guiExe
     Write-Host "  GUI: launched" -ForegroundColor Green
 }
 
