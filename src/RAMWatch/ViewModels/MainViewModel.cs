@@ -382,9 +382,10 @@ public partial class MainViewModel : ObservableObject
         Application.Current?.Dispatcher.Invoke(() =>
             Timeline.LoadFromState(state));
 
-        // Snapshots — update dropdown options (preserves user's current selection)
+        // Snapshots — update dropdown options (preserves user's current selection).
+        // RecentValidations provides the data needed to label entries with test results.
         Application.Current?.Dispatcher.Invoke(() =>
-            Snapshots.LoadSnapshots(state.Snapshots, state.Timings, state.Lkg));
+            Snapshots.LoadSnapshots(state.Snapshots, state.Timings, state.Lkg, state.RecentValidations));
     }
 
     private void ApplyEvent(MonitoredEvent evt)

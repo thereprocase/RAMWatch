@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using RAMWatch.Core;
 using RAMWatch.Core.Models;
 
 namespace RAMWatch.ViewModels;
@@ -36,6 +37,12 @@ public sealed class SnapshotOption
 {
     public required string DisplayName { get; init; }
     public TimingSnapshot? Snapshot { get; init; }
+
+    /// <summary>
+    /// True for the synthetic "Current" and "LKG" entries that are always visible
+    /// regardless of the ShowAllSnapshots filter. Regular saved snapshots are false.
+    /// </summary>
+    public bool IsSynthetic { get; init; }
 
     public override string ToString() => DisplayName;
 }
@@ -84,7 +91,8 @@ public partial class SnapshotsViewModel : ObservableObject
     public void LoadSnapshots(
         List<TimingSnapshot>? available,
         TimingSnapshot? current,
-        TimingSnapshot? lkg)
+        TimingSnapshot? lkg,
+        List<ValidationResult>? validations = null)
     {
         // Preserve current selections by display name so a state refresh
         // doesn't reset the user's choice.
@@ -93,30 +101,36 @@ public partial class SnapshotsViewModel : ObservableObject
 
         _allOptions.Clear();
 
+        // Build the validation lookup once — keyed by ActiveSnapshotId, most recent wins.
+        var validationLookup = SnapshotDisplayName.BuildLookup(validations);
+
         if (current is not null)
-            _allOptions.Add(new SnapshotOption { DisplayName = "Current", Snapshot = current });
+            _allOptions.Add(new SnapshotOption { DisplayName = "Current", Snapshot = current, IsSynthetic = true });
 
         if (lkg is not null)
-            _allOptions.Add(new SnapshotOption { DisplayName = "LKG", Snapshot = lkg });
+        {
+            var lkgLabel = SnapshotDisplayName.BuildLkg(lkg, validationLookup);
+            _allOptions.Add(new SnapshotOption { DisplayName = lkgLabel, Snapshot = lkg, IsSynthetic = true });
+        }
 
         if (available is { Count: > 0 })
         {
             foreach (var snap in available)
             {
-                var label = !string.IsNullOrEmpty(snap.Label)
-                    ? snap.Label
-                    : $"Snapshot {snap.Timestamp.ToLocalTime():MM/dd HH:mm}";
+                var label = SnapshotDisplayName.Build(snap, validationLookup);
                 _allOptions.Add(new SnapshotOption { DisplayName = label, Snapshot = snap });
             }
         }
 
         ApplyFilter();
 
-        // Restore selections or pick sensible defaults
+        // Restore selections or pick sensible defaults.
+        // The LKG entry's DisplayName can vary ("LKG" or "LKG (tool ...)") so we
+        // match on IsSynthetic + DisplayName prefix rather than the exact string.
         LeftSelection  = AvailableSnapshots.FirstOrDefault(o => o.DisplayName == leftName)
                          ?? AvailableSnapshots.FirstOrDefault(o => o.DisplayName == "Current");
         RightSelection = AvailableSnapshots.FirstOrDefault(o => o.DisplayName == rightName)
-                         ?? AvailableSnapshots.FirstOrDefault(o => o.DisplayName == "LKG");
+                         ?? AvailableSnapshots.FirstOrDefault(o => o.IsSynthetic && o.DisplayName.StartsWith("LKG", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -190,11 +204,9 @@ public partial class SnapshotsViewModel : ObservableObject
 
     /// <summary>
     /// Returns true for synthetic entries (Current, LKG) that are always shown
-    /// regardless of filter state. These are identified by having a null or
-    /// well-known DisplayName rather than a timestamped label.
+    /// regardless of filter state.
     /// </summary>
-    private static bool IsAlwaysVisible(SnapshotOption opt) =>
-        opt.DisplayName is "Current" or "LKG";
+    private static bool IsAlwaysVisible(SnapshotOption opt) => opt.IsSynthetic;
 
     /// <summary>
     /// Returns true when the snapshot carries a user-supplied label rather than
