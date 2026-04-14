@@ -32,23 +32,28 @@ public sealed class GitCommitter : IAsyncDisposable
 
     private int _consecutiveFailures;
 
+    // Repo path — defaults to RepoPath, overridable for tests
+    internal string RepoPath { get; }
+
     // Set during construction — stable after that.
     public bool IsAvailable { get; }
     public bool CanPush { get; }
 
     // Production constructor
     public GitCommitter(SettingsManager settings, ILogger logger)
-        : this(settings, logger, DefaultRunProcessAsync) { }
+        : this(settings, logger, DefaultRunProcessAsync, null) { }
 
-    // Testable constructor — accepts an injected process runner
+    // Testable constructor — accepts an injected process runner and optional repo path
     internal GitCommitter(
         SettingsManager settings,
         ILogger logger,
-        Func<ProcessStartInfo, CancellationToken, Task<ProcessResult>> processRunner)
+        Func<ProcessStartInfo, CancellationToken, Task<ProcessResult>> processRunner,
+        string? repoPath = null)
     {
         _settings   = settings;
         _logger     = logger;
         _runProcess = processRunner;
+        RepoPath    = repoPath ?? RepoPath;
 
         _channel = Channel.CreateUnbounded<GitCommitRequest>(
             new UnboundedChannelOptions { SingleReader = true });
@@ -71,7 +76,7 @@ public sealed class GitCommitter : IAsyncDisposable
 
         try
         {
-            Directory.CreateDirectory(DataDirectory.HistoryRepoPath);
+            Directory.CreateDirectory(RepoPath);
             Directory.CreateDirectory(DataDirectory.GhConfigPath);
 
             await RunGitAsync(["init"], LocalGitTimeoutMs, ct);
@@ -88,7 +93,7 @@ public sealed class GitCommitter : IAsyncDisposable
             await RunGitAsync(["config", "user.email", email], LocalGitTimeoutMs, ct);
 
             _drainTask = DrainAsync(_cts.Token);
-            _logger.LogInformation("Git integration initialised. Repo: {Path}", DataDirectory.HistoryRepoPath);
+            _logger.LogInformation("Git integration initialised. Repo: {Path}", RepoPath);
         }
         catch (Exception ex)
         {
@@ -163,7 +168,7 @@ public sealed class GitCommitter : IAsyncDisposable
     {
         try
         {
-            string repoPath = DataDirectory.HistoryRepoPath;
+            string repoPath = RepoPath;
 
             // 1. Write files
             var cfg = _settings.Current;
@@ -309,7 +314,7 @@ public sealed class GitCommitter : IAsyncDisposable
     {
         var psi = new ProcessStartInfo("git")
         {
-            WorkingDirectory = DataDirectory.HistoryRepoPath
+            WorkingDirectory = RepoPath
         };
         foreach (string arg in args)
             psi.ArgumentList.Add(arg);
@@ -334,7 +339,7 @@ public sealed class GitCommitter : IAsyncDisposable
     {
         var psi = new ProcessStartInfo("gh")
         {
-            WorkingDirectory = DataDirectory.HistoryRepoPath
+            WorkingDirectory = RepoPath
         };
         psi.ArgumentList.Add("repo");
         psi.ArgumentList.Add("sync");

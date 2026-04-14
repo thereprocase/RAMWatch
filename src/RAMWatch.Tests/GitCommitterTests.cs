@@ -286,12 +286,10 @@ public class GitCommitterTests : IDisposable
     {
         var mgr = settings ?? MakeSettings(enableGit: true);
 
-        // Override DataDirectory paths by pointing the repo to our temp dir.
-        // GitCommitter reads DataDirectory.HistoryRepoPath directly, so we create
-        // that directory under our temp area to avoid writing to ProgramData.
-        // (DataDirectory is a static class; in tests we just ensure the path exists.)
-        Directory.CreateDirectory(DataDirectory.HistoryRepoPath);
-        Directory.CreateDirectory(DataDirectory.GhConfigPath);
+        // Use a temp directory for the repo so tests don't need admin access
+        // to write to %ProgramData%\RAMWatch\history.
+        string repoPath = Path.Combine(_tempDir, "history");
+        Directory.CreateDirectory(repoPath);
 
         Func<ProcessStartInfo, CancellationToken, Task<ProcessResult>> defaultRunner =
             (psi, ct) =>
@@ -301,7 +299,7 @@ public class GitCommitterTests : IDisposable
                 return Task.FromResult(new ProcessResult(0, "ok", ""));
             };
 
-        return new GitCommitter(mgr, MakeNullLogger(), runner ?? defaultRunner);
+        return new GitCommitter(mgr, MakeNullLogger(), runner ?? defaultRunner, repoPath);
     }
 
     [Fact]
@@ -358,8 +356,8 @@ public class GitCommitterTests : IDisposable
 
         committer.Enqueue(req);
 
-        // Give the drain task a moment to process the single request
-        await Task.Delay(200, cts.Token);
+        // DisposeAsync drains the queue before returning
+        await Task.Delay(500, cts.Token);
         await committer.DisposeAsync();
 
         // Find the "git commit -m ..." call
@@ -386,7 +384,7 @@ public class GitCommitterTests : IDisposable
             CurrentSnapshot = MakeSnapshot()
         });
 
-        await Task.Delay(200, cts.Token);
+        await Task.Delay(500, cts.Token);
         await committer.DisposeAsync();
 
         var addCalls = calls.Where(c => c.args.Contains("add")).ToList();
@@ -434,7 +432,7 @@ public class GitCommitterTests : IDisposable
         };
 
         committer.Enqueue(req);
-        await Task.Delay(200, cts.Token);
+        await Task.Delay(500, cts.Token);
         await committer.DisposeAsync();
 
         var commitCall = calls.FirstOrDefault(c => c.args.Contains("commit"));
@@ -465,7 +463,7 @@ public class GitCommitterTests : IDisposable
             };
 
         var settings  = MakeSettings(enableGit: true);
-        var committer = new GitCommitter(settings, MakeNullLogger(), slowRunner);
+        var committer = new GitCommitter(settings, MakeNullLogger(), slowRunner, Path.Combine(_tempDir, "history"));
 
         using var cts = new CancellationTokenSource(5000);
         await committer.InitializeAsync(cts.Token);
@@ -501,7 +499,7 @@ public class GitCommitterTests : IDisposable
             };
 
         var settings  = MakeSettings(enableGit: true);
-        var committer = new GitCommitter(settings, MakeNullLogger(), failingRunner);
+        var committer = new GitCommitter(settings, MakeNullLogger(), failingRunner, Path.Combine(_tempDir, "history"));
 
         using var cts = new CancellationTokenSource(10_000);
         await committer.InitializeAsync(cts.Token);
@@ -564,7 +562,9 @@ public class GitCommitterTests : IDisposable
             };
 
         var settings  = MakeSettings(enableGit: true);
-        var committer = new GitCommitter(settings, MakeNullLogger(), runner);
+        string repoPath = Path.Combine(_tempDir, "history");
+        Directory.CreateDirectory(repoPath);
+        var committer = new GitCommitter(settings, MakeNullLogger(), runner, repoPath);
 
         using var cts = new CancellationTokenSource(5000);
         await committer.InitializeAsync(cts.Token);
@@ -580,7 +580,7 @@ public class GitCommitterTests : IDisposable
             CurrentSnapshot = MakeSnapshot()
         });
 
-        await Task.Delay(200, cts.Token);
+        await Task.Delay(500, cts.Token);
         await committer.DisposeAsync();
 
         Assert.True(commitAttempts >= 1, "Expected at least one commit after reset");
