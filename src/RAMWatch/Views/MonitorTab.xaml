@@ -2,6 +2,27 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
+    <UserControl.Resources>
+        <!-- Group the error source collection by IsStability so stability sources
+             appear above system sources with a labelled separator between them. -->
+        <CollectionViewSource x:Key="GroupedErrorSources"
+                              Source="{Binding ErrorSources}">
+            <CollectionViewSource.GroupDescriptions>
+                <PropertyGroupDescription PropertyName="IsStability" />
+            </CollectionViewSource.GroupDescriptions>
+            <CollectionViewSource.SortDescriptions>
+                <!-- IsStability=True (stability) sorts before False (system) in descending order.
+                     Within each group sort by descending count so active sources surface first. -->
+                <ComponentModel:SortDescription xmlns:ComponentModel="clr-namespace:System.ComponentModel;assembly=WindowsBase"
+                                                PropertyName="IsStability"
+                                                Direction="Descending" />
+                <ComponentModel:SortDescription xmlns:ComponentModel="clr-namespace:System.ComponentModel;assembly=WindowsBase"
+                                                PropertyName="Count"
+                                                Direction="Descending" />
+            </CollectionViewSource.SortDescriptions>
+        </CollectionViewSource>
+    </UserControl.Resources>
+
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />   <!-- Section header -->
@@ -15,13 +36,56 @@
                    Text="ERROR MONITOR"
                    Style="{StaticResource SectionHeader}" />
 
-        <!-- Error source table -->
+        <!-- Error source table — grouped by severity tier (Stability / System). -->
         <DataGrid Grid.Row="1"
                   Style="{StaticResource DarkDataGrid}"
-                  ItemsSource="{Binding ErrorSources}"
+                  ItemsSource="{Binding Source={StaticResource GroupedErrorSources}}"
                   ColumnHeaderStyle="{StaticResource DarkColumnHeader}"
                   AutomationProperties.Name="Error Monitor"
                   Margin="0,4,0,16">
+
+            <!-- Group header row: "STABILITY" or "SYSTEM" label separates the two tiers. -->
+            <DataGrid.GroupStyle>
+                <GroupStyle>
+                    <GroupStyle.HeaderTemplate>
+                        <DataTemplate>
+                            <Border Background="{StaticResource BgAccent}"
+                                    Padding="8,3">
+                                <TextBlock FontSize="10"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextSecondary}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="SYSTEM" />
+                                            <Style.Triggers>
+                                                <!-- Name is the group key (True for stability, False for system) -->
+                                                <DataTrigger Binding="{Binding Name}" Value="True">
+                                                    <Setter Property="Text" Value="STABILITY" />
+                                                    <Setter Property="Foreground" Value="{StaticResource StatusRed}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Border>
+                        </DataTemplate>
+                    </GroupStyle.HeaderTemplate>
+                    <GroupStyle.ContainerStyle>
+                        <Style TargetType="GroupItem">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="GroupItem">
+                                        <StackPanel>
+                                            <ContentPresenter ContentSource="Header" />
+                                            <ItemsPresenter />
+                                        </StackPanel>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </GroupStyle.ContainerStyle>
+                </GroupStyle>
+            </DataGrid.GroupStyle>
 
             <!-- Override default WPF blue row selection highlight -->
             <DataGrid.RowStyle>

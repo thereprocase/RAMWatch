@@ -124,17 +124,39 @@
 
         <!-- Action bar -->
         <Border Grid.Row="4" Padding="16,8">
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Content="Copy to Clipboard"
-                        Style="{StaticResource DarkButton}"
-                        Command="{Binding CopyToClipboardCommand}"
-                        AutomationProperties.Name="Copy to Clipboard"
-                        Margin="0,0,8,0" />
-                <Button Content="Refresh"
-                        Style="{StaticResource DarkButton}"
-                        Command="{Binding RefreshCommand}"
-                        AutomationProperties.Name="Refresh" />
-            </StackPanel>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Log Test Result + confirmation label on the left -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <Button Content="Log Test Result"
+                            Style="{StaticResource DarkButton}"
+                            Command="{Binding LogValidationCommand}"
+                            AutomationProperties.Name="Log Test Result"
+                            Margin="0,0,8,0" />
+                    <TextBlock Text="{Binding ValidationConfirmation}"
+                               Foreground="{StaticResource StatusGreen}"
+                               FontSize="11"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+
+                <!-- Copy + Refresh on the right -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Button Content="Copy to Clipboard"
+                            Style="{StaticResource DarkButton}"
+                            Command="{Binding CopyToClipboardCommand}"
+                            AutomationProperties.Name="Copy to Clipboard"
+                            Margin="0,0,8,0" />
+                    <Button Content="Refresh"
+                            Style="{StaticResource DarkButton}"
+                            Command="{Binding RefreshCommand}"
+                            AutomationProperties.Name="Refresh" />
+                </StackPanel>
+            </Grid>
         </Border>
 
         <!-- Connection banner (shown when not connected) -->

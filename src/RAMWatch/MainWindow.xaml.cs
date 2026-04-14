@@ -51,7 +51,7 @@ public partial class MainWindow : System.Windows.Window
 
         _tray = new TrayIconManager(
             this,
-            onCopyDigest: () => _viewModel.CopyToClipboardCommand.Execute(null),
+            onCopyDigest: () => _viewModel.CopyDigestCommand.Execute(null),
             onSaveSnapshot: () => _viewModel.SaveSnapshotCommand.Execute(null));
         _tray.Initialize();
 
@@ -90,11 +90,12 @@ public partial class MainWindow : System.Windows.Window
                 _tray.SetState(state);
                 break;
 
-            case nameof(MainViewModel.TotalErrorCount):
+            case nameof(MainViewModel.StabilityErrorCount):
+            case nameof(MainViewModel.SystemEventCount):
             case nameof(MainViewModel.UptimeText):
-                var tooltip = _viewModel.TotalErrorCount == 0
-                    ? $"RAMWatch — Clean, 0 errors ({_viewModel.UptimeText})"
-                    : $"RAMWatch — {_viewModel.TotalErrorCount} errors since boot";
+                var tooltip = _viewModel.StabilityErrorCount == 0
+                    ? $"RAMWatch — Clean ({_viewModel.UptimeText})"
+                    : $"RAMWatch — {_viewModel.StabilityErrorCount} stability error{(_viewModel.StabilityErrorCount != 1 ? "s" : "")} since boot";
                 _tray.UpdateTooltip(tooltip);
                 break;
 

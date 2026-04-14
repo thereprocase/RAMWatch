@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using RAMWatch.Core.Ipc;
 using RAMWatch.Core.Models;
+using RAMWatch.Views;
 
 namespace RAMWatch.ViewModels;
 
@@ -38,6 +39,14 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private int _totalErrorCount;
 
+    // Stability errors are from hardware-category sources (WHEA, MCE, Bugcheck, etc.).
+    // System errors are everything else. Status header color is driven by stability count only.
+    [ObservableProperty]
+    private int _stabilityErrorCount;
+
+    [ObservableProperty]
+    private int _systemEventCount;
+
     [ObservableProperty]
     private string _bootTimeText = "Boot: --";
 
@@ -62,6 +71,9 @@ public partial class MainViewModel : ObservableObject
     // ── Timings (Phase 2) ────────────────────────────────────
 
     public TimingsViewModel Timings { get; } = new();
+
+    // Raw snapshot from the most recent state push — used for clipboard export.
+    private TimingSnapshot? _currentTimings;
 
     // ── Timeline + Snapshots (Phase 3) ──────────────────────
 
@@ -88,6 +100,56 @@ public partial class MainViewModel : ObservableObject
         Clipboard.SetText(text);
     }
 
+    /// <summary>
+    /// Sends GetDigestMessage to the service and puts the returned digest text
+    /// on the clipboard. Falls back to BuildClipboardExport() when disconnected
+    /// or when the service returns an empty digest (no snapshot history yet).
+    /// </summary>
+    [RelayCommand]
+    private async Task CopyDigestAsync()
+    {
+        if (!_pipe.IsConnected)
+        {
+            var fallback = BuildClipboardExport();
+            Clipboard.SetText(fallback);
+            return;
+        }
+
+        var requestId = Guid.NewGuid().ToString("N");
+        var msg = new GetDigestMessage
+        {
+            Type = "getDigest",
+            RequestId = requestId,
+            HistoryCount = 10
+        };
+
+        _pendingDigestRequestId = requestId;
+        await _pipe.SendAsync(MessageSerializer.Serialize(msg));
+
+        // Wait up to 5s for the response. If it doesn't arrive, fall back to
+        // the local export so the tray action never silently does nothing.
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(50);
+            if (_lastDigestText is not null)
+            {
+                Clipboard.SetText(_lastDigestText);
+                _lastDigestText = null;
+                _pendingDigestRequestId = null;
+                return;
+            }
+        }
+
+        // Timeout — fall back to local export.
+        _pendingDigestRequestId = null;
+        Clipboard.SetText(BuildClipboardExport());
+    }
+
+    // ── Digest state — set by ProcessMessage when a DigestResponseMessage arrives.
+    private string? _pendingDigestRequestId;
+    private volatile string? _lastDigestText;
+
     [RelayCommand]
     private async Task SaveSnapshotAsync(string? label = null)
     {
@@ -112,6 +174,43 @@ public partial class MainViewModel : ObservableObject
         };
         await _pipe.SendAsync(MessageSerializer.Serialize(msg));
     }
+
+    /// <summary>
+    /// Opens the LogValidation dialog. If the user submits, sends the message to
+    /// the service. Updates the status bar label with a brief confirmation.
+    /// No-op when the dialog is cancelled.
+    /// </summary>
+    [RelayCommand]
+    private async Task LogValidationAsync()
+    {
+        var dialog = new LogValidationDialog
+        {
+            Owner = Application.Current?.MainWindow
+        };
+
+        if (dialog.ShowDialog() != true || dialog.Result is null)
+            return;
+
+        if (!_pipe.IsConnected)
+        {
+            ValidationConfirmation = "Service not connected — result not saved.";
+            return;
+        }
+
+        await _pipe.SendAsync(MessageSerializer.Serialize(dialog.Result));
+        var tool = dialog.Result.TestTool;
+        var outcome = dialog.Result.Passed ? "pass" : "fail";
+        ValidationConfirmation = $"Logged: {tool} — {outcome}";
+
+        // Clear the confirmation label after a few seconds.
+        _ = Task.Delay(5000).ContinueWith(_ =>
+        {
+            Application.Current?.Dispatcher.Invoke(() => ValidationConfirmation = "");
+        });
+    }
+
+    [ObservableProperty]
+    private string _validationConfirmation = "";
 
     /// <summary>
     /// Sends an UpdateSettingsMessage to the service. Called by SettingsViewModel.SaveCommand.
@@ -185,6 +284,15 @@ public partial class MainViewModel : ObservableObject
             case EventMessage evt:
                 ApplyEvent(evt.Event);
                 break;
+            case DigestResponseMessage digest:
+                // CopyDigestAsync polls _lastDigestText; set it here on the I/O thread.
+                if (_pendingDigestRequestId is not null &&
+                    digest.RequestId == _pendingDigestRequestId &&
+                    !string.IsNullOrWhiteSpace(digest.DigestText))
+                {
+                    _lastDigestText = digest.DigestText;
+                }
+                break;
         }
     }
 
@@ -192,38 +300,62 @@ public partial class MainViewModel : ObservableObject
     {
         IsReady = state.Ready;
 
-        // Error sources
+        // Error sources — split into stability (Hardware category) and system (everything else).
         Application.Current?.Dispatcher.Invoke(() =>
         {
             ErrorSources.Clear();
             int total = 0;
-            foreach (var src in state.Errors)
+            int stability = 0;
+            int system = 0;
+            // Stability sources first so they appear at the top of the table.
+            foreach (var src in state.Errors.Where(s => s.Category == EventCategory.Hardware).OrderByDescending(s => s.Count))
             {
                 ErrorSources.Add(new ErrorSourceVm(src));
                 total += src.Count;
+                stability += src.Count;
+            }
+            foreach (var src in state.Errors.Where(s => s.Category != EventCategory.Hardware).OrderByDescending(s => s.Count))
+            {
+                ErrorSources.Add(new ErrorSourceVm(src));
+                total += src.Count;
+                system += src.Count;
             }
             TotalErrorCount = total;
+            StabilityErrorCount = stability;
+            SystemEventCount = system;
         });
 
-        // Status header
+        // Status header — color and text driven by stability count only.
+        // System events are informational and do not trigger the red alarm state.
         if (!state.Ready)
         {
             StatusText = "INITIALIZING";
             StatusColor = "Gray";
         }
-        else if (TotalErrorCount == 0)
+        else if (StabilityErrorCount == 0 && SystemEventCount == 0)
         {
             StatusText = "CLEAN";
             StatusColor = "Green";
         }
+        else if (StabilityErrorCount == 0)
+        {
+            StatusText = $"CLEAN — {SystemEventCount} system event{(SystemEventCount != 1 ? "s" : "")}";
+            StatusColor = "Green";
+        }
         else
         {
-            StatusText = $"{TotalErrorCount} ERROR{(TotalErrorCount != 1 ? "S" : "")}";
+            var systemSuffix = SystemEventCount > 0
+                ? $" — {SystemEventCount} system event{(SystemEventCount != 1 ? "s" : "")}"
+                : "";
+            StatusText = $"{StabilityErrorCount} STABILITY ERROR{(StabilityErrorCount != 1 ? "S" : "")}{systemSuffix}";
             StatusColor = "Red";
         }
 
         BootTimeText = $"Boot: {state.BootTime.ToLocalTime():MM/dd HH:mm}";
-        UptimeText = FormatUptime(state.ServiceUptime);
+        // System uptime from BootTime — the service uptime field tracks how long
+        // the service process has been running, which is not what users care about here.
+        var systemUptime = DateTime.UtcNow - state.BootTime;
+        UptimeText = FormatUptime(systemUptime);
         LastUpdateText = $"Updated: {state.Timestamp.ToLocalTime():HH:mm:ss}";
         DriverStatus = state.DriverStatus;
 
@@ -240,6 +372,7 @@ public partial class MainViewModel : ObservableObject
         // Timings — null when driver is unavailable (Phase 1 service will send null).
         // BiosLayoutVendor is the resolved vendor string from the service ("MSI", "ASUS", etc.).
         // Parse it back to the enum; fall back to Default when absent or unrecognised.
+        _currentTimings = state.Timings;
         var vendor = BiosLayouts.ParseSetting(state.BiosLayoutVendor);
         var resolvedVendor = vendor == BoardVendor.Auto ? BoardVendor.Default : vendor;
         Application.Current?.Dispatcher.Invoke(() =>
@@ -256,7 +389,7 @@ public partial class MainViewModel : ObservableObject
 
     private void ApplyEvent(MonitoredEvent evt)
     {
-        // Update the matching error source count in-place
+        // Update the matching error source count in-place, then recompute severity-tiered status.
         Application.Current?.Dispatcher.Invoke(() =>
         {
             var source = ErrorSources.FirstOrDefault(s => s.Name == evt.Source);
@@ -267,8 +400,28 @@ public partial class MainViewModel : ObservableObject
             }
 
             TotalErrorCount = ErrorSources.Sum(s => s.Count);
-            StatusText = TotalErrorCount == 0 ? "CLEAN" : $"{TotalErrorCount} ERROR{(TotalErrorCount != 1 ? "S" : "")}";
-            StatusColor = TotalErrorCount == 0 ? "Green" : "Red";
+            StabilityErrorCount = ErrorSources.Where(s => s.IsStability).Sum(s => s.Count);
+            SystemEventCount = ErrorSources.Where(s => !s.IsStability).Sum(s => s.Count);
+
+            if (StabilityErrorCount == 0 && SystemEventCount == 0)
+            {
+                StatusText = "CLEAN";
+                StatusColor = "Green";
+            }
+            else if (StabilityErrorCount == 0)
+            {
+                StatusText = $"CLEAN — {SystemEventCount} system event{(SystemEventCount != 1 ? "s" : "")}";
+                StatusColor = "Green";
+            }
+            else
+            {
+                var systemSuffix = SystemEventCount > 0
+                    ? $" — {SystemEventCount} system event{(SystemEventCount != 1 ? "s" : "")}"
+                    : "";
+                StatusText = $"{StabilityErrorCount} STABILITY ERROR{(StabilityErrorCount != 1 ? "S" : "")}{systemSuffix}";
+                StatusColor = "Red";
+            }
+
             LastUpdateText = $"Updated: {DateTime.Now:HH:mm:ss}";
         });
     }
@@ -279,18 +432,47 @@ public partial class MainViewModel : ObservableObject
         {
             $"RAMWatch — {DateTime.Now:yyyy-MM-dd HH:mm:ss}",
             $"{BootTimeText}  |  {UptimeText}",
-            $"Status: {StatusText} — {TotalErrorCount} errors since boot",
+            $"Status: {StatusText}",
             ""
         };
 
-        foreach (var src in ErrorSources)
+        // Stability errors first, then system events — mirrors the table grouping.
+        var stabilityRows = ErrorSources.Where(s => s.IsStability && s.Count > 0).ToList();
+        var systemRows = ErrorSources.Where(s => !s.IsStability && s.Count > 0).ToList();
+
+        if (stabilityRows.Count > 0)
         {
-            lines.Add($"  {src.Name,-30} {src.Count,5}    {src.LastSeen ?? "-"}");
+            lines.Add("  STABILITY");
+            foreach (var src in stabilityRows)
+                lines.Add($"    {src.Name,-28} {src.Count,5}    {src.LastSeen ?? "-"}");
         }
+
+        if (systemRows.Count > 0)
+        {
+            lines.Add("  SYSTEM");
+            foreach (var src in systemRows)
+                lines.Add($"    {src.Name,-28} {src.Count,5}    {src.LastSeen ?? "-"}");
+        }
+
+        if (stabilityRows.Count == 0 && systemRows.Count == 0)
+            lines.Add("  (no events since boot)");
 
         lines.Add("");
         lines.Add($"CBS: {CbsStatus}  |  SFC: {SfcStatus}  |  DISM: {DismStatus}");
         lines.Add($"Driver: {DriverStatus}");
+
+        // Primary timings — only included when available (Phase 2+ service).
+        var t = _currentTimings;
+        if (t is not null && t.MemClockMhz > 0)
+        {
+            lines.Add("");
+            lines.Add("TIMINGS");
+            lines.Add($"  DDR{t.MemClockMhz * 2} / FCLK {t.FclkMhz} / UCLK {t.UclkMhz}");
+            lines.Add($"  CL-RCDRD-RP-RAS: {t.CL}-{t.RCDRD}-{t.RP}-{t.RAS}");
+            lines.Add($"  CWL {t.CWL}  RFC {t.RFC}  REFI {t.REFI}");
+            lines.Add($"  GDM {(t.GDM ? "on" : "off")}  {(t.Cmd2T ? "2T" : "1T")}");
+            if (t.VDimm > 0) lines.Add($"  VDIMM {t.VDimm:F3}V  VSOC {t.VSoc:F3}V");
+        }
 
         return string.Join(Environment.NewLine, lines);
     }
@@ -329,8 +511,13 @@ public partial class ErrorSourceVm : ObservableObject
     public string Name { get; }
     public string Category { get; }
 
-    // Severity string for SeverityToColorConverter — derived from source name at
-    // construction time. Hardware error sources are always Critical; others Warning.
+    // True when this source is in the Hardware event category (WHEA, MCE, Bugcheck,
+    // Unexpected Shutdown, Memory Diagnostics). Used to drive the status header
+    // color and the visual group separator in the Monitor tab.
+    public bool IsStability { get; }
+
+    // Severity string for SeverityToColorConverter — Hardware sources are Critical
+    // (red), all others are Warning (amber).
     public string DefaultSeverity { get; }
 
     [ObservableProperty]
@@ -345,16 +532,7 @@ public partial class ErrorSourceVm : ObservableObject
         Category = source.Category.ToString();
         Count = source.Count;
         LastSeen = source.LastSeen?.ToLocalTime().ToString("HH:mm:ss");
-        DefaultSeverity = MapSeverity(source.Name);
+        IsStability = source.Category == EventCategory.Hardware;
+        DefaultSeverity = IsStability ? "Critical" : "Warning";
     }
-
-    // Map well-known hardware error source names to severity levels understood
-    // by SeverityToColorConverter. Unrecognized names default to Warning so they
-    // still get amber rather than invisible gray.
-    private static string MapSeverity(string name) => name switch
-    {
-        "WHEA-Logger" or "MCE" or "Bugcheck" => "Critical",
-        "System" or "Application" => "Warning",
-        _ => "Warning"
-    };
 }
