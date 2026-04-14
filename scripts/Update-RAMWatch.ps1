@@ -139,8 +139,8 @@ if (-not $GuiOnly) {
     }
 }
 
-# 6. Relaunch GUI if it was running — as the interactive user, not admin
-if (-not $ServiceOnly -and $guiWasRunning -and (Test-Path $guiExe)) {
+# 6. Always relaunch GUI after update (unless --ServiceOnly)
+if (-not $ServiceOnly -and (Test-Path $guiExe)) {
     Write-Host "Relaunching GUI (as current user, not admin)..." -ForegroundColor Cyan
     # Use scheduled task trick to launch de-elevated as the interactive user
     $action = New-ScheduledTaskAction -Execute $guiExe
