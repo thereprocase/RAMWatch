@@ -5,17 +5,31 @@ using RAMWatch.Core.Models;
 namespace RAMWatch.ViewModels;
 
 /// <summary>
-/// A single row in the dynamic timing display — one field with its current value.
+/// A single row in the dynamic timing display — one field with its current value
+/// and an optional designation indicator for manually-set timings.
 /// </summary>
 public sealed class TimingDisplayRow
 {
     public string Name { get; }
     public string Value { get; }
 
-    public TimingDisplayRow(string name, string value)
+    /// <summary>
+    /// Designation for this timing: "Manual", "Auto", or "Unknown".
+    /// Empty string when no designation data is available.
+    /// </summary>
+    public string Designation { get; }
+
+    /// <summary>
+    /// Unicode bullet shown after the value for manually-designated timings.
+    /// Empty string for Auto and Unknown so the column stays narrow by default.
+    /// </summary>
+    public string DesignationIndicator => Designation == "Manual" ? "●" : "";
+
+    public TimingDisplayRow(string name, string value, string designation = "")
     {
-        Name  = name;
-        Value = value;
+        Name        = name;
+        Value       = value;
+        Designation = designation;
     }
 }
 
@@ -96,7 +110,7 @@ public partial class TimingsViewModel : ObservableObject
     /// Passing null clears all displayed values and hides the timing grid.
     /// </summary>
     public void LoadFromSnapshot(TimingSnapshot? snapshot)
-        => LoadFromSnapshot(snapshot, BoardVendor.Default);
+        => LoadFromSnapshot(snapshot, BoardVendor.Default, null);
 
     /// <summary>
     /// Applies a snapshot from the service state.
@@ -104,6 +118,19 @@ public partial class TimingsViewModel : ObservableObject
     /// Passing null snapshot clears all displayed values and hides the timing grid.
     /// </summary>
     public void LoadFromSnapshot(TimingSnapshot? snapshot, BoardVendor vendor)
+        => LoadFromSnapshot(snapshot, vendor, null);
+
+    /// <summary>
+    /// Applies a snapshot from the service state.
+    /// The vendor parameter controls which BIOS layout ordering is used.
+    /// The designations map (field name → "Manual"/"Auto"/"Unknown") drives the
+    /// designation indicator (●) shown on each row.
+    /// Passing null snapshot clears all displayed values and hides the timing grid.
+    /// </summary>
+    public void LoadFromSnapshot(
+        TimingSnapshot? snapshot,
+        BoardVendor vendor,
+        IReadOnlyDictionary<string, string>? designations)
     {
         if (snapshot is null)
         {
@@ -143,7 +170,13 @@ public partial class TimingsViewModel : ObservableObject
         foreach (var group in layout)
         {
             var rows = group.Fields
-                .Select(field => new TimingDisplayRow(field, GetFieldValue(snapshot, field)))
+                .Select(field =>
+                {
+                    string desig = designations is not null && designations.TryGetValue(field, out var d)
+                        ? d
+                        : "";
+                    return new TimingDisplayRow(field, GetFieldValue(snapshot, field), desig);
+                })
                 .ToList();
             TimingDisplayGroups.Add(new TimingDisplayGroup(group.Name, rows));
         }

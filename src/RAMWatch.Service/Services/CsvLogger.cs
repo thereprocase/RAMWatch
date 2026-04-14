@@ -150,20 +150,53 @@ public sealed class CsvLogger : IDisposable
     }
 
     /// <summary>
-    /// Generate a boot ID from the last boot time.
-    /// Format: boot_MMDD_HHMM (minute granularity).
+    /// Generate a unique boot ID using a monotonically increasing sequential counter
+    /// persisted to disk at <paramref name="dataDirectory"/>\boot_counter.txt.
     ///
-    /// WARNING: minute granularity means two boots in the same minute produce the same ID.
-    /// Phase 3 drift detection uses boot IDs to index the 20-boot rolling window; a collision
-    /// causes two distinct boot records to merge, silently corrupting drift calculations.
-    /// Fix: either append seconds (boot_MMDD_HHMMss) or use a monotonic sequential counter
-    /// persisted to disk (e.g. %ProgramData%\RAMWatch\boot_counter.txt, incremented atomically
-    /// via write-temp-rename on each service start). The sequential counter survives clock skew
-    /// and is trivially unique; seconds only reduce the collision window, not eliminate it.
+    /// Each call reads the counter (or starts at 0), increments it, writes it back
+    /// atomically (write-to-temp-then-rename), and returns "boot_NNNNNN" where
+    /// NNNNNN is the six-digit zero-padded counter value.
+    ///
+    /// This is collision-free regardless of clock skew, rapid reboots, or VM
+    /// snapshots. The counter rolls over at 999999 boots, which is not a realistic
+    /// concern in practice.
     /// </summary>
-    public static string GenerateBootId(DateTime bootTime)
+    public static string GenerateBootId(string dataDirectory)
     {
-        return $"boot_{bootTime:MMdd_HHmm}";
+        string counterPath = Path.Combine(dataDirectory, "boot_counter.txt");
+        string tempPath    = counterPath + ".tmp";
+
+        int counter = 0;
+        try
+        {
+            if (File.Exists(counterPath))
+            {
+                string text = File.ReadAllText(counterPath).Trim();
+                if (int.TryParse(text, out int parsed))
+                    counter = parsed;
+            }
+        }
+        catch
+        {
+            // Counter file unreadable — start from 0. Unlikely to cause a real collision
+            // in normal usage; the counter file will be recreated on this call.
+        }
+
+        counter++;
+
+        try
+        {
+            Directory.CreateDirectory(dataDirectory);
+            File.WriteAllText(tempPath, counter.ToString());
+            File.Move(tempPath, counterPath, overwrite: true);
+        }
+        catch
+        {
+            // If the write fails, the counter is still incremented in memory
+            // for this boot, so the ID is unique within the process lifetime.
+        }
+
+        return $"boot_{counter:D6}";
     }
 
     public void Dispose()

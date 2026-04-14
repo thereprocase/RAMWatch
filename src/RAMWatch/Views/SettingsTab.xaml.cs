@@ -12,6 +12,13 @@ public partial class SettingsTab : UserControl
     private static readonly string[] BiosLayoutChoices =
         ["Auto", "MSI", "ASUS", "Gigabyte", "ASRock", "Default"];
 
+    /// <summary>
+    /// Static list of designation choices for binding from the ItemTemplate
+    /// (x:Static requires a public static member on the code-behind class).
+    /// </summary>
+    public static IReadOnlyList<string> DesignationChoicesList { get; } =
+        SettingsViewModel.DesignationChoices;
+
     public SettingsTab()
     {
         InitializeComponent();

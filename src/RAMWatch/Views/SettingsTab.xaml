@@ -1,6 +1,7 @@
 <UserControl x:Class="RAMWatch.Views.SettingsTab"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:RAMWatch.Views">
 
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   Background="{StaticResource BgPrimary}">
@@ -330,6 +331,84 @@
                                    Foreground="{StaticResource TextDisabled}"
                                    FontSize="10"
                                    Margin="0,0,0,4" />
+
+                    </StackPanel>
+                </Border>
+            </Expander>
+
+            <!-- ── Timing Designations ───────────────────────── -->
+            <Expander Style="{StaticResource DarkExpander}"
+                      AutomationProperties.Name="Timing designations"
+                      IsExpanded="False"
+                      Margin="0,8,0,0">
+                <Expander.Header>
+                    <TextBlock Text="TIMING DESIGNATIONS"
+                               Style="{StaticResource SectionHeader}"
+                               Margin="0" />
+                </Expander.Header>
+                <Border Background="{StaticResource BgPanel}"
+                        CornerRadius="0,0,2,2"
+                        Padding="12,8">
+                    <StackPanel>
+
+                        <TextBlock Text="Mark each timing as Manual (you set it) or Auto (AGESA/training). Drift detection only watches Auto timings."
+                                   Foreground="{StaticResource TextDisabled}"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,8" />
+
+                        <!-- Column headers -->
+                        <Grid Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="160" />
+                                <ColumnDefinition Width="110" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="TIMING"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       FontSize="10"
+                                       FontWeight="SemiBold" />
+                            <TextBlock Grid.Column="1"
+                                       Text="DESIGNATION"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       FontSize="10"
+                                       FontWeight="SemiBold" />
+                        </Grid>
+
+                        <ItemsControl ItemsSource="{Binding Designations}"
+                                      AutomationProperties.Name="Timing designations list">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,2,0,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="160" />
+                                            <ColumnDefinition Width="110" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding TimingName}"
+                                                   Foreground="{StaticResource TextPrimary}"
+                                                   FontFamily="{StaticResource MonoFont}"
+                                                   FontSize="11"
+                                                   VerticalAlignment="Center" />
+
+                                        <ComboBox Grid.Column="1"
+                                                  SelectedItem="{Binding Designation, Mode=TwoWay}"
+                                                  ItemsSource="{x:Static local:SettingsTab.DesignationChoicesList}"
+                                                  Style="{StaticResource DarkComboBox}"
+                                                  ItemContainerStyle="{StaticResource DarkComboBoxItem}"
+                                                  AutomationProperties.Name="{Binding TimingName}"
+                                                  Height="24"
+                                                  FontSize="11" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Text="{Binding DesignationSaveStatus}"
+                                   Foreground="{StaticResource TextSecondary}"
+                                   FontSize="10"
+                                   Margin="0,6,0,0" />
 
                     </StackPanel>
                 </Border>

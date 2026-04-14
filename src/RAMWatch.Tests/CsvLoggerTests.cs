@@ -109,11 +109,41 @@ public class CsvLoggerTests : IDisposable
     }
 
     [Fact]
-    public void GenerateBootId_FormatsCorrectly()
+    public void GenerateBootId_ReturnsSequentialIds()
     {
-        var bootTime = new DateTime(2026, 4, 14, 9, 1, 0, DateTimeKind.Utc);
-        string id = CsvLogger.GenerateBootId(bootTime);
-        Assert.Equal("boot_0414_0901", id);
+        // Each call should return boot_NNNNNN where N increments.
+        string id1 = CsvLogger.GenerateBootId(_tempDir);
+        string id2 = CsvLogger.GenerateBootId(_tempDir);
+        string id3 = CsvLogger.GenerateBootId(_tempDir);
+
+        // All must match the expected format.
+        Assert.Matches(@"^boot_\d{6}$", id1);
+        Assert.Matches(@"^boot_\d{6}$", id2);
+        Assert.Matches(@"^boot_\d{6}$", id3);
+
+        // Each successive call must produce a strictly larger counter value.
+        int n1 = int.Parse(id1[5..]);
+        int n2 = int.Parse(id2[5..]);
+        int n3 = int.Parse(id3[5..]);
+        Assert.True(n2 == n1 + 1, $"Expected {n1 + 1} but got {n2}");
+        Assert.True(n3 == n2 + 1, $"Expected {n2 + 1} but got {n3}");
+    }
+
+    [Fact]
+    public void GenerateBootId_StartsAtOneWhenCounterMissing()
+    {
+        // Fresh directory with no counter file → first ID is boot_000001.
+        string id = CsvLogger.GenerateBootId(_tempDir);
+        Assert.Equal("boot_000001", id);
+    }
+
+    [Fact]
+    public void GenerateBootId_PicksUpExistingCounter()
+    {
+        // Pre-seed the counter at 41 — next call should return boot_000042.
+        File.WriteAllText(Path.Combine(_tempDir, "boot_counter.txt"), "41");
+        string id = CsvLogger.GenerateBootId(_tempDir);
+        Assert.Equal("boot_000042", id);
     }
 
     [Fact]
