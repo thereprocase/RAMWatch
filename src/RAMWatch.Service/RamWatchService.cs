@@ -88,6 +88,7 @@ public sealed class RamWatchService : BackgroundService
         // exists yet; they activate when TimingSnapshot data flows (Phase 2).
         _configChangeDetector = new ConfigChangeDetector(DataDirectory.BasePath);
         _configChangeDetector.LoadPrevious();
+        _configChangeDetector.LoadChanges();
 
         _driftDetector = new DriftDetector(DataDirectory.BasePath);
         _driftDetector.LoadWindow();
