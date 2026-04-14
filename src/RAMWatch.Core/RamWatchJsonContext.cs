@@ -25,6 +25,7 @@ namespace RAMWatch.Core;
 [JsonSerializable(typeof(UpdateSettingsMessage))]
 [JsonSerializable(typeof(LogValidationMessage))]
 [JsonSerializable(typeof(DeleteValidationMessage))]
+[JsonSerializable(typeof(DeleteChangeMessage))]
 [JsonSerializable(typeof(GetDesignationsMessage))]
 [JsonSerializable(typeof(UpdateDesignationsMessage))]
 [JsonSerializable(typeof(DesignationsResponseMessage))]

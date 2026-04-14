@@ -115,12 +115,21 @@ public partial class TimelineViewModel : ObservableObject
     // Injected by MainViewModel so each validation entry can send DeleteValidationMessage.
     private Func<string, Task>? _deleteValidationHandler;
 
+    // Injected by MainViewModel so config change entries can send DeleteChangeMessage.
+    private Func<string, Task>? _deleteChangeHandler;
+
     /// <summary>
     /// Injects the async callback used to send DeleteValidationMessage to the service.
     /// Must be set before the first LoadFromState call that includes validation results.
     /// </summary>
     public void SetDeleteValidationHandler(Func<string, Task> handler)
         => _deleteValidationHandler = handler;
+
+    /// <summary>
+    /// Injects the async callback used to send DeleteChangeMessage to the service.
+    /// </summary>
+    public void SetDeleteChangeHandler(Func<string, Task> handler)
+        => _deleteChangeHandler = handler;
 
     /// <summary>
     /// Rebuilds the timeline from the latest service state push.
@@ -141,15 +150,18 @@ public partial class TimelineViewModel : ObservableObject
                     ? $"Config changed: {deltas}"
                     : $"{change.UserNotes} ({deltas})";
 
-                entries.Add(new TimelineEntry
+                var changeEntry = new TimelineEntry
                 {
                     EntryId = Guid.NewGuid(),
                     Timestamp = change.Timestamp,
                     EntryType = TimelineEntryType.ConfigChange,
                     Summary = summary,
                     TimestampDisplay = FormatTimestamp(change.Timestamp),
-                    TypeLabel = "CHANGE"
-                });
+                    TypeLabel = "CHANGE",
+                    ServiceId = change.ChangeId
+                };
+                changeEntry.OnConfirmedDeleteAsync = _deleteChangeHandler;
+                entries.Add(changeEntry);
             }
         }
 

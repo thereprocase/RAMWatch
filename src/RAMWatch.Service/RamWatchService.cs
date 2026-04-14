@@ -454,6 +454,10 @@ public sealed class RamWatchService : BackgroundService
                 await HandleDeleteValidationAsync(del, client);
                 break;
 
+            case DeleteChangeMessage delChg:
+                await HandleDeleteChangeAsync(delChg, client);
+                break;
+
             case GetDesignationsMessage getDes:
                 await HandleGetDesignationsAsync(getDes, client);
                 break;
@@ -685,6 +689,49 @@ public sealed class RamWatchService : BackgroundService
             }));
 
         // Broadcast updated state immediately so Timeline tab reflects the removal.
+        if (_aggregator is not null)
+            await _aggregator.BroadcastStateAsync();
+    }
+
+    private async Task HandleDeleteChangeAsync(DeleteChangeMessage msg, ConnectedClient client)
+    {
+        if (_configChangeDetector is null)
+        {
+            await client.SendAsync(MessageSerializer.Serialize(
+                new ResponseMessage
+                {
+                    Type      = "response",
+                    RequestId = msg.RequestId,
+                    Status    = "error",
+                    Code      = "not_ready",
+                    Message   = "Config change detector not initialised"
+                }));
+            return;
+        }
+
+        bool removed = _configChangeDetector.DeleteById(msg.ChangeId);
+        if (!removed)
+        {
+            await client.SendAsync(MessageSerializer.Serialize(
+                new ResponseMessage
+                {
+                    Type      = "response",
+                    RequestId = msg.RequestId,
+                    Status    = "error",
+                    Code      = "not_found",
+                    Message   = $"No config change with id {msg.ChangeId}"
+                }));
+            return;
+        }
+
+        await client.SendAsync(MessageSerializer.Serialize(
+            new ResponseMessage
+            {
+                Type      = "response",
+                RequestId = msg.RequestId,
+                Status    = "ok"
+            }));
+
         if (_aggregator is not null)
             await _aggregator.BroadcastStateAsync();
     }

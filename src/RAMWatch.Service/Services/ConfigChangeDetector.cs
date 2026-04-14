@@ -126,6 +126,24 @@ public sealed class ConfigChangeDetector : IDisposable
     }
 
     /// <summary>
+    /// Delete a config change by its ChangeId. Returns true if found and removed.
+    /// Persists the updated journal to disk.
+    /// </summary>
+    public bool DeleteById(string changeId)
+    {
+        lock (_lock)
+        {
+            int idx = _changes.FindIndex(c => c.ChangeId == changeId);
+            if (idx < 0)
+                return false;
+
+            _changes.RemoveAt(idx);
+            SaveChanges();
+            return true;
+        }
+    }
+
+    /// <summary>
     /// Returns the last <paramref name="count"/> detected changes in chronological order.
     /// Returns fewer entries when the journal holds less than count.
     /// </summary>

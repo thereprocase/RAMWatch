@@ -114,6 +114,16 @@ public sealed class DeleteValidationMessage : IpcMessage
 }
 
 /// <summary>
+/// Delete a config change entry by ID. Service removes from changes.json
+/// and broadcasts updated state so the Timeline tab reflects the removal.
+/// </summary>
+public sealed class DeleteChangeMessage : IpcMessage
+{
+    public required string RequestId { get; init; }
+    public required string ChangeId { get; init; }
+}
+
+/// <summary>
 /// Request the current timing designation map.
 /// </summary>
 public sealed class GetDesignationsMessage : IpcMessage

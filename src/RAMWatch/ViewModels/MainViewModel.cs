@@ -98,9 +98,10 @@ public partial class MainViewModel : ObservableObject
 
     public MainViewModel()
     {
-        // Wire the IPC delete callback into the Timeline so confirmed deletes reach
+        // Wire the IPC delete callbacks into the Timeline so confirmed deletes reach
         // the service rather than only removing the row from the local collection.
         Timeline.SetDeleteValidationHandler(SendDeleteValidationAsync);
+        Timeline.SetDeleteChangeHandler(SendDeleteChangeAsync);
 
         // Wire IPC callbacks into the Snapshots view model for delete and rename.
         Snapshots.SetDeleteHandler(SendDeleteSnapshotAsync);
@@ -267,6 +268,22 @@ public partial class MainViewModel : ObservableObject
             Type         = "deleteValidation",
             RequestId    = Guid.NewGuid().ToString("N"),
             ValidationId = validationId
+        };
+        await _pipe.SendAsync(MessageSerializer.Serialize(msg));
+    }
+
+    /// <summary>
+    /// Sends a DeleteChangeMessage to the service for the given change ID.
+    /// Called by Timeline entries on confirmed delete. No-op if not connected.
+    /// </summary>
+    public async Task SendDeleteChangeAsync(string changeId)
+    {
+        if (!_pipe.IsConnected) return;
+        var msg = new DeleteChangeMessage
+        {
+            Type      = "deleteChange",
+            RequestId = Guid.NewGuid().ToString("N"),
+            ChangeId  = changeId
         };
         await _pipe.SendAsync(MessageSerializer.Serialize(msg));
     }

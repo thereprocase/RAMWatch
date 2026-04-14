@@ -59,6 +59,7 @@ public static class MessageSerializer
                 // Phase 3 — client → service
                 "logValidation" => JsonSerializer.Deserialize(line, typeof(LogValidationMessage), Options) as IpcMessage,
                 "deleteValidation" => JsonSerializer.Deserialize(line, typeof(DeleteValidationMessage), Options) as IpcMessage,
+                "deleteChange" => JsonSerializer.Deserialize(line, typeof(DeleteChangeMessage), Options) as IpcMessage,
                 "getDesignations" => JsonSerializer.Deserialize(line, typeof(GetDesignationsMessage), Options) as IpcMessage,
                 "updateDesignations" => JsonSerializer.Deserialize(line, typeof(UpdateDesignationsMessage), Options) as IpcMessage,
                 "saveSnapshot" => JsonSerializer.Deserialize(line, typeof(SaveSnapshotMessage), Options) as IpcMessage,
