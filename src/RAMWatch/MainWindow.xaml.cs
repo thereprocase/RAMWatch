@@ -37,6 +37,8 @@ public partial class MainWindow : System.Windows.Window
         InputBindings.Add(new KeyBinding(new RelayCommand(() => MainTabControl.SelectedIndex = 0), Key.D1, ModifierKeys.Control));
         InputBindings.Add(new KeyBinding(new RelayCommand(() => MainTabControl.SelectedIndex = 1), Key.D2, ModifierKeys.Control));
         InputBindings.Add(new KeyBinding(new RelayCommand(() => MainTabControl.SelectedIndex = 2), Key.D3, ModifierKeys.Control));
+        InputBindings.Add(new KeyBinding(new RelayCommand(() => MainTabControl.SelectedIndex = 3), Key.D4, ModifierKeys.Control));
+        InputBindings.Add(new KeyBinding(new RelayCommand(() => MainTabControl.SelectedIndex = 4), Key.D5, ModifierKeys.Control));
     }
 
     private async void OnLoaded(object sender, System.Windows.RoutedEventArgs e)

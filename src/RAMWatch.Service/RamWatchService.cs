@@ -22,6 +22,12 @@ public sealed class RamWatchService : BackgroundService
     private IntegrityChecker? _integrity;
     private string _bootId = "";
 
+    // Phase 3 — tuning journal services
+    private ConfigChangeDetector? _configChangeDetector;
+    private DriftDetector? _driftDetector;
+    private ValidationTestLogger? _validationLogger;
+    private LkgTracker? _lkgTracker;
+
     public RamWatchService(SettingsManager settings, ILogger<RamWatchService> logger)
     {
         _settings = settings;
@@ -59,8 +65,31 @@ public sealed class RamWatchService : BackgroundService
         _eventLog = new EventLogMonitor();
         _eventLog.EventDetected += OnEventDetected;
 
+        // Phase 3 — tuning journal services.
+        // Load persisted state before the first timing snapshot arrives.
+        // All four services are safe to construct here even if no hardware data
+        // exists yet; they activate when TimingSnapshot data flows (Phase 2).
+        _configChangeDetector = new ConfigChangeDetector(DataDirectory.BasePath);
+        _configChangeDetector.LoadPrevious();
+
+        _driftDetector = new DriftDetector(DataDirectory.BasePath);
+        _driftDetector.LoadWindow();
+
+        _validationLogger = new ValidationTestLogger(DataDirectory.BasePath);
+        _validationLogger.Load();
+
+        _lkgTracker = new LkgTracker(DataDirectory.BasePath);
+        _lkgTracker.Load();
+
         // State aggregator
         _aggregator = new StateAggregator(_eventLog, _settings, _pipeServer);
+
+        // Wire Phase 3 services into the aggregator so state pushes include journal data.
+        _aggregator.SetPhase3Services(
+            _configChangeDetector,
+            _driftDetector,
+            _validationLogger,
+            _lkgTracker);
 
         // Historical scan (blocks briefly, populates error counts from boot)
         _eventLog.Start();
@@ -111,6 +140,67 @@ public sealed class RamWatchService : BackgroundService
         {
             // Client may have disconnected already
         }
+    }
+
+    /// <summary>
+    /// Called by the Phase 2 hardware reader when a new TimingSnapshot is available.
+    /// Runs ConfigChangeDetector and DriftDetector, broadcasts change/drift events,
+    /// and re-evaluates the LKG snapshot.
+    /// Not called until Phase 2 is wired; the Phase 3 services are dormant until then.
+    /// </summary>
+    private async Task OnTimingSnapshotAsync(TimingSnapshot snapshot, DesignationMap designations)
+    {
+        if (_configChangeDetector is null || _driftDetector is null ||
+            _validationLogger is null || _lkgTracker is null ||
+            _aggregator is null || _pipeServer is null)
+        {
+            return;
+        }
+
+        // Detect config changes between this boot and the previous one.
+        var change = _configChangeDetector.DetectChanges(snapshot);
+        if (change is not null)
+        {
+            var changeMsg = new EventMessage
+            {
+                Type = "event",
+                Event = new MonitoredEvent(
+                    change.Timestamp,
+                    "Config Change",
+                    EventCategory.Application,
+                    0,
+                    EventSeverity.Info,
+                    $"Timing configuration changed: {change.Changes.Count} field(s)")
+            };
+            await _pipeServer.BroadcastAsync(MessageSerializer.Serialize(changeMsg));
+        }
+
+        // Detect drift in auto-trained timings.
+        var driftEvents = _driftDetector.CheckForDrift(snapshot, designations);
+        if (driftEvents.Count > 0)
+        {
+            _aggregator.AddDriftEvents(driftEvents);
+
+            foreach (var drift in driftEvents)
+            {
+                var driftMsg = new EventMessage
+                {
+                    Type = "event",
+                    Event = new MonitoredEvent(
+                        drift.Timestamp,
+                        "Drift Detected",
+                        EventCategory.Application,
+                        0,
+                        EventSeverity.Warning,
+                        $"{drift.TimingName} drifted: expected {drift.ExpectedValue}, got {drift.ActualValue}")
+                };
+                await _pipeServer.BroadcastAsync(MessageSerializer.Serialize(driftMsg));
+            }
+        }
+
+        // Re-evaluate LKG against current validation results.
+        // Snapshot list is stubbed until the Phase 2 snapshot journal is wired.
+        _lkgTracker.UpdateLkg(_validationLogger.GetResults(), new List<TimingSnapshot> { snapshot });
     }
 
     private void OnEventDetected(MonitoredEvent evt)
@@ -187,9 +277,81 @@ public sealed class RamWatchService : BackgroundService
                 }
                 break;
 
+            case LogValidationMessage log:
+                await HandleLogValidationAsync(log, client);
+                break;
+
+            case GetSnapshotsMessage getSnaps:
+                // Phase 3 stub: snapshot journal not yet wired — return empty list.
+                await client.SendAsync(MessageSerializer.Serialize(
+                    new SnapshotsResponseMessage
+                    {
+                        Type = "snapshotsResponse",
+                        RequestId = getSnaps.RequestId,
+                        Snapshots = new List<TimingSnapshot>()
+                    }));
+                break;
+
+            case GetDigestMessage getDigest:
+                // Phase 4 stub: digest generation not yet implemented.
+                await client.SendAsync(MessageSerializer.Serialize(
+                    new DigestResponseMessage
+                    {
+                        Type = "digestResponse",
+                        RequestId = getDigest.RequestId,
+                        DigestText = null
+                    }));
+                break;
+
             default:
                 _logger.LogDebug("Unhandled message type: {Type}", message.Type);
                 break;
         }
+    }
+
+    private async Task HandleLogValidationAsync(LogValidationMessage msg, ConnectedClient client)
+    {
+        if (_validationLogger is null || _lkgTracker is null)
+        {
+            await client.SendAsync(MessageSerializer.Serialize(
+                new ResponseMessage
+                {
+                    Type = "response",
+                    RequestId = msg.RequestId,
+                    Status = "error",
+                    Code = "not_ready",
+                    Message = "Validation logger not initialised"
+                }));
+            return;
+        }
+
+        var result = new ValidationResult
+        {
+            Timestamp = DateTime.UtcNow,
+            BootId = _bootId,
+            TestTool = msg.TestTool,
+            MetricName = msg.MetricName,
+            MetricValue = msg.MetricValue,
+            MetricUnit = msg.MetricUnit,
+            Passed = msg.Passed,
+            ErrorCount = msg.ErrorCount,
+            DurationMinutes = msg.DurationMinutes,
+            ActiveSnapshotId = msg.ActiveSnapshotId,
+            Notes = msg.Notes
+        };
+
+        _validationLogger.LogResult(result);
+
+        // Re-evaluate LKG against all results.
+        // Snapshot list is stubbed until the Phase 2 snapshot journal is wired.
+        _lkgTracker.UpdateLkg(_validationLogger.GetResults(), new List<TimingSnapshot>());
+
+        await client.SendAsync(MessageSerializer.Serialize(
+            new ResponseMessage
+            {
+                Type = "response",
+                RequestId = msg.RequestId,
+                Status = "ok"
+            }));
     }
 }

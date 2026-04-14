@@ -105,6 +105,14 @@
                      AutomationProperties.Name="Timings">
                 <views:TimingsTab DataContext="{Binding Timings}" />
             </TabItem>
+            <TabItem Header="Timeline" Style="{StaticResource DarkTabItem}"
+                     AutomationProperties.Name="Timeline">
+                <views:TimelineTab DataContext="{Binding Timeline}" />
+            </TabItem>
+            <TabItem Header="Snapshots" Style="{StaticResource DarkTabItem}"
+                     AutomationProperties.Name="Snapshots">
+                <views:SnapshotsTab DataContext="{Binding Snapshots}" />
+            </TabItem>
             <TabItem Header="Settings" Style="{StaticResource DarkTabItem}"
                      AutomationProperties.Name="Settings">
                 <views:SettingsTab x:Name="SettingsTabContent" />

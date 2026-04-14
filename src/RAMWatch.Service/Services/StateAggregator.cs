@@ -17,6 +17,16 @@ public sealed class StateAggregator
     private bool _ready;
     private DateTime _serviceStartTime;
 
+    // Phase 3 — optional; null until wired in by RamWatchService.
+    private ConfigChangeDetector? _configChangeDetector;
+    private DriftDetector? _driftDetector;
+    private ValidationTestLogger? _validationLogger;
+    private LkgTracker? _lkgTracker;
+
+    // Phase 3 — current-boot drift events, accumulated here so they survive
+    // until the next periodic state push.
+    private readonly List<DriftEvent> _currentBootDrift = new();
+
     public StateAggregator(
         EventLogMonitor eventLog,
         SettingsManager settings,
@@ -28,6 +38,37 @@ public sealed class StateAggregator
         _serviceStartTime = DateTime.UtcNow;
     }
 
+    /// <summary>
+    /// Wire Phase 3 services into the aggregator after they are initialised.
+    /// Called once by RamWatchService after startup loading is complete.
+    /// </summary>
+    public void SetPhase3Services(
+        ConfigChangeDetector configChangeDetector,
+        DriftDetector driftDetector,
+        ValidationTestLogger validationLogger,
+        LkgTracker lkgTracker)
+    {
+        lock (_lock)
+        {
+            _configChangeDetector = configChangeDetector;
+            _driftDetector = driftDetector;
+            _validationLogger = validationLogger;
+            _lkgTracker = lkgTracker;
+        }
+    }
+
+    /// <summary>
+    /// Record drift events detected during the current boot so they are
+    /// included in the next state push.
+    /// </summary>
+    public void AddDriftEvents(IEnumerable<DriftEvent> events)
+    {
+        lock (_lock)
+        {
+            _currentBootDrift.AddRange(events);
+        }
+    }
+
     public void MarkReady()
     {
         lock (_lock) { _ready = true; }
@@ -36,7 +77,32 @@ public sealed class StateAggregator
     public ServiceState BuildState()
     {
         bool ready;
-        lock (_lock) { ready = _ready; }
+        List<ConfigChange>? recentChanges = null;
+        List<DriftEvent>? driftEvents = null;
+        List<ValidationResult>? recentValidations = null;
+        TimingSnapshot? lkg = null;
+
+        lock (_lock)
+        {
+            ready = _ready;
+
+            if (_configChangeDetector is not null)
+            {
+                // ConfigChangeDetector does not hold a list in memory — changes.json
+                // is not loaded on startup (it is append-only). The recent-changes
+                // field is populated in Phase 3 when a full changes journal is added.
+                // For now, leave null so the field is omitted from the push.
+            }
+
+            if (_driftDetector is not null)
+                driftEvents = new List<DriftEvent>(_currentBootDrift);
+
+            if (_validationLogger is not null)
+                recentValidations = _validationLogger.GetRecentResults(5);
+
+            if (_lkgTracker is not null)
+                lkg = _lkgTracker.CurrentLkg;
+        }
 
         var bootTime = GetLastBootTime();
 
@@ -48,7 +114,12 @@ public sealed class StateAggregator
             DriverStatus = "not_found", // Phase 1: no hardware reads
             ServiceUptime = DateTime.UtcNow - _serviceStartTime,
             Errors = _eventLog.GetErrorSources(),
-            Integrity = new IntegrityState(0, IntegrityCheckStatus.NotRun, IntegrityCheckStatus.NotRun)
+            Integrity = new IntegrityState(0, IntegrityCheckStatus.NotRun, IntegrityCheckStatus.NotRun),
+            // Phase 3 — null when no data yet (omitted from JSON by WhenWritingNull)
+            RecentChanges = recentChanges,
+            DriftEvents = driftEvents,
+            RecentValidations = recentValidations,
+            Lkg = lkg
         };
     }
 

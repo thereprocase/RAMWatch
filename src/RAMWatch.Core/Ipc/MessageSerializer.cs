@@ -56,6 +56,13 @@ public static class MessageSerializer
                 "getState" => JsonSerializer.Deserialize(line, typeof(GetStateMessage), Options) as IpcMessage,
                 "runIntegrity" => JsonSerializer.Deserialize(line, typeof(RunIntegrityMessage), Options) as IpcMessage,
                 "updateSettings" => JsonSerializer.Deserialize(line, typeof(UpdateSettingsMessage), Options) as IpcMessage,
+                // Phase 3 — client → service
+                "logValidation" => JsonSerializer.Deserialize(line, typeof(LogValidationMessage), Options) as IpcMessage,
+                "getSnapshots" => JsonSerializer.Deserialize(line, typeof(GetSnapshotsMessage), Options) as IpcMessage,
+                "getDigest" => JsonSerializer.Deserialize(line, typeof(GetDigestMessage), Options) as IpcMessage,
+                // Phase 3 — service → client
+                "snapshotsResponse" => JsonSerializer.Deserialize(line, typeof(SnapshotsResponseMessage), Options) as IpcMessage,
+                "digestResponse" => JsonSerializer.Deserialize(line, typeof(DigestResponseMessage), Options) as IpcMessage,
                 _ => null // Unknown message type — silently drop (B6: forward compatibility)
             };
         }

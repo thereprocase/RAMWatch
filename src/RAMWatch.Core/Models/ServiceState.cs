@@ -16,4 +16,16 @@ public sealed class ServiceState
 
     // Phase 2 — null when hardware driver is unavailable
     public TimingSnapshot? Timings { get; init; }
+
+    // Phase 3 — null when no journal data exists yet
+    /// <summary>The five most recent config changes across boots.</summary>
+    public List<ConfigChange>? RecentChanges { get; init; }
+    /// <summary>Drift events detected during the current boot.</summary>
+    public List<DriftEvent>? DriftEvents { get; init; }
+    /// <summary>The five most recent validation test results.</summary>
+    public List<ValidationResult>? RecentValidations { get; init; }
+    /// <summary>The last-known-good timing snapshot, or null if none qualifies.</summary>
+    public TimingSnapshot? Lkg { get; init; }
+    /// <summary>All saved snapshots for the snapshot comparison tab.</summary>
+    public List<TimingSnapshot>? Snapshots { get; init; }
 }

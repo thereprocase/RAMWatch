@@ -198,6 +198,197 @@ public class IpcRoundtripTests
         Assert.Contains($"{IpcMessage.CurrentProtocolVersion}", json);
     }
 
+    // ── Phase 3 message roundtrip tests ──────────────────────────────────────
+
+    [Fact]
+    public void LogValidationMessage_RoundTrips()
+    {
+        var msg = new LogValidationMessage
+        {
+            Type = "logValidation",
+            RequestId = "req-val-1",
+            TestTool = "Karhu",
+            MetricName = "coverage",
+            MetricValue = 1200.0,
+            MetricUnit = "%",
+            Passed = true,
+            ErrorCount = 0,
+            DurationMinutes = 90,
+            ActiveSnapshotId = "snap-abc",
+            Notes = "Ran overnight, no errors"
+        };
+
+        string json = MessageSerializer.Serialize(msg);
+        var result = MessageSerializer.Deserialize(json.TrimEnd('\n'));
+
+        var log = Assert.IsType<LogValidationMessage>(result);
+        Assert.Equal("req-val-1", log.RequestId);
+        Assert.Equal("Karhu", log.TestTool);
+        Assert.Equal(1200.0, log.MetricValue);
+        Assert.True(log.Passed);
+        Assert.Equal(0, log.ErrorCount);
+        Assert.Equal(90, log.DurationMinutes);
+        Assert.Equal("snap-abc", log.ActiveSnapshotId);
+    }
+
+    [Fact]
+    public void LogValidationMessage_OptionalFieldsOmittedWhenNull()
+    {
+        var msg = new LogValidationMessage
+        {
+            Type = "logValidation",
+            RequestId = "req-val-2",
+            TestTool = "TM5",
+            MetricName = "cycles",
+            MetricValue = 30.0,
+            MetricUnit = "cycles",
+            Passed = true
+        };
+
+        string json = MessageSerializer.Serialize(msg);
+
+        // Notes and ActiveSnapshotId are null — WhenWritingNull suppresses them.
+        Assert.DoesNotContain("\"notes\"", json);
+        Assert.DoesNotContain("\"activeSnapshotId\"", json);
+
+        var result = MessageSerializer.Deserialize(json.TrimEnd('\n'));
+        var log = Assert.IsType<LogValidationMessage>(result);
+        Assert.Null(log.Notes);
+        Assert.Null(log.ActiveSnapshotId);
+    }
+
+    [Fact]
+    public void GetSnapshotsMessage_RoundTrips()
+    {
+        var msg = new GetSnapshotsMessage
+        {
+            Type = "getSnapshots",
+            RequestId = "req-snaps-1"
+        };
+
+        string json = MessageSerializer.Serialize(msg);
+        var result = MessageSerializer.Deserialize(json.TrimEnd('\n'));
+
+        var get = Assert.IsType<GetSnapshotsMessage>(result);
+        Assert.Equal("req-snaps-1", get.RequestId);
+    }
+
+    [Fact]
+    public void SnapshotsResponseMessage_RoundTrips_EmptyList()
+    {
+        var msg = new SnapshotsResponseMessage
+        {
+            Type = "snapshotsResponse",
+            RequestId = "req-snaps-1",
+            Snapshots = new List<TimingSnapshot>()
+        };
+
+        string json = MessageSerializer.Serialize(msg);
+        var result = MessageSerializer.Deserialize(json.TrimEnd('\n'));
+
+        var resp = Assert.IsType<SnapshotsResponseMessage>(result);
+        Assert.Equal("req-snaps-1", resp.RequestId);
+        Assert.Empty(resp.Snapshots);
+    }
+
+    [Fact]
+    public void SnapshotsResponseMessage_RoundTrips_WithSnapshot()
+    {
+        var snap = new TimingSnapshot
+        {
+            SnapshotId = "snap-xyz",
+            Timestamp = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc),
+            BootId = "boot-001",
+            CL = 36,
+            MemClockMhz = 2000
+        };
+
+        var msg = new SnapshotsResponseMessage
+        {
+            Type = "snapshotsResponse",
+            RequestId = "req-snaps-2",
+            Snapshots = new List<TimingSnapshot> { snap }
+        };
+
+        string json = MessageSerializer.Serialize(msg);
+        var result = MessageSerializer.Deserialize(json.TrimEnd('\n'));
+
+        var resp = Assert.IsType<SnapshotsResponseMessage>(result);
+        Assert.Single(resp.Snapshots);
+        Assert.Equal("snap-xyz", resp.Snapshots[0].SnapshotId);
+        Assert.Equal(36, resp.Snapshots[0].CL);
+        Assert.Equal(2000, resp.Snapshots[0].MemClockMhz);
+    }
+
+    [Fact]
+    public void GetDigestMessage_RoundTrips()
+    {
+        var msg = new GetDigestMessage
+        {
+            Type = "getDigest",
+            RequestId = "req-digest-1",
+            HistoryCount = 5
+        };
+
+        string json = MessageSerializer.Serialize(msg);
+        var result = MessageSerializer.Deserialize(json.TrimEnd('\n'));
+
+        var get = Assert.IsType<GetDigestMessage>(result);
+        Assert.Equal("req-digest-1", get.RequestId);
+        Assert.Equal(5, get.HistoryCount);
+    }
+
+    [Fact]
+    public void GetDigestMessage_DefaultHistoryCount()
+    {
+        var msg = new GetDigestMessage
+        {
+            Type = "getDigest",
+            RequestId = "req-digest-2"
+        };
+
+        Assert.Equal(10, msg.HistoryCount);
+    }
+
+    [Fact]
+    public void DigestResponseMessage_RoundTrips_WithText()
+    {
+        var msg = new DigestResponseMessage
+        {
+            Type = "digestResponse",
+            RequestId = "req-digest-1",
+            DigestText = "Boot 1: CL36-36-36-76 2000MHz\nBoot 2: CL36-36-36-76 2000MHz"
+        };
+
+        string json = MessageSerializer.Serialize(msg);
+        var result = MessageSerializer.Deserialize(json.TrimEnd('\n'));
+
+        var resp = Assert.IsType<DigestResponseMessage>(result);
+        Assert.Equal("req-digest-1", resp.RequestId);
+        Assert.NotNull(resp.DigestText);
+        Assert.Contains("CL36", resp.DigestText);
+    }
+
+    [Fact]
+    public void DigestResponseMessage_RoundTrips_NullText()
+    {
+        var msg = new DigestResponseMessage
+        {
+            Type = "digestResponse",
+            RequestId = "req-digest-2",
+            DigestText = null
+        };
+
+        string json = MessageSerializer.Serialize(msg);
+
+        // Null field suppressed by WhenWritingNull.
+        Assert.DoesNotContain("\"digestText\"", json);
+
+        var result = MessageSerializer.Deserialize(json.TrimEnd('\n'));
+        var resp = Assert.IsType<DigestResponseMessage>(result);
+        Assert.Null(resp.DigestText);
+    }
+
     private static StateMessage CreateStateMessage()
     {
         return new StateMessage

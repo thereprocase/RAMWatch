@@ -58,6 +58,11 @@ public partial class MainViewModel : ObservableObject
 
     public TimingsViewModel Timings { get; } = new();
 
+    // ── Timeline + Snapshots (Phase 3) ──────────────────────
+
+    public TimelineViewModel Timeline { get; } = new();
+    public SnapshotsViewModel Snapshots { get; } = new();
+
     // ── Integrity ────────────────────────────────────────────
 
     [ObservableProperty]
@@ -213,6 +218,14 @@ public partial class MainViewModel : ObservableObject
         // Timings — null when driver is unavailable (Phase 1 service will send null)
         Application.Current?.Dispatcher.Invoke(() =>
             Timings.LoadFromSnapshot(state.Timings));
+
+        // Timeline — interleave config changes, drift events, validation results
+        Application.Current?.Dispatcher.Invoke(() =>
+            Timeline.LoadFromState(state));
+
+        // Snapshots — update dropdown options (preserves user's current selection)
+        Application.Current?.Dispatcher.Invoke(() =>
+            Snapshots.LoadSnapshots(state.Snapshots, state.Timings, state.Lkg));
     }
 
     private void ApplyEvent(MonitoredEvent evt)

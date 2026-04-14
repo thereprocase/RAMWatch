@@ -23,6 +23,11 @@ namespace RAMWatch.Core;
 [JsonSerializable(typeof(GetStateMessage))]
 [JsonSerializable(typeof(RunIntegrityMessage))]
 [JsonSerializable(typeof(UpdateSettingsMessage))]
+[JsonSerializable(typeof(LogValidationMessage))]
+[JsonSerializable(typeof(GetSnapshotsMessage))]
+[JsonSerializable(typeof(GetDigestMessage))]
+[JsonSerializable(typeof(SnapshotsResponseMessage))]
+[JsonSerializable(typeof(DigestResponseMessage))]
 [JsonSerializable(typeof(List<ErrorSource>))]
 [JsonSerializable(typeof(List<MonitoredEvent>))]
 // Phase 3 — TuningJournal types

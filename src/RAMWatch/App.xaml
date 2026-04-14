@@ -11,6 +11,7 @@
 
             <conv:SeverityToColorConverter x:Key="SeverityToColor" />
             <conv:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+            <conv:ComparisonDirectionToColorConverter x:Key="DirectionToColor" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

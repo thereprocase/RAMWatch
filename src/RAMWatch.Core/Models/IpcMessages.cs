@@ -50,3 +50,65 @@ public sealed class UpdateSettingsMessage : IpcMessage
     public required AppSettings Settings { get; init; }
     public required string RequestId { get; init; }
 }
+
+// ── Phase 3 — Client → Service ────────────────────────────────────
+
+/// <summary>
+/// Log a stability test result. Service appends to tests.json and
+/// re-evaluates the LKG snapshot.
+/// </summary>
+public sealed class LogValidationMessage : IpcMessage
+{
+    public required string RequestId { get; init; }
+    public required string TestTool { get; init; }
+    public required string MetricName { get; init; }
+    public required double MetricValue { get; init; }
+    public required string MetricUnit { get; init; }
+    public required bool Passed { get; init; }
+    public int ErrorCount { get; init; }
+    public int DurationMinutes { get; init; }
+    public string? ActiveSnapshotId { get; init; }
+    public string? Notes { get; init; }
+}
+
+/// <summary>
+/// Request the full list of timing snapshots.
+/// </summary>
+public sealed class GetSnapshotsMessage : IpcMessage
+{
+    public required string RequestId { get; init; }
+}
+
+/// <summary>
+/// Request an AI-readable digest of the last N boots.
+/// </summary>
+public sealed class GetDigestMessage : IpcMessage
+{
+    public required string RequestId { get; init; }
+    /// <summary>Number of boot history entries to include. Defaults to 10.</summary>
+    public int HistoryCount { get; init; } = 10;
+}
+
+// ── Phase 3 — Service → Client ────────────────────────────────────
+
+/// <summary>
+/// Response to GetSnapshotsMessage.
+/// </summary>
+public sealed class SnapshotsResponseMessage : IpcMessage
+{
+    public required string RequestId { get; init; }
+    public required List<TimingSnapshot> Snapshots { get; init; }
+}
+
+/// <summary>
+/// Response to GetDigestMessage.
+/// </summary>
+public sealed class DigestResponseMessage : IpcMessage
+{
+    public required string RequestId { get; init; }
+    /// <summary>
+    /// Plain-text digest suitable for pasting into an AI prompt.
+    /// Null when no snapshot history exists yet.
+    /// </summary>
+    public string? DigestText { get; init; }
+}

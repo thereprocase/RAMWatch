@@ -1,0 +1,117 @@
+<UserControl x:Class="RAMWatch.Views.TimelineTab"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:RAMWatch.ViewModels">
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />   <!-- Section header -->
+            <RowDefinition Height="*" />      <!-- Timeline entries -->
+        </Grid.RowDefinitions>
+
+        <!-- Section header -->
+        <TextBlock Grid.Row="0"
+                   Text="TIMELINE"
+                   Style="{StaticResource SectionHeader}" />
+
+        <!-- Empty state -->
+        <TextBlock Grid.Row="1"
+                   Text="No timeline entries yet. Changes, tests, and drift events will appear here."
+                   Foreground="{StaticResource TextSecondary}"
+                   FontStyle="Italic"
+                   VerticalAlignment="Center"
+                   HorizontalAlignment="Center"
+                   Margin="0,32,0,0"
+                   Visibility="{Binding HasEntries, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"
+                   AutomationProperties.Name="Timeline empty" />
+
+        <!-- Timeline list -->
+        <ScrollViewer Grid.Row="1"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      Margin="0,4,0,0"
+                      Visibility="{Binding HasEntries, Converter={StaticResource BoolToVisibility}}">
+            <ItemsControl ItemsSource="{Binding Entries}"
+                          AutomationProperties.Name="Timeline entries">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:TimelineEntry}">
+                        <Border Margin="0,0,0,4"
+                                Background="{StaticResource BgPanel}"
+                                CornerRadius="2"
+                                Padding="0">
+                            <DockPanel>
+                                <!-- Colored left border strip indicating entry type -->
+                                <Border DockPanel.Dock="Left" Width="4" CornerRadius="2,0,0,2">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="{StaticResource InteractiveBlue}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding EntryType}" Value="{x:Static vm:TimelineEntryType.ConfigChange}">
+                                                    <Setter Property="Background" Value="{StaticResource StatusAmber}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding EntryType}" Value="{x:Static vm:TimelineEntryType.Drift}">
+                                                    <Setter Property="Background" Value="{StaticResource StatusRed}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding EntryType}" Value="{x:Static vm:TimelineEntryType.ValidationPass}">
+                                                    <Setter Property="Background" Value="{StaticResource StatusGreen}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding EntryType}" Value="{x:Static vm:TimelineEntryType.ValidationFail}">
+                                                    <Setter Property="Background" Value="{StaticResource StatusRed}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                </Border>
+
+                                <!-- Content area -->
+                                <StackPanel Margin="10,8,10,8">
+                                    <!-- Top row: type label + timestamp -->
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Right"
+                                                   Text="{Binding TimestampDisplay}"
+                                                   Foreground="{StaticResource TextSecondary}"
+                                                   FontFamily="{StaticResource MonoFont}"
+                                                   FontSize="11"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock FontSize="10"
+                                                   FontWeight="SemiBold"
+                                                   VerticalAlignment="Center"
+                                                   Typography.Capitals="AllSmallCaps">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{StaticResource InteractiveBlue}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding EntryType}" Value="{x:Static vm:TimelineEntryType.ConfigChange}">
+                                                            <Setter Property="Foreground" Value="{StaticResource StatusAmber}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding EntryType}" Value="{x:Static vm:TimelineEntryType.Drift}">
+                                                            <Setter Property="Foreground" Value="{StaticResource StatusRed}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding EntryType}" Value="{x:Static vm:TimelineEntryType.ValidationPass}">
+                                                            <Setter Property="Foreground" Value="{StaticResource StatusGreen}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding EntryType}" Value="{x:Static vm:TimelineEntryType.ValidationFail}">
+                                                            <Setter Property="Foreground" Value="{StaticResource StatusRed}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                            <Run Text="{Binding TypeLabel, Mode=OneWay}" />
+                                        </TextBlock>
+                                    </DockPanel>
+
+                                    <!-- Summary text -->
+                                    <TextBlock Text="{Binding Summary}"
+                                               Foreground="{StaticResource TextPrimary}"
+                                               FontSize="12"
+                                               TextWrapping="Wrap"
+                                               Margin="0,4,0,0" />
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </Grid>
+</UserControl>
