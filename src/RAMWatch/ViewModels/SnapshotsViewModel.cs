@@ -285,12 +285,15 @@ public partial class SnapshotsViewModel : ObservableObject
         HasManageRows = ManageRows.Count > 0;
 
         // Restore selections or pick sensible defaults.
-        // The LKG entry's DisplayName can vary ("LKG" or "LKG (tool ...)") so we
-        // match on IsSynthetic + DisplayName prefix rather than the exact string.
-        LeftSelection  = AvailableSnapshots.FirstOrDefault(o => o.DisplayName == leftName)
-                         ?? AvailableSnapshots.FirstOrDefault(o => o.DisplayName == "Current");
+        // Default: left = most recent saved snapshot with different timings from Current,
+        // right = Current. This shows the user what changed since their last save.
+        var currentOption = AvailableSnapshots.FirstOrDefault(o => o.DisplayName == "Current");
+
+        LeftSelection = AvailableSnapshots.FirstOrDefault(o => o.DisplayName == leftName)
+                        ?? FindLastDifferentSnapshot(currentOption?.Snapshot)
+                        ?? AvailableSnapshots.FirstOrDefault(o => o.IsSynthetic && o.DisplayName.StartsWith("LKG", StringComparison.Ordinal));
         RightSelection = AvailableSnapshots.FirstOrDefault(o => o.DisplayName == rightName)
-                         ?? AvailableSnapshots.FirstOrDefault(o => o.IsSynthetic && o.DisplayName.StartsWith("LKG", StringComparison.Ordinal));
+                         ?? currentOption;
     }
 
     private SnapshotManageRow BuildManageRow(TimingSnapshot snap, bool hasValidation)
@@ -391,6 +394,35 @@ public partial class SnapshotsViewModel : ObservableObject
             LeftSelection  = AvailableSnapshots.FirstOrDefault(o => o.DisplayName == leftName);
         if (rightName is not null)
             RightSelection = AvailableSnapshots.FirstOrDefault(o => o.DisplayName == rightName);
+    }
+
+    /// <summary>
+    /// Finds the most recent non-synthetic snapshot in the available list
+    /// whose timings differ from the current snapshot. Returns null if none found.
+    /// </summary>
+    private SnapshotOption? FindLastDifferentSnapshot(TimingSnapshot? current)
+    {
+        if (current is null) return null;
+
+        // AvailableSnapshots has synthetics first, then saved entries in chronological order.
+        // Walk backwards to find the most recent saved snapshot with different timings.
+        for (int i = AvailableSnapshots.Count - 1; i >= 0; i--)
+        {
+            var opt = AvailableSnapshots[i];
+            if (opt.IsSynthetic || opt.Snapshot is null) continue;
+            if (!TimingsEqual(opt.Snapshot, current))
+                return opt;
+        }
+
+        // All saved snapshots match current — fall back to the most recent saved one.
+        for (int i = AvailableSnapshots.Count - 1; i >= 0; i--)
+        {
+            var opt = AvailableSnapshots[i];
+            if (!opt.IsSynthetic && opt.Snapshot is not null)
+                return opt;
+        }
+
+        return null;
     }
 
     /// <summary>
