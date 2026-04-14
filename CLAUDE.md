@@ -6,25 +6,46 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 RAMWatch is a Windows-only DRAM tuning monitor: a system health tracker + tuning journal + shareable history for enthusiasts who tune RAM timings. It reads hardware registers, watches event logs, tracks timing drift across boots, and maintains a git-backed tuning diary. Read-only — it never modifies hardware.
 
-**Status:** Architecture complete (see reference docs below). Ready for Phase 1 implementation.
+**Status:** Architecture complete (see reference docs below). Directory skeleton only — no `.sln`, no `.csproj`, no source files yet. The first implementation task is scaffolding the four projects and solution file. Build commands below will not work until then.
+
+## Before Writing Any Code
+
+`SPRINT-PLAN.md` lists seven blockers (B1–B7) that must be resolved before Phase 1 implementation starts. Do not skip them:
+
+- **B1** — License decision (ZenTimings/ZenStates-Core are GPL-3.0, not MIT; either GPL this project or clean-room the UMC decode from AMD PPRs)
+- **B2** — WPF Native AOT is blocked by the SDK; service uses AOT, GUI uses self-contained single-file (resolved, documented below)
+- **B3** — Target `net10.0-windows`, not .NET 8 (.NET 8 EOL Nov 2026)
+- **B4** — Named pipe must have explicit DACL restricting to interactive user SID + SYSTEM (default ACLs allow local privilege escalation via `runIntegrity`)
+- **B5** — Settings privilege escalation: `inpOutDllPath` and path fields let unprivileged GUI write values the LocalSystem service will act on. Service owns all paths internally; never load DLL paths from settings
+- **B6** — IPC protocol version field on every message; service rejects unknown types with a structured error
+- **B7** — File concurrency: single-writer per file, write-to-temp-then-rename for JSON, `FileShare.Read` on CSV appends
+
+B4–B7 are Phase 1 blocking. Get them right from the first line of code.
 
 ## Architecture — Two-Process Model
 
-Two Native AOT executables communicating over a named pipe (`\\.\pipe\RAMWatch`):
+Two executables communicating over a secured named pipe (`\\.\pipe\RAMWatch`):
 
-- **RAMWatch.Service.exe** — Windows service, LocalSystem, starts at boot. Owns all monitoring (EventLogWatcher push-based subscriptions, InpOutx64 P/Invoke for UMC register reads, CBS.log tail, SFC/DISM runner), state aggregation, CSV logging, git commits, and the pipe server. Target: <0.1% CPU, <25MB RAM steady state.
-- **RAMWatch.exe** — WPF GUI client, unprivileged, on-demand. Connects to pipe, receives JSON state pushes, sends commands. MVVM with CommunityToolkit.Mvvm source generators. Tabs: Monitor, Timings, Timeline, Snapshots, Settings. Custom dark theme (navy background, semantic status colors, Cascadia Mono for numbers).
+- **RAMWatch.Service.exe** — Windows service, LocalSystem, starts at boot. **Native AOT** (`PublishAot=true`). Owns all monitoring (EventLogWatcher push-based subscriptions, InpOutx64 P/Invoke for UMC register reads, CBS.log tail, SFC/DISM runner), state aggregation, CSV logging, git commits, and the pipe server. Target: <0.1% CPU, <25MB RAM steady state.
+- **RAMWatch.exe** — WPF GUI client, unprivileged, on-demand. **Self-contained single-file** (`PublishSingleFile=true`, NOT Native AOT — WPF does not support AOT). ~80-120MB. Connects to pipe, receives JSON state pushes, sends commands. MVVM with CommunityToolkit.Mvvm source generators. Tabs: Monitor, Timings, Timeline, Snapshots, Settings. Custom dark theme (navy background, semantic status colors, Cascadia Mono for numbers).
+
+**Pipe security:** DACL restricts access to SYSTEM + interactive user SID. Not open to all local users.
 
 IPC is JSON-over-newline. Message types: `state` (full push on connect + periodic), `event` (real-time), `getState`, `snapshot`, `runIntegrity`, `updateSettings`, `logValidation`, `updateDesignations`, `getDigest`, `getLkgDiff`.
 
 ## Technology Stack
 
-- **.NET 8+**, Native AOT, `win-x64`, single-file self-contained
+- **.NET 10 LTS** (`net10.0-windows`), `win-x64`, self-contained. (.NET 8 EOL Nov 2026 — insufficient runway)
+- **Service:** Native AOT (`PublishAot=true`). **GUI:** Self-contained single-file, not AOT (WPF incompatible — see Key Design Constraints)
 - **WPF** for GUI (not WinUI 3, not MAUI — weight class decision)
-- **InpOutx64** for PCI config space / physical memory reads (user-provided, not bundled)
-- **System.Text.Json** with source generators (no reflection-based serialization)
-- `[LibraryImport]` for P/Invoke (source-generated, not `[DllImport]`)
+- **InpOutx64** for PCI config space / physical memory reads (user-provided, not bundled). Consider PawnIO as modern alternative (ZenTimings has migrated).
+- **System.Text.Json** with source generators — single `RamWatchJsonContext.cs` in Core for all serializable types
+- `[LibraryImport]` for P/Invoke in service (source-generated, not `[DllImport]`). Wrap every call in try/catch — missing DLL throws `DllNotFoundException` at call site, not load time.
+- Use `NativeLibrary.Load(path)` + `NativeLibrary.TryGetExport` for runtime path scanning (the `[LibraryImport]` fixed name can't implement multi-path scan)
 - CommunityToolkit.Mvvm `[ObservableProperty]` for MVVM bindings
+- **H.NotifyIcon.Wpf** for system tray (NOT Hardcodet.NotifyIcon.Wpf — unmaintained, no AOT, CPOL license)
+- **Microsoft.Extensions.Hosting.WindowsServices** required for `.UseWindowsService()` (not just Hosting)
+- **xUnit v3** for tests, manual fakes for mocking (Moq/NSubstitute use runtime codegen, AOT-incompatible)
 - No DI container, no logging framework, no ORM, no libgit2 — flat files and shell-out to git/gh
 
 ## Build and Run
@@ -33,29 +54,34 @@ IPC is JSON-over-newline. Message types: `state` (full push on connect + periodi
 # Build everything
 dotnet build RAMWatch.sln
 
-# Publish service (Native AOT)
+# Publish service (Native AOT, ~15MB)
 dotnet publish src/RAMWatch.Service -c Release -r win-x64
 
-# Publish GUI (Native AOT + WPF)
+# Publish GUI (self-contained single-file, ~80-120MB — NOT AOT)
 dotnet publish src/RAMWatch -c Release -r win-x64
 
-# Run tests
+# Run all tests
 dotnet test src/RAMWatch.Tests
+
+# Run a single test or test class by name (xUnit filter)
+dotnet test src/RAMWatch.Tests --filter "FullyQualifiedName~UmcDecode"
 
 # Install service (admin required, one-time)
 scripts/Install-RAMWatch.bat
 ```
+
+**WSL / Linux caveat:** this repo lives on WSL but the target is `net10.0-windows` with WPF — you cannot produce a runnable artifact from the Linux side (no WPF, no win-x64 host on Linux). Real builds, test runs, and the service install happen on Windows (PowerShell or cmd). From WSL you can still compile-check the Core + Service projects with an installed .NET 10 SDK, but the GUI project and anything touching WPF will not build on Linux. Treat Linux-side `dotnet` as a syntax/unit-test aid for the non-WPF code, not a full build.
 
 ## Project Structure
 
 ```
 RAMWatch.sln
 src/
-  RAMWatch.Core/          # Shared: models, hardware decode, IPC protocol
+  RAMWatch.Core/          # Shared: models + IPC only (both sides use these)
     Models/               # MonitoredEvent, TimingSnapshot, ConfigChange, DriftEvent, etc.
-    Hardware/             # InpOut P/Invoke, CpuDetect, Zen2/3 UMC decode, SVI2, SMU
     Ipc/                  # PipeServer, PipeClient, MessageSerializer
-  RAMWatch.Service/       # Windows service (BackgroundService)
+  RAMWatch.Service/       # Windows service (BackgroundService, Native AOT)
+    Hardware/             # InpOut P/Invoke, CpuDetect, Zen2/3 UMC decode, SVI2, SMU
     Services/             # EventLogMonitor, HardwareReader, IntegrityChecker,
                           # ConfigChangeDetector, DriftDetector, CsvLogger,
                           # StateAggregator, LkgTracker, GitCommitter, etc.
@@ -68,7 +94,13 @@ src/
 scripts/                  # Install/Uninstall batch files
 ```
 
-Data lives in `%ProgramData%\RAMWatch\` — settings.json, snapshots.json, designations.json, tests.json, changes.json, and `logs/` (daily CSVs).
+## Data Location
+
+All runtime data lives in `%ProgramData%\RAMWatch\`:
+
+- `settings.json`, `snapshots.json`, `designations.json`, `tests.json`, `changes.json` — JSON state files (atomic write-to-temp-then-rename, service is sole writer)
+- `logs/` — daily CSVs, `FileShare.Read` on append so the mirror logger can copy concurrently
+- The service owns every write into this directory. The GUI never touches it directly; it sends changes via pipe. Settings ACLed to Administrators so unprivileged users can't tamper with what the LocalSystem service will read.
 
 ## Implementation Phases
 
@@ -80,7 +112,7 @@ Data lives in `%ProgramData%\RAMWatch\` — settings.json, snapshots.json, desig
 
 ## Key Design Constraints
 
-- **Native AOT + WPF:** No `XamlReader.Load()` from strings. All XAML compiled (BAML). Use `[LibraryImport]` not `[DllImport]`. Use `System.Text.Json` source generators with `[JsonSerializable]`. If WPF AOT proves too fragile, fall back to standard self-contained for GUI only.
+- **WPF does NOT support Native AOT.** GUI uses self-contained single-file, `PublishTrimmed=false`. No `XamlReader.Load()` from strings (compiled BAML only). Service uses full Native AOT. Use `System.Text.Json` source generators with `[JsonSerializable]` everywhere.
 - **Zero-cost idle:** Event-driven where possible (EventLogWatcher is kernel-callback, zero CPU between events). Low-frequency polling (≥30s) where not. No polling loops.
 - **Graceful degradation:** If InpOutx64 not found → disable hardware reads, show "driver not available". If service not running → GUI shows banner, falls back to direct event log reads. If git not on PATH → disable git integration. Never crash on missing optional dependency.
 - **Privacy by default:** Three tiers — local (everything), private repo (anonymized, no serial numbers/timestamps/event XML), public repo (opt-in, hardware+timings+validation only). Error details never leave the machine without explicit action.
@@ -88,13 +120,26 @@ Data lives in `%ProgramData%\RAMWatch\` — settings.json, snapshots.json, desig
 
 ## UMC Register Decode Notes
 
-Register maps ported from ZenTimings (MIT). Offsets can shift between AGESA releases — include a validation step (read known-constant fields, verify before trusting decode). Known issues:
+**CAUTION: ZenTimings and ZenStates-Core are GPL-3.0, not MIT as the architecture doc claims.** Either license RAMWatch as GPL-3.0, or clean-room the decode from AMD PPRs. Register offsets (hardware facts) are not copyrightable, but code structure and decode implementations are GPL-covered.
+
+Register maps derived from AMD PPRs / ZenTimings reference. Offsets can shift between AGESA releases — include a validation step (read known-constant fields, verify before trusting decode). Known issues:
 - tRFC1 readback bug on ComboAM4v2PI 1.2.0.x — detect and warn in UI
 - VDIMM/VTT on MSI boards: BIOS WMI (AMD_ACPI), not hardware registers — static values, label accordingly
 - PHYRDL mismatch between channels is normal (PHY training artifact), not an error
 
+## Critical Implementation Notes
+
+- **File concurrency:** All JSON writes use write-to-temp-then-rename (atomic on NTFS). Single-writer principle per file. Service owns all data file writes; GUI sends changes via pipe.
+- **IPC protocol version:** Every message includes `protocolVersion` field. Service returns error for unknown message types. GUI checks version on connect.
+- **DLL loading:** Use `NativeLibrary.Load()` for runtime path scanning. Wrap all P/Invoke in try/catch. Only scan admin-owned paths (own directory, System32). Never load from PATH or user-writable locations.
+- **Subprocess execution:** Always use `Process.Start` with `ArgumentList` (array form). Never string-interpolate into shell commands. Validate IPC enum fields against allowlist.
+- **Git operations:** Must run on a dedicated background thread/Task. Never block the service's main event loop. Enqueue commit requests, drain asynchronously.
+
 ## Reference Documents
 
 These are comprehensive and authoritative — read on demand, don't memorize:
-- `RAMWatch-Architecture.md` — Full architecture, data models, IPC protocol, register maps, all service/data layer detail
+- `RAMWatch-Architecture.md` — Full architecture, data models, IPC protocol, register maps, all service/data layer detail. **Note:** Contains several errors corrected by War Council review — see SPRINT-PLAN.md for the correction list.
 - `RAMWatch-UI-Guide.md` — UI/UX design: layout grids, color palette, typography, component patterns, accessibility, tray behavior
+- `SPRINT-PLAN.md` — Combined sprint plan, TODO tracker, War Council findings, dependency catalog, and architecture corrections
+- `reference/zentimings/` — ZenTimings GUI source (GPL-3.0, cache only, gitignored)
+- `reference/zenstates-core/` — ZenStates-Core library source (GPL-3.0, cache only, gitignored)
