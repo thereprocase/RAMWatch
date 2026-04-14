@@ -84,14 +84,12 @@
                 <views:MonitorTab />
             </TabItem>
             <TabItem Header="Timings" Style="{StaticResource DarkTabItem}" IsEnabled="False">
-                <TextBlock Text="Timing display available in Phase 2 (requires InpOutx64 driver)"
+                <TextBlock Text="Timing display available in Phase 2 (requires PawnIO driver)"
                            Style="{StaticResource SecondaryText}"
                            HorizontalAlignment="Center" VerticalAlignment="Center" />
             </TabItem>
             <TabItem Header="Settings" Style="{StaticResource DarkTabItem}">
-                <TextBlock Text="Settings — coming soon"
-                           Style="{StaticResource SecondaryText}"
-                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <views:SettingsTab x:Name="SettingsTabContent" />
             </TabItem>
         </TabControl>
 

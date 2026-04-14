@@ -25,6 +25,20 @@ namespace RAMWatch.Core;
 [JsonSerializable(typeof(UpdateSettingsMessage))]
 [JsonSerializable(typeof(List<ErrorSource>))]
 [JsonSerializable(typeof(List<MonitoredEvent>))]
+// Phase 3 — TuningJournal types
+[JsonSerializable(typeof(TimingSnapshot))]
+[JsonSerializable(typeof(ConfigChange))]
+[JsonSerializable(typeof(TimingDelta))]
+[JsonSerializable(typeof(DriftEvent))]
+[JsonSerializable(typeof(ValidationResult))]
+[JsonSerializable(typeof(TimingDesignation))]
+[JsonSerializable(typeof(DesignationMap))]
+[JsonSerializable(typeof(Dictionary<string, TimingDelta>))]
+[JsonSerializable(typeof(Dictionary<string, TimingDesignation>))]
+[JsonSerializable(typeof(List<TimingSnapshot>))]
+[JsonSerializable(typeof(List<ConfigChange>))]
+[JsonSerializable(typeof(List<DriftEvent>))]
+[JsonSerializable(typeof(List<ValidationResult>))]
 public partial class RamWatchJsonContext : JsonSerializerContext
 {
 }

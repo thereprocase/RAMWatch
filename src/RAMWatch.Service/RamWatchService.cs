@@ -18,6 +18,7 @@ public sealed class RamWatchService : BackgroundService
     private EventLogMonitor? _eventLog;
     private StateAggregator? _aggregator;
     private CsvLogger? _csvLogger;
+    private MirrorLogger? _mirrorLogger;
     private IntegrityChecker? _integrity;
     private string _bootId = "";
 
@@ -42,6 +43,9 @@ public sealed class RamWatchService : BackgroundService
             config.LogRetentionDays,
             config.MaxLogSizeMb);
         _csvLogger.RunRetention();
+
+        // Mirror logger (fire-and-forget copy to Dropbox/OneDrive/etc.)
+        _mirrorLogger = new MirrorLogger(config.MirrorDirectory);
 
         // Pipe server
         _pipeServer = new PipeServer(OnClientMessage);
@@ -88,6 +92,7 @@ public sealed class RamWatchService : BackgroundService
         _logger.LogInformation("RAMWatch service stopping");
         _eventLog?.Dispose();
         _csvLogger?.Dispose();
+        _mirrorLogger = null;
         if (_pipeServer is not null)
             await _pipeServer.DisposeAsync();
         await base.StopAsync(cancellationToken);
@@ -96,9 +101,14 @@ public sealed class RamWatchService : BackgroundService
     private void OnEventDetected(MonitoredEvent evt)
     {
         // Log to CSV
-        if (_settings.Current.EnableCsvLogging)
+        if (_settings.Current.EnableCsvLogging && _csvLogger is not null)
         {
-            _csvLogger?.LogEvent(evt, _bootId);
+            _csvLogger.LogEvent(evt, _bootId);
+
+            // Fire-and-forget copy to mirror directory (Dropbox, OneDrive, etc.)
+            var currentPath = _csvLogger.CurrentFilePath;
+            if (!string.IsNullOrEmpty(currentPath))
+                _mirrorLogger?.EnqueueCopy(currentPath);
         }
 
         // Broadcast to connected GUI clients

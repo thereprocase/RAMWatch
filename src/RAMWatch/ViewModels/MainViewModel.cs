@@ -86,6 +86,22 @@ public partial class MainViewModel : ObservableObject
         await _pipe.SendAsync(MessageSerializer.Serialize(msg));
     }
 
+    /// <summary>
+    /// Sends an UpdateSettingsMessage to the service. Called by SettingsViewModel.SaveCommand.
+    /// No-op if the pipe is not connected.
+    /// </summary>
+    public async Task SendUpdateSettingsAsync(AppSettings settings)
+    {
+        if (!_pipe.IsConnected) return;
+        var msg = new UpdateSettingsMessage
+        {
+            Type = "updateSettings",
+            RequestId = Guid.NewGuid().ToString("N"),
+            Settings = settings
+        };
+        await _pipe.SendAsync(MessageSerializer.Serialize(msg));
+    }
+
     // ── Lifecycle ────────────────────────────────────────────
 
     public async Task StartAsync()

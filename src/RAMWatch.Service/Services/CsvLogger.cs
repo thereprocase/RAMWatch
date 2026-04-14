@@ -19,6 +19,16 @@ public sealed class CsvLogger : IDisposable
 
     private const string Header = "timestamp,boot_id,source,category,severity,event_id,summary";
 
+    /// <summary>
+    /// The absolute path of the currently open CSV file, or empty string if no
+    /// file has been opened yet (i.e. no events have been logged this session).
+    /// Used by MirrorLogger to know which file to copy after each write.
+    /// </summary>
+    public string CurrentFilePath
+    {
+        get { lock (_lock) { return _currentFilePath; } }
+    }
+
     public CsvLogger(string logDirectory, int retentionDays = 90, int maxSizeMb = 100)
     {
         _logDirectory = logDirectory;
@@ -142,6 +152,14 @@ public sealed class CsvLogger : IDisposable
     /// <summary>
     /// Generate a boot ID from the last boot time.
     /// Format: boot_MMDD_HHMM (minute granularity).
+    ///
+    /// WARNING: minute granularity means two boots in the same minute produce the same ID.
+    /// Phase 3 drift detection uses boot IDs to index the 20-boot rolling window; a collision
+    /// causes two distinct boot records to merge, silently corrupting drift calculations.
+    /// Fix: either append seconds (boot_MMDD_HHMMss) or use a monotonic sequential counter
+    /// persisted to disk (e.g. %ProgramData%\RAMWatch\boot_counter.txt, incremented atomically
+    /// via write-temp-rename on each service start). The sequential counter survives clock skew
+    /// and is trivially unique; seconds only reduce the collision window, not eliminate it.
     /// </summary>
     public static string GenerateBootId(DateTime bootTime)
     {
