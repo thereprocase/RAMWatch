@@ -77,9 +77,11 @@ public sealed class GitCommitter : IAsyncDisposable
             await RunGitAsync(["init"], LocalGitTimeoutMs, ct);
 
             var cfg = _settings.Current;
-            string name  = string.IsNullOrWhiteSpace(cfg.GitUserDisplayName)
-                ? "RAMWatch"
-                : cfg.GitUserDisplayName;
+            // Sanitize display name — newlines could inject git config stanzas
+            string rawName = cfg.GitUserDisplayName ?? "";
+            rawName = rawName.Replace("\r", "").Replace("\n", "").Replace("\0", "").Trim();
+            if (rawName.Length > 100) rawName = rawName[..100];
+            string name = string.IsNullOrWhiteSpace(rawName) ? "RAMWatch" : rawName;
             string email = "ramwatch@localhost";
 
             await RunGitAsync(["config", "user.name",  name],  LocalGitTimeoutMs, ct);
@@ -215,7 +217,9 @@ public sealed class GitCommitter : IAsyncDisposable
             Interlocked.Exchange(ref _consecutiveFailures, 0);
 
             // 4. Optional push via gh
-            if (cfg.EnableGitPush && CanPush && !string.IsNullOrWhiteSpace(cfg.GitRemoteRepo))
+            if (cfg.EnableGitPush && CanPush &&
+                !string.IsNullOrWhiteSpace(cfg.GitRemoteRepo) &&
+                AppSettings.IsValidRemoteRepo(cfg.GitRemoteRepo))
             {
                 await PushAsync(ct);
             }
@@ -420,10 +424,18 @@ public sealed class GitCommitter : IAsyncDisposable
         psi.CreateNoWindow         = true;
 
         using var process = Process.Start(psi)!;
-        var stdout = await process.StandardOutput.ReadToEndAsync(ct);
-        var stderr = await process.StandardError.ReadToEndAsync(ct);
-        await process.WaitForExitAsync(ct);
-        return new ProcessResult(process.ExitCode, stdout, stderr);
+        try
+        {
+            var stdout = await process.StandardOutput.ReadToEndAsync(ct);
+            var stderr = await process.StandardError.ReadToEndAsync(ct);
+            await process.WaitForExitAsync(ct);
+            return new ProcessResult(process.ExitCode, stdout, stderr);
+        }
+        catch (OperationCanceledException)
+        {
+            try { process.Kill(entireProcessTree: true); } catch { }
+            throw;
+        }
     }
 }
 

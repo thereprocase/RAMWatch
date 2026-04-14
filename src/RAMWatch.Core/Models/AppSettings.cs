@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace RAMWatch.Core.Models;
 
 /// <summary>
@@ -5,6 +7,13 @@ namespace RAMWatch.Core.Models;
 /// </summary>
 public sealed class AppSettings
 {
+    // Validation for GitRemoteRepo — must be "owner/repo" format or empty.
+    private static readonly Regex ValidRepoPattern =
+        new(@"^[A-Za-z0-9_.\-]+/[A-Za-z0-9_.\-]+$", RegexOptions.Compiled);
+
+    public static bool IsValidRemoteRepo(string? repo) =>
+        string.IsNullOrEmpty(repo) || ValidRepoPattern.IsMatch(repo);
+
     public int SchemaVersion { get; set; } = 1;
 
     // General
