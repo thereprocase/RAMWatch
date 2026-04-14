@@ -136,7 +136,8 @@ public class BootBaselineJournalTests
         _journal.RecordBoot("b4", [new ErrorSource("X", EventCategory.Filesystem, 20, null)]);
 
         var stat = _journal.ComputeBaselines()["X"];
-        Assert.True(stat.StdDev > 0);
+        // Population σ of {10, 20, 30, 20} = √50 ≈ 7.07
+        Assert.InRange(stat.StdDev, 7.0, 7.2);
         Assert.Equal(4, stat.BootCount);
         Assert.Equal(4, stat.NonZeroBoots);
     }

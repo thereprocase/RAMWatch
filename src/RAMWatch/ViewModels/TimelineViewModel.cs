@@ -168,9 +168,11 @@ public partial class TimelineViewModel : ObservableObject
                     : $"{change.UserNotes} ({deltas})";
 
                 // Use the "after" snapshot for the timing summary (what we changed TO).
+                // Fall back to current timings if the snapshot was pruned or not yet persisted.
                 TimingSnapshot? snap = null;
                 if (change.SnapshotAfterId is not null)
                     snapLookup.TryGetValue(change.SnapshotAfterId, out snap);
+                snap ??= state.Timings;
 
                 var changeEntry = new TimelineEntry
                 {
@@ -224,9 +226,11 @@ public partial class TimelineViewModel : ObservableObject
                     summary += $" [{result.DurationMinutes}m]";
 
                 // Look up the linked snapshot for timing context.
+                // Fall back to current timings if the snapshot was pruned.
                 TimingSnapshot? snap = null;
                 if (result.ActiveSnapshotId is not null)
                     snapLookup.TryGetValue(result.ActiveSnapshotId, out snap);
+                snap ??= state.Timings;
 
                 var entry = new TimelineEntry
                 {

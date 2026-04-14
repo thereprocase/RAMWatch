@@ -392,6 +392,48 @@ public class ConfigChangeDetectorTests : IDisposable
     }
 
     [Fact]
+    public void IncompleteRead_UclkZeroOnly_SkippedEntirely()
+    {
+        using var detector = new ConfigChangeDetector(_tempDir);
+
+        detector.DetectChanges(MakeSnapshot("boot_a", fclk: 1900, uclk: 1900, cl: 18));
+
+        // FCLK populated but UCLK still zero — asymmetric incomplete read.
+        var change = detector.DetectChanges(MakeSnapshot("boot_b", fclk: 1900, uclk: 0, cl: 16));
+
+        Assert.Null(change);
+    }
+
+    [Fact]
+    public void IncompleteRead_FclkZeroOnly_SkippedEntirely()
+    {
+        using var detector = new ConfigChangeDetector(_tempDir);
+
+        detector.DetectChanges(MakeSnapshot("boot_a", fclk: 1900, uclk: 1900, cl: 18));
+
+        // UCLK populated but FCLK still zero.
+        var change = detector.DetectChanges(MakeSnapshot("boot_b", fclk: 0, uclk: 1900, cl: 16));
+
+        Assert.Null(change);
+    }
+
+    [Fact]
+    public void IncompleteRead_DoesNotPersistSnapshot()
+    {
+        using var detector = new ConfigChangeDetector(_tempDir);
+
+        // Baseline — this writes last_snapshot.json.
+        detector.DetectChanges(MakeSnapshot("boot_a", fclk: 1900, uclk: 1900, cl: 18));
+        var originalJson = File.ReadAllText(Path.Combine(_tempDir, "last_snapshot.json"));
+
+        // Incomplete read — should NOT overwrite the persisted snapshot.
+        detector.DetectChanges(MakeSnapshot("boot_b", fclk: 0, uclk: 0, cl: 16));
+        var afterJson = File.ReadAllText(Path.Combine(_tempDir, "last_snapshot.json"));
+
+        Assert.Equal(originalJson, afterJson);
+    }
+
+    [Fact]
     public void IncompleteRead_DoesNotUpdateBaseline()
     {
         using var detector = new ConfigChangeDetector(_tempDir);

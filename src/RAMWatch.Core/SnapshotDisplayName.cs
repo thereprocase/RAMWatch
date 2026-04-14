@@ -91,6 +91,7 @@ public static class SnapshotDisplayName
         IReadOnlyDictionary<string, ValidationResult>? lookup)
     {
         if (lookup is not null
+            && !string.IsNullOrEmpty(lkg.SnapshotId)
             && lookup.TryGetValue(lkg.SnapshotId, out var validation)
             && validation.Passed)
         {
