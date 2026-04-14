@@ -78,15 +78,13 @@
         <Border Grid.Row="1" Height="1" Background="{StaticResource BgAccent}" />
 
         <!-- Tab Control -->
-        <TabControl Grid.Row="2"
+        <TabControl Grid.Row="2" x:Name="MainTabControl"
                     Style="{StaticResource DarkTabControl}">
             <TabItem Header="Monitor" Style="{StaticResource DarkTabItem}">
                 <views:MonitorTab />
             </TabItem>
-            <TabItem Header="Timings" Style="{StaticResource DarkTabItem}" IsEnabled="False">
-                <TextBlock Text="Timing display available in Phase 2 (requires PawnIO driver)"
-                           Style="{StaticResource SecondaryText}"
-                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <TabItem Header="Timings" Style="{StaticResource DarkTabItem}">
+                <views:TimingsTab DataContext="{Binding Timings}" />
             </TabItem>
             <TabItem Header="Settings" Style="{StaticResource DarkTabItem}">
                 <views:SettingsTab x:Name="SettingsTabContent" />

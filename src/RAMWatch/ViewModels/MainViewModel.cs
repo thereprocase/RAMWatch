@@ -39,13 +39,13 @@ public partial class MainViewModel : ObservableObject
     private int _totalErrorCount;
 
     [ObservableProperty]
-    private string _bootTimeText = "";
+    private string _bootTimeText = "Boot: --";
 
     [ObservableProperty]
-    private string _uptimeText = "";
+    private string _uptimeText = "Up: --";
 
     [ObservableProperty]
-    private string _lastUpdateText = "";
+    private string _lastUpdateText = "Updated: --";
 
     [ObservableProperty]
     private string _driverStatus = "unknown";
@@ -53,6 +53,10 @@ public partial class MainViewModel : ObservableObject
     // ── Error sources ────────────────────────────────────────
 
     public ObservableCollection<ErrorSourceVm> ErrorSources { get; } = [];
+
+    // ── Timings (Phase 2) ────────────────────────────────────
+
+    public TimingsViewModel Timings { get; } = new();
 
     // ── Integrity ────────────────────────────────────────────
 
@@ -205,6 +209,10 @@ public partial class MainViewModel : ObservableObject
             ? "Clean" : $"{state.Integrity.CbsCorruptionCount} corruption markers";
         SfcStatus = FormatCheckStatus(state.Integrity.SfcStatus);
         DismStatus = FormatCheckStatus(state.Integrity.DismStatus);
+
+        // Timings — null when driver is unavailable (Phase 1 service will send null)
+        Application.Current?.Dispatcher.Invoke(() =>
+            Timings.LoadFromSnapshot(state.Timings));
     }
 
     private void ApplyEvent(MonitoredEvent evt)

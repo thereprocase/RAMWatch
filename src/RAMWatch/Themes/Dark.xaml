@@ -68,6 +68,13 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter Property="Background" Value="{StaticResource BgHover}" />
                         </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter Property="Background">
+                                <Setter.Value>
+                                    <SolidColorBrush Color="#0A2647" />
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Background">
                                 <Setter.Value>
@@ -105,15 +112,15 @@
                                           HorizontalAlignment="Center" />
                     </Border>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Border" Property="Background"
+                                    Value="{StaticResource BgHover}" />
+                        </Trigger>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter TargetName="Border" Property="Background"
                                     Value="{StaticResource BgAccent}" />
                             <Setter Property="Foreground"
                                     Value="{StaticResource TextPrimary}" />
-                        </Trigger>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Border" Property="Background"
-                                    Value="{StaticResource BgHover}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
