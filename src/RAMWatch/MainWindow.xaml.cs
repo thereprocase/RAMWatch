@@ -226,16 +226,26 @@ public partial class MainWindow : System.Windows.Window
             var prefs = System.Text.Json.JsonSerializer.Deserialize<WindowPrefs>(json);
             if (prefs is null) return;
 
-            // Validate the position is on an active monitor
-            if (prefs.Left >= SystemParameters.VirtualScreenLeft &&
-                prefs.Top >= SystemParameters.VirtualScreenTop &&
-                prefs.Left + prefs.Width <= SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth &&
-                prefs.Top + prefs.Height <= SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight)
+            // Validate the title bar (top 40px) is reachable on an active monitor.
+            // Previous check required the entire window to fit, which failed when
+            // the saved size was from a different DPI/resolution session.
+            double vsLeft = SystemParameters.VirtualScreenLeft;
+            double vsTop = SystemParameters.VirtualScreenTop;
+            double vsRight = vsLeft + SystemParameters.VirtualScreenWidth;
+            double vsBottom = vsTop + SystemParameters.VirtualScreenHeight;
+
+            bool titleBarVisible =
+                prefs.Left + 100 < vsRight &&   // at least 100px of title bar visible horizontally
+                prefs.Left + prefs.Width > vsLeft + 50 && // not entirely off-screen left
+                prefs.Top >= vsTop - 10 &&       // title bar not above all screens
+                prefs.Top < vsBottom - 40;       // title bar not below all screens
+
+            if (titleBarVisible)
             {
                 Left = prefs.Left;
                 Top = prefs.Top;
-                Width = prefs.Width;
-                Height = prefs.Height;
+                Width = Math.Min(prefs.Width, vsRight - prefs.Left);  // don't extend past right edge
+                Height = Math.Min(prefs.Height, vsBottom - prefs.Top); // don't extend past bottom
                 WindowStartupLocation = System.Windows.WindowStartupLocation.Manual;
                 if (prefs.IsMaximized)
                     WindowState = System.Windows.WindowState.Maximized;

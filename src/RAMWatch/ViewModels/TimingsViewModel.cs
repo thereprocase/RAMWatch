@@ -96,6 +96,14 @@ public partial class TimingsViewModel : ObservableObject
 
     public ObservableCollection<TimingDisplayGroup> TimingDisplayGroups { get; } = [];
 
+    // Masonry two-column split — computed after TimingDisplayGroups is populated.
+    // Greedy bin-packing: assign each group to the shorter column.
+    [ObservableProperty]
+    private List<TimingDisplayGroup> _leftColumnGroups = [];
+
+    [ObservableProperty]
+    private List<TimingDisplayGroup> _rightColumnGroups = [];
+
     // ── Summary label ────────────────────────────────────────
 
     // "CL16-20-20-42" — built from primary timings, empty when no timings available.
@@ -137,6 +145,8 @@ public partial class TimingsViewModel : ObservableObject
             HasTimings = false;
             PrimaryTimingsLabel = "";
             TimingDisplayGroups.Clear();
+            LeftColumnGroups = [];
+            RightColumnGroups = [];
             return;
         }
 
@@ -181,7 +191,35 @@ public partial class TimingsViewModel : ObservableObject
             TimingDisplayGroups.Add(new TimingDisplayGroup(group.Name, rows));
         }
 
+        // Compute masonry column split
+        ComputeColumns();
+
         HasTimings = true;
+    }
+
+    private void ComputeColumns()
+    {
+        var left = new List<TimingDisplayGroup>();
+        var right = new List<TimingDisplayGroup>();
+        int leftH = 0, rightH = 0;
+
+        foreach (var g in TimingDisplayGroups)
+        {
+            int h = (g.Rows.Count + 1) * 24 + 32;
+            if (leftH <= rightH)
+            {
+                left.Add(g);
+                leftH += h;
+            }
+            else
+            {
+                right.Add(g);
+                rightH += h;
+            }
+        }
+
+        LeftColumnGroups = left;
+        RightColumnGroups = right;
     }
 
     // ── Helpers ──────────────────────────────────────────────

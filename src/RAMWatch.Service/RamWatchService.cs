@@ -577,6 +577,21 @@ public sealed class RamWatchService : BackgroundService
             return;
         }
 
+        // Auto-save a snapshot labeled with the test result so it appears
+        // in the Snapshots comparison dropdown with a meaningful name.
+        string? linkedSnapshotId = msg.ActiveSnapshotId;
+        if (_currentTimings is not null && _snapshotJournal is not null)
+        {
+            string passText = msg.Passed ? "PASS" : "FAIL";
+            string metric = msg.MetricValue > 0
+                ? $"{msg.MetricValue:G4}{msg.MetricUnit}"
+                : "";
+            string label = $"{msg.TestTool} {metric} {passText}".Trim();
+            var snapshot = _currentTimings.WithIdAndLabel(Guid.NewGuid().ToString("N"), label);
+            _snapshotJournal.Save(snapshot);
+            linkedSnapshotId = snapshot.SnapshotId;
+        }
+
         // Truncate free-text fields to prevent unbounded data from reaching disk.
         var result = new ValidationResult
         {
@@ -589,7 +604,7 @@ public sealed class RamWatchService : BackgroundService
             Passed = msg.Passed,
             ErrorCount = msg.ErrorCount,
             DurationMinutes = msg.DurationMinutes,
-            ActiveSnapshotId = msg.ActiveSnapshotId,
+            ActiveSnapshotId = linkedSnapshotId,
             Notes = msg.Notes is { Length: > 2048 } n ? n[..2048] : msg.Notes
         };
 
