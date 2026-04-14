@@ -426,11 +426,18 @@ public partial class SnapshotsViewModel : ObservableObject
 
     /// <summary>
     /// Returns true when the snapshot carries a user-supplied label rather than
-    /// the auto-generated "Snapshot MM/dd HH:mm" format.
-    /// The label field on TimingSnapshot is empty for auto-saves.
+    /// an auto-generated label. Auto-saves use "Auto yyyy-MM-dd HH:mm" format;
+    /// validation snapshots use "{Tool} {metric} PASS/FAIL" format.
+    /// Only custom user labels bypass the dedup filter.
     /// </summary>
-    private static bool IsManualLabel(SnapshotOption opt) =>
-        opt.Snapshot is not null && !string.IsNullOrEmpty(opt.Snapshot.Label);
+    private static bool IsManualLabel(SnapshotOption opt)
+    {
+        if (opt.Snapshot is null || string.IsNullOrEmpty(opt.Snapshot.Label))
+            return false;
+        var label = opt.Snapshot.Label;
+        return !label.StartsWith("Auto ", StringComparison.Ordinal)
+            && !label.StartsWith("Manual ", StringComparison.Ordinal);
+    }
 
     /// <summary>
     /// Compares the timing fields that a user would care about when scanning
