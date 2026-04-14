@@ -1,7 +1,10 @@
+using System.Text.Json;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using RAMWatch.Core;
 using RAMWatch.Core.Ipc;
 using RAMWatch.Core.Models;
+using RAMWatch.Service.Hardware;
 using RAMWatch.Service.Services;
 
 namespace RAMWatch.Service;
@@ -21,6 +24,12 @@ public sealed class RamWatchService : BackgroundService
     private MirrorLogger? _mirrorLogger;
     private IntegrityChecker? _integrity;
     private string _bootId = "";
+
+    // Phase 2 — hardware reads
+    private HardwareReader? _hardwareReader;
+    private TimingCsvLogger? _timingCsvLogger;
+    private TimingSnapshot? _currentTimings;
+    private DesignationMap _designations = new();
 
     // Phase 3 — tuning journal services
     private ConfigChangeDetector? _configChangeDetector;
@@ -81,6 +90,18 @@ public sealed class RamWatchService : BackgroundService
         _lkgTracker = new LkgTracker(DataDirectory.BasePath);
         _lkgTracker.Load();
 
+        // Hardware reader — detects PawnIO, opens driver, detects CPU
+        _hardwareReader = new HardwareReader();
+        _logger.LogInformation("Hardware driver: {Name} — {Status}",
+            _hardwareReader.DriverName, _hardwareReader.DriverDescription);
+
+        // Load designation map (manual/auto timing labels for drift detection)
+        _designations = LoadDesignations();
+
+        // Timing CSV logger
+        _timingCsvLogger = new TimingCsvLogger(
+            string.IsNullOrEmpty(config.LogDirectory) ? DataDirectory.LogsPath : config.LogDirectory);
+
         // State aggregator
         _aggregator = new StateAggregator(_eventLog, _settings, _pipeServer);
 
@@ -91,17 +112,27 @@ public sealed class RamWatchService : BackgroundService
             _validationLogger,
             _lkgTracker);
 
+        // Set initial driver status (even if no timings yet)
+        _aggregator.SetTimings(null, _hardwareReader.DriverStatus);
+
         // Historical scan (blocks briefly, populates error counts from boot)
         _eventLog.Start();
         _integrity.ScanCbsLog();
+
+        // Initial timing read — populate before marking ready so the first
+        // state push to connecting clients already has timing data.
+        await ReadTimingsAsync();
+
         _aggregator.MarkReady();
-        _logger.LogInformation("Monitoring active. Boot ID: {BootId}", _bootId);
+        _logger.LogInformation("Monitoring active. Boot ID: {BootId}, Driver: {Driver}",
+            _bootId, _hardwareReader.DriverStatus);
 
         // Periodic refresh loop
         try
         {
             while (!stoppingToken.IsCancellationRequested)
             {
+                await ReadTimingsAsync();
                 await _aggregator.BroadcastStateAsync();
                 _integrity.ScanCbsLog();
 
@@ -121,6 +152,8 @@ public sealed class RamWatchService : BackgroundService
         _logger.LogInformation("RAMWatch service stopping");
         _eventLog?.Dispose();
         _csvLogger?.Dispose();
+        _timingCsvLogger?.Dispose();
+        _hardwareReader?.Dispose();
         _mirrorLogger = null;
         if (_pipeServer is not null)
             await _pipeServer.DisposeAsync();
@@ -143,10 +176,51 @@ public sealed class RamWatchService : BackgroundService
     }
 
     /// <summary>
-    /// Called by the Phase 2 hardware reader when a new TimingSnapshot is available.
-    /// Runs ConfigChangeDetector and DriftDetector, broadcasts change/drift events,
-    /// and re-evaluates the LKG snapshot.
-    /// Not called until Phase 2 is wired; the Phase 3 services are dormant until then.
+    /// Read hardware timings, update aggregator, log to CSV, and run Phase 3 detection.
+    /// Called once on startup and on each refresh cycle. Safe to call when driver is unavailable.
+    /// </summary>
+    private async Task ReadTimingsAsync()
+    {
+        if (_hardwareReader is null || !_hardwareReader.IsAvailable || _aggregator is null)
+            return;
+
+        TimingSnapshot? snapshot;
+        try
+        {
+            snapshot = _hardwareReader.ReadTimings(_bootId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Hardware timing read failed");
+            return;
+        }
+
+        if (snapshot is null)
+            return;
+
+        _currentTimings = snapshot;
+        _aggregator.SetTimings(snapshot, _hardwareReader.DriverStatus);
+
+        // Log to timing CSV
+        if (_settings.Current.EnableCsvLogging)
+        {
+            try
+            {
+                _timingCsvLogger?.LogSnapshot(snapshot);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Timing CSV write failed");
+            }
+        }
+
+        // Run Phase 3 change/drift detection
+        await OnTimingSnapshotAsync(snapshot, _designations);
+    }
+
+    /// <summary>
+    /// Runs ConfigChangeDetector and DriftDetector when a new TimingSnapshot arrives,
+    /// broadcasts change/drift events, and re-evaluates the LKG snapshot.
     /// </summary>
     private async Task OnTimingSnapshotAsync(TimingSnapshot snapshot, DesignationMap designations)
     {
@@ -293,20 +367,80 @@ public sealed class RamWatchService : BackgroundService
                 break;
 
             case GetDigestMessage getDigest:
-                // Phase 4 stub: digest generation not yet implemented.
-                await client.SendAsync(MessageSerializer.Serialize(
-                    new DigestResponseMessage
-                    {
-                        Type = "digestResponse",
-                        RequestId = getDigest.RequestId,
-                        DigestText = null
-                    }));
+                await HandleGetDigestAsync(getDigest, client);
                 break;
 
             default:
                 _logger.LogDebug("Unhandled message type: {Type}", message.Type);
                 break;
         }
+    }
+
+    private async Task HandleGetDigestAsync(GetDigestMessage msg, ConnectedClient client)
+    {
+        if (_aggregator is null)
+        {
+            await client.SendAsync(MessageSerializer.Serialize(
+                new DigestResponseMessage
+                {
+                    Type = "digestResponse",
+                    RequestId = msg.RequestId,
+                    DigestText = null
+                }));
+            return;
+        }
+
+        var state = _aggregator.BuildState();
+        var validations = _validationLogger?.GetRecentResults(10) ?? new List<ValidationResult>();
+        var drifts = state.DriftEvents ?? new List<DriftEvent>();
+        var lkg = _lkgTracker?.CurrentLkg;
+
+        string digest = DigestBuilder.BuildDigest(
+            state,
+            _currentTimings,
+            lkg,
+            validations,
+            drifts,
+            _designations,
+            historyCount: 0); // Snapshot journal count — wire when snapshot persistence lands
+
+        await client.SendAsync(MessageSerializer.Serialize(
+            new DigestResponseMessage
+            {
+                Type = "digestResponse",
+                RequestId = msg.RequestId,
+                DigestText = digest
+            }));
+    }
+
+    private static readonly string DesignationsPath =
+        Path.Combine(DataDirectory.BasePath, "designations.json");
+
+    private static DesignationMap LoadDesignations()
+    {
+        try
+        {
+            if (File.Exists(DesignationsPath))
+            {
+                string json = File.ReadAllText(DesignationsPath);
+                return JsonSerializer.Deserialize(json, RamWatchJsonContext.Default.DesignationMap)
+                       ?? new DesignationMap();
+            }
+        }
+        catch
+        {
+            // Corrupt or missing — use defaults
+        }
+        return new DesignationMap();
+    }
+
+    private static void SaveDesignations(DesignationMap map)
+    {
+        map.LastUpdated = DateTime.UtcNow;
+        string json = JsonSerializer.Serialize(map, RamWatchJsonContext.Default.DesignationMap);
+        string temp = DesignationsPath + ".tmp";
+        File.WriteAllText(temp, json);
+        File.Move(temp, DesignationsPath, overwrite: true);
     }
 
     private async Task HandleLogValidationAsync(LogValidationMessage msg, ConnectedClient client)

@@ -23,6 +23,11 @@ public sealed class StateAggregator
     private ValidationTestLogger? _validationLogger;
     private LkgTracker? _lkgTracker;
 
+    // Phase 2 — current timing snapshot and driver status, set by RamWatchService
+    // after each hardware read cycle.
+    private TimingSnapshot? _currentTimings;
+    private string _driverStatus = "not_found";
+
     // Phase 3 — current-boot drift events, accumulated here so they survive
     // until the next periodic state push.
     private readonly List<DriftEvent> _currentBootDrift = new();
@@ -36,6 +41,19 @@ public sealed class StateAggregator
         _settings = settings;
         _pipeServer = pipeServer;
         _serviceStartTime = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Update the current timing snapshot and driver status after a hardware read.
+    /// Called by RamWatchService on each refresh cycle.
+    /// </summary>
+    public void SetTimings(TimingSnapshot? timings, string driverStatus)
+    {
+        lock (_lock)
+        {
+            _currentTimings = timings;
+            _driverStatus = driverStatus;
+        }
     }
 
     /// <summary>
@@ -77,6 +95,8 @@ public sealed class StateAggregator
     public ServiceState BuildState()
     {
         bool ready;
+        TimingSnapshot? timings = null;
+        string driverStatus;
         List<ConfigChange>? recentChanges = null;
         List<DriftEvent>? driftEvents = null;
         List<ValidationResult>? recentValidations = null;
@@ -85,6 +105,8 @@ public sealed class StateAggregator
         lock (_lock)
         {
             ready = _ready;
+            timings = _currentTimings;
+            driverStatus = _driverStatus;
 
             if (_configChangeDetector is not null)
             {
@@ -111,10 +133,11 @@ public sealed class StateAggregator
             Timestamp = DateTime.UtcNow,
             BootTime = bootTime,
             Ready = ready,
-            DriverStatus = "not_found", // Phase 1: no hardware reads
+            DriverStatus = driverStatus,
             ServiceUptime = DateTime.UtcNow - _serviceStartTime,
             Errors = _eventLog.GetErrorSources(),
             Integrity = new IntegrityState(0, IntegrityCheckStatus.NotRun, IntegrityCheckStatus.NotRun),
+            Timings = timings,
             // Phase 3 — null when no data yet (omitted from JSON by WhenWritingNull)
             RecentChanges = recentChanges,
             DriftEvents = driftEvents,
