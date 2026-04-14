@@ -1,0 +1,13 @@
+# Windows project — normalize to CRLF in working tree
+* text=auto eol=crlf
+
+# Ensure shell scripts keep LF (if any are added)
+*.sh text eol=lf
+
+# Binary files
+*.bin binary
+*.dll binary
+*.exe binary
+*.ttf binary
+*.png binary
+*.ico binary
