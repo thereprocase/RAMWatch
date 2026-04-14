@@ -719,13 +719,19 @@ public partial class ErrorSourceVm : ObservableObject
     /// </summary>
     public string CountSeverity { get; }
 
+    /// <summary>
+    /// Statistical shorthand for the baseline column.
+    /// Examples: "~21 ±4", "rare", "always 0", "—" (no data).
+    /// </summary>
+    public string BaselineText { get; }
+
     [ObservableProperty]
     private int _count;
 
     [ObservableProperty]
     private string? _lastSeen;
 
-    public ErrorSourceVm(ErrorSource source, Dictionary<string, double>? baselines = null)
+    public ErrorSourceVm(ErrorSource source, Dictionary<string, BaselineStat>? baselines = null)
     {
         Name = source.Name;
         Category = source.Category.ToString();
@@ -734,9 +740,10 @@ public partial class ErrorSourceVm : ObservableObject
         IsStability = source.Category == EventCategory.Hardware;
         DefaultSeverity = IsStability ? "Critical" : "Warning";
         CountSeverity = ComputeCountSeverity(source, baselines);
+        BaselineText = FormatBaseline(source, baselines);
     }
 
-    private static string ComputeCountSeverity(ErrorSource source, Dictionary<string, double>? baselines)
+    private static string ComputeCountSeverity(ErrorSource source, Dictionary<string, BaselineStat>? baselines)
     {
         if (source.Count == 0)
             return "None";
@@ -746,8 +753,10 @@ public partial class ErrorSourceVm : ObservableObject
             return "High";
 
         // No baseline data — fall back to amber for any non-zero system source.
-        if (baselines is null || !baselines.TryGetValue(source.Name, out double mean))
+        if (baselines is null || !baselines.TryGetValue(source.Name, out var stat))
             return "Elevated";
+
+        double mean = stat.Mean;
 
         // Baseline thresholds:
         // <= mean * 1.5 → Normal (within 50% of average)
@@ -766,5 +775,39 @@ public partial class ErrorSourceVm : ObservableObject
         if (ratio <= 2.5)
             return "Elevated";
         return "High";
+    }
+
+    private static string FormatBaseline(ErrorSource source, Dictionary<string, BaselineStat>? baselines)
+    {
+        if (baselines is null || !baselines.TryGetValue(source.Name, out var stat))
+            return "\u2014"; // em dash — no data yet
+
+        // Hardware sources: if always zero, that's the expected state.
+        if (source.Category == EventCategory.Hardware)
+        {
+            return stat.NonZeroBoots == 0 ? "always 0" : $"seen {stat.NonZeroBoots}/{stat.BootCount}";
+        }
+
+        // System sources: show statistical shorthand.
+        if (stat.Mean < 0.5)
+        {
+            // Normally zero.
+            if (stat.NonZeroBoots == 0)
+                return "always 0";
+            // Occasionally appears.
+            return $"rare ({stat.NonZeroBoots}/{stat.BootCount})";
+        }
+
+        // Has meaningful counts — show mean ± stddev.
+        int meanRound = (int)Math.Round(stat.Mean);
+        int sdRound = Math.Max(1, (int)Math.Round(stat.StdDev));
+
+        if (stat.StdDev < 0.5)
+        {
+            // Very stable — just show the number.
+            return $"~{meanRound}";
+        }
+
+        return $"~{meanRound} \u00b1{sdRound}";
     }
 }

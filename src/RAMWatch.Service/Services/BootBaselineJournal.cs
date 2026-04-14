@@ -79,16 +79,16 @@ public sealed class BootBaselineJournal
     }
 
     /// <summary>
-    /// Compute baseline means per source, excluding IQR outliers.
-    /// Returns a dictionary of source name → baseline mean.
-    /// Only includes sources that appear in at least 3 boots.
+    /// Compute baseline statistics per source, excluding IQR outliers.
+    /// Returns a dictionary of source name → BaselineStat (mean, stddev, boot count).
+    /// Only includes sources that appear in at least 3 boots of data.
     /// </summary>
-    public Dictionary<string, double> ComputeBaselines()
+    public Dictionary<string, BaselineStat> ComputeBaselines()
     {
         lock (_lock)
         {
             if (_entries.Count < 3)
-                return new Dictionary<string, double>();
+                return new Dictionary<string, BaselineStat>();
 
             // Collect all source names across all boots.
             var allSources = new HashSet<string>();
@@ -96,23 +96,34 @@ public sealed class BootBaselineJournal
                 foreach (var key in entry.Counts.Keys)
                     allSources.Add(key);
 
-            var baselines = new Dictionary<string, double>();
+            var baselines = new Dictionary<string, BaselineStat>();
 
             foreach (var source in allSources)
             {
                 var values = new List<double>();
+                int nonZero = 0;
                 foreach (var entry in _entries)
                 {
-                    if (entry.Counts.TryGetValue(source, out int count))
-                        values.Add(count);
-                    else
-                        values.Add(0);
+                    int count = 0;
+                    if (entry.Counts.TryGetValue(source, out int c))
+                        count = c;
+                    values.Add(count);
+                    if (count > 0) nonZero++;
                 }
 
                 if (values.Count < 3)
                     continue;
 
-                baselines[source] = MeanExcludingOutliers(values);
+                double mean = MeanExcludingOutliers(values);
+                double stdDev = StdDevExcludingOutliers(values);
+
+                baselines[source] = new BaselineStat
+                {
+                    Mean = mean,
+                    StdDev = stdDev,
+                    BootCount = _entries.Count,
+                    NonZeroBoots = nonZero
+                };
             }
 
             return baselines;
@@ -128,8 +139,28 @@ public sealed class BootBaselineJournal
         if (values.Count == 0) return 0;
         if (values.Count < 4) return values.Average();
 
+        var filtered = FilterOutliers(values);
+        return filtered.Count > 0 ? filtered.Average() : values.Average();
+    }
+
+    /// <summary>
+    /// Compute population standard deviation after excluding IQR outliers.
+    /// </summary>
+    internal static double StdDevExcludingOutliers(List<double> values)
+    {
+        if (values.Count < 2) return 0;
+
+        var filtered = values.Count < 4 ? values : FilterOutliers(values);
+        if (filtered.Count < 2) return 0;
+
+        double mean = filtered.Average();
+        double sumSq = filtered.Sum(v => (v - mean) * (v - mean));
+        return Math.Sqrt(sumSq / filtered.Count);
+    }
+
+    private static List<double> FilterOutliers(List<double> values)
+    {
         var sorted = values.OrderBy(v => v).ToList();
-        int n = sorted.Count;
 
         double q1 = Percentile(sorted, 0.25);
         double q3 = Percentile(sorted, 0.75);
@@ -138,8 +169,7 @@ public sealed class BootBaselineJournal
         double lower = q1 - 1.5 * iqr;
         double upper = q3 + 1.5 * iqr;
 
-        var filtered = sorted.Where(v => v >= lower && v <= upper).ToList();
-        return filtered.Count > 0 ? filtered.Average() : sorted.Average();
+        return sorted.Where(v => v >= lower && v <= upper).ToList();
     }
 
     private static double Percentile(List<double> sorted, double p)

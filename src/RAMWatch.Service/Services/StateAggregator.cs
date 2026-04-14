@@ -180,7 +180,7 @@ public sealed class StateAggregator
         }
 
         // Boot baselines — computed once per state push (cheap: just averaging in-memory lists).
-        Dictionary<string, double>? baselines = null;
+        Dictionary<string, BaselineStat>? baselines = null;
         if (baselineJournal is not null)
         {
             var computed = baselineJournal.ComputeBaselines();

@@ -44,7 +44,7 @@ public class BootBaselineJournalTests
 
         var baselines = _journal.ComputeBaselines();
         Assert.True(baselines.ContainsKey("NTFS Error"));
-        Assert.InRange(baselines["NTFS Error"], 19, 21);
+        Assert.InRange(baselines["NTFS Error"].Mean, 19, 21);
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public class BootBaselineJournalTests
 
         var baselines = _journal.ComputeBaselines();
         // Mean should be close to 20, not dragged up by the 200.
-        Assert.InRange(baselines["NTFS Error"], 18, 22);
+        Assert.InRange(baselines["NTFS Error"].Mean, 18, 22);
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public class BootBaselineJournalTests
 
         var baselines = _journal.ComputeBaselines();
         // Mean of 10, 10, 10 = 10 (not affected by the duplicate 99).
-        Assert.Equal(10, baselines["NTFS Error"]);
+        Assert.Equal(10, baselines["NTFS Error"].Mean);
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public class BootBaselineJournalTests
         reloaded.Load();
 
         var baselines = reloaded.ComputeBaselines();
-        Assert.Equal(20, baselines["NTFS Error"]);
+        Assert.Equal(20, baselines["NTFS Error"].Mean);
     }
 
     [Fact]
@@ -128,6 +128,46 @@ public class BootBaselineJournalTests
     }
 
     [Fact]
+    public void ComputeBaselines_ReturnsStdDev()
+    {
+        _journal.RecordBoot("b1", [new ErrorSource("X", EventCategory.Filesystem, 10, null)]);
+        _journal.RecordBoot("b2", [new ErrorSource("X", EventCategory.Filesystem, 20, null)]);
+        _journal.RecordBoot("b3", [new ErrorSource("X", EventCategory.Filesystem, 30, null)]);
+        _journal.RecordBoot("b4", [new ErrorSource("X", EventCategory.Filesystem, 20, null)]);
+
+        var stat = _journal.ComputeBaselines()["X"];
+        Assert.True(stat.StdDev > 0);
+        Assert.Equal(4, stat.BootCount);
+        Assert.Equal(4, stat.NonZeroBoots);
+    }
+
+    [Fact]
+    public void ComputeBaselines_TracksNonZeroBoots()
+    {
+        _journal.RecordBoot("b1", [new ErrorSource("X", EventCategory.Filesystem, 0, null)]);
+        _journal.RecordBoot("b2", [new ErrorSource("X", EventCategory.Filesystem, 5, null)]);
+        _journal.RecordBoot("b3", [new ErrorSource("X", EventCategory.Filesystem, 0, null)]);
+        _journal.RecordBoot("b4", [new ErrorSource("X", EventCategory.Filesystem, 0, null)]);
+
+        var stat = _journal.ComputeBaselines()["X"];
+        Assert.Equal(1, stat.NonZeroBoots);
+        Assert.Equal(4, stat.BootCount);
+    }
+
+    [Fact]
+    public void StdDevExcludingOutliers_ConstantValues_ReturnsZero()
+    {
+        var values = new List<double> { 10, 10, 10, 10, 10 };
+        Assert.Equal(0, BootBaselineJournal.StdDevExcludingOutliers(values));
+    }
+
+    [Fact]
+    public void StdDevExcludingOutliers_SingleValue_ReturnsZero()
+    {
+        Assert.Equal(0, BootBaselineJournal.StdDevExcludingOutliers([5]));
+    }
+
+    [Fact]
     public void RecordBoot_TrimsToMax50()
     {
         for (int i = 0; i < 55; i++)
@@ -139,6 +179,6 @@ public class BootBaselineJournalTests
         var baselines = reloaded.ComputeBaselines();
         // The first 5 boots (0-4) should be trimmed. Mean of 5..54 = 29.5
         Assert.True(baselines.ContainsKey("X"));
-        Assert.InRange(baselines["X"], 28, 32);
+        Assert.InRange(baselines["X"].Mean, 28, 32);
     }
 }
