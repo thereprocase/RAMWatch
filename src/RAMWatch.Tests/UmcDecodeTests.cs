@@ -243,9 +243,20 @@ public class UmcDecodeTests
     [Fact]
     public void ReadTimings_ClockRatio()
     {
-        // 0x50200[7:0] = ratio. MCLK ≈ ratio/3 * 100
+        // 0x50200[6:0] = ratio (7 bits). MCLK ≈ ratio/3 * 100
         // ratio=54 → 54/3*100 = 1800 MHz
         uint reg200 = 54u;
+        var snap = Decode(Regs((0x50200, reg200)));
+
+        Assert.Equal(1800, snap!.MemClockMhz);
+    }
+
+    [Fact]
+    public void ReadTimings_ClockRatio_Bit7Reserved()
+    {
+        // Bit 7 of 0x50200 is reserved — must not be included in the ratio.
+        // ratio=54 with bit 7 set (54 | 0x80 = 182) should still decode as 1800 MHz.
+        uint reg200 = 54u | 0x80;
         var snap = Decode(Regs((0x50200, reg200)));
 
         Assert.Equal(1800, snap!.MemClockMhz);

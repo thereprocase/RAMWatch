@@ -90,11 +90,12 @@ public sealed class UmcDecode
 
     private void ReadClockRatio(uint chOffset, TimingSnapshot s)
     {
-        // 0x50200 [7:0] = clock ratio divider. MCLK ≈ ratio / 3.0 * BCLK.
+        // 0x50200 [6:0] = clock ratio divider. MCLK ≈ ratio / 3.0 * BCLK.
+        // Bits [6:0] per ZenStates-Core Ddr4Timings.cs — bit 7 is reserved.
         // Full frequency computation requires SMU power table (Phase 2 stretch).
         // For now, store the raw ratio — the GUI can display it or compute from BCLK=100.
         uint reg200 = ReadSmn(chOffset | 0x50200);
-        int ratio = Bits(reg200, 7, 0);
+        int ratio = Bits(reg200, 6, 0);
         if (ratio > 0)
         {
             // Approximate: MCLK = ratio / 3 * 100 (BCLK assumed 100 MHz)

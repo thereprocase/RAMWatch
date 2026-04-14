@@ -60,6 +60,12 @@ public sealed class HardwareReader : IDisposable
             if (vdimm > 0)
                 snapshot.VDimm = vdimm;
 
+            // Plausibility check: CL and RAS are never zero on real hardware.
+            // If either is 0, a register read failed silently and the snapshot
+            // contains a mix of real and zero values — discard it entirely.
+            if (snapshot.CL == 0 || snapshot.RAS == 0)
+                return null;
+
             return snapshot;
         }
         catch

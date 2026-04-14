@@ -59,6 +59,20 @@ public sealed class RamWatchService : BackgroundService
         var config = _settings.Load();
         _logger.LogInformation("RAMWatch service starting. Data directory: {Path}", DataDirectory.BasePath);
 
+        // Validate paths loaded from settings.json — same check applied to pipe updates.
+        // A pre-staged settings.json with a malicious path could direct LocalSystem writes
+        // to arbitrary directories. Reset to defaults if invalid.
+        if (!AppSettings.IsValidDataPath(config.LogDirectory))
+        {
+            _logger.LogWarning("LogDirectory from settings.json is invalid, using default");
+            config.LogDirectory = "";
+        }
+        if (!AppSettings.IsValidDataPath(config.MirrorDirectory))
+        {
+            _logger.LogWarning("MirrorDirectory from settings.json is invalid, using default");
+            config.MirrorDirectory = "";
+        }
+
         // Boot ID — sequential counter persisted to disk; never collides.
         _bootId = CsvLogger.GenerateBootId(DataDirectory.BasePath);
 
@@ -769,13 +783,33 @@ public sealed class RamWatchService : BackgroundService
             }));
     }
 
+    /// <summary>Maximum number of designation keys accepted from a single IPC message.</summary>
+    private const int MaxDesignationKeys = 500;
+
     private async Task HandleUpdateDesignationsAsync(UpdateDesignationsMessage msg, ConnectedClient client)
     {
+        // Reject oversized payloads — the real app has ~40 timing parameters.
+        if (msg.Designations.Count > MaxDesignationKeys)
+        {
+            await client.SendAsync(MessageSerializer.Serialize(
+                new ResponseMessage
+                {
+                    Type = "response",
+                    RequestId = msg.RequestId,
+                    Status = "error",
+                    Code = "payload_too_large",
+                    Message = $"Designations map exceeds {MaxDesignationKeys} entries"
+                }));
+            return;
+        }
+
         // Parse the string values from the wire format into enums.
         // Unrecognised values are silently treated as Unknown (forward compatibility).
+        // Cap individual key length to prevent unbounded string storage.
         var parsed = new Dictionary<string, TimingDesignation>(msg.Designations.Count);
         foreach (var (key, value) in msg.Designations)
         {
+            if (key.Length > 64) continue; // Skip absurdly long keys
             parsed[key] = Enum.TryParse<TimingDesignation>(value, ignoreCase: true, out var desig)
                 ? desig
                 : TimingDesignation.Unknown;

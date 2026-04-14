@@ -8,7 +8,7 @@ namespace RAMWatch;
 /// System tray icon with green/red/gray states and context menu.
 /// Uses H.NotifyIcon.Wpf for modern WPF tray support.
 /// </summary>
-public sealed class TrayIconManager : IDisposable
+public sealed partial class TrayIconManager : IDisposable
 {
     private TaskbarIcon? _trayIcon;
     private readonly Window _mainWindow;
@@ -163,14 +163,30 @@ public sealed class TrayIconManager : IDisposable
         catch { }
 
         // Fallback: simple colored circle.
+        // Icon.FromHandle wraps a borrowed HICON — it doesn't destroy it on Dispose.
+        // Clone via the Icon(Icon, Size) constructor to get an owned copy, then
+        // destroy the original HICON to avoid a GDI handle leak.
         using var bitmap = new Bitmap(16, 16);
         using var g = Graphics.FromImage(bitmap);
         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         g.Clear(Color.Transparent);
         using var brush = new SolidBrush(Color.FromArgb(0x61, 0x61, 0x61));
         g.FillEllipse(brush, 1, 1, 14, 14);
-        return Icon.FromHandle(bitmap.GetHicon());
+        IntPtr hIcon = bitmap.GetHicon();
+        try
+        {
+            using var temp = Icon.FromHandle(hIcon);
+            return new Icon(temp, 16, 16); // owned copy
+        }
+        finally
+        {
+            DestroyIcon(hIcon);
+        }
     }
+
+    [System.Runtime.InteropServices.LibraryImport("user32.dll")]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static partial bool DestroyIcon(IntPtr hIcon);
 
     public void Dispose()
     {
