@@ -261,7 +261,8 @@ public partial class SnapshotsViewModel : ObservableObject
 
         if (available is { Count: > 0 })
         {
-            foreach (var snap in available)
+            // Strict reverse chronological — most recent snapshot first.
+            foreach (var snap in available.OrderByDescending(s => s.Timestamp))
             {
                 var label = SnapshotDisplayName.Build(snap, validationLookup);
                 _allOptions.Add(new SnapshotOption { DisplayName = label, Snapshot = snap });
@@ -270,14 +271,12 @@ public partial class SnapshotsViewModel : ObservableObject
 
         ApplyFilter();
 
-        // Rebuild ManageRows from the saved (non-synthetic) snapshots in reverse-chronological order.
-        // The service sends them in insertion order (oldest first); reverse here for display.
+        // Rebuild ManageRows in strict reverse-chronological order by timestamp.
         ManageRows.Clear();
         if (available is { Count: > 0 })
         {
-            for (int i = available.Count - 1; i >= 0; i--)
+            foreach (var snap in available.OrderByDescending(s => s.Timestamp))
             {
-                var snap = available[i];
                 var hasValidation = validationLookup.ContainsKey(snap.SnapshotId ?? "");
                 ManageRows.Add(BuildManageRow(snap, hasValidation));
             }
