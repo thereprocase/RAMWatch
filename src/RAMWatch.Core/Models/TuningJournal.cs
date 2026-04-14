@@ -86,6 +86,66 @@ public sealed class TimingSnapshot
     // --- User metadata (Phase 3) ---
     public string Label { get; set; } = "";
     public string Notes { get; set; } = "";
+
+    /// <summary>
+    /// Returns a shallow copy with the supplied SnapshotId and Label.
+    /// All timing values are shared (they are value types or immutable strings).
+    /// </summary>
+    public TimingSnapshot WithIdAndLabel(string snapshotId, string label) =>
+        new()
+        {
+            SnapshotId    = snapshotId,
+            Timestamp     = Timestamp,
+            BootId        = BootId,
+            SchemaVersion = SchemaVersion,
+            MemClockMhz   = MemClockMhz,
+            FclkMhz       = FclkMhz,
+            UclkMhz       = UclkMhz,
+            CL            = CL,
+            RCDRD         = RCDRD,
+            RCDWR         = RCDWR,
+            RP            = RP,
+            RAS           = RAS,
+            RC            = RC,
+            CWL           = CWL,
+            RFC           = RFC,
+            RFC2          = RFC2,
+            RFC4          = RFC4,
+            RRDS          = RRDS,
+            RRDL          = RRDL,
+            FAW           = FAW,
+            WTRS          = WTRS,
+            WTRL          = WTRL,
+            WR            = WR,
+            RTP           = RTP,
+            RDRDSCL       = RDRDSCL,
+            WRWRSCL       = WRWRSCL,
+            RDRDSC        = RDRDSC,
+            RDRDSD        = RDRDSD,
+            RDRDDD        = RDRDDD,
+            WRWRSC        = WRWRSC,
+            WRWRSD        = WRWRSD,
+            WRWRDD        = WRWRDD,
+            RDWR          = RDWR,
+            WRRD          = WRRD,
+            REFI          = REFI,
+            CKE           = CKE,
+            STAG          = STAG,
+            MOD           = MOD,
+            MRD           = MRD,
+            PHYRDL_A      = PHYRDL_A,
+            PHYRDL_B      = PHYRDL_B,
+            GDM           = GDM,
+            Cmd2T         = Cmd2T,
+            PowerDown     = PowerDown,
+            VSoc          = VSoc,
+            VDimm         = VDimm,
+            CpuCodename   = CpuCodename,
+            AgesaVersion  = AgesaVersion,
+            BiosVersion   = BiosVersion,
+            Label         = label,
+            Notes         = Notes,
+        };
 }
 
 /// <summary>

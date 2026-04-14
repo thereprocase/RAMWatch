@@ -13,6 +13,7 @@ public sealed class TrayIconManager : IDisposable
     private TaskbarIcon? _trayIcon;
     private readonly Window _mainWindow;
     private readonly Action? _onCopyDigest;
+    private readonly Action? _onSaveSnapshot;
     private bool _firstMinimize = true;
 
     // Pre-built icons — created once in Initialize(), swapped in SetState().
@@ -24,10 +25,11 @@ public sealed class TrayIconManager : IDisposable
     // Status line menu item — updated in SetState/UpdateTooltip.
     private System.Windows.Controls.MenuItem? _statusItem;
 
-    public TrayIconManager(Window mainWindow, Action? onCopyDigest = null)
+    public TrayIconManager(Window mainWindow, Action? onCopyDigest = null, Action? onSaveSnapshot = null)
     {
         _mainWindow = mainWindow;
         _onCopyDigest = onCopyDigest;
+        _onSaveSnapshot = onSaveSnapshot;
     }
 
     public void Initialize()
@@ -122,12 +124,9 @@ public sealed class TrayIconManager : IDisposable
 
         menu.Items.Add(new System.Windows.Controls.Separator());
 
-        // Save Snapshot... — Phase 3 feature, disabled for now.
-        var snapshotItem = new System.Windows.Controls.MenuItem
-        {
-            Header    = "Save Snapshot...",
-            IsEnabled = false,
-        };
+        // Save Snapshot — fires the snapshot save on MainViewModel.
+        var snapshotItem = new System.Windows.Controls.MenuItem { Header = "Save Snapshot" };
+        snapshotItem.Click += (_, _) => _onSaveSnapshot?.Invoke();
         menu.Items.Add(snapshotItem);
 
         // Copy Digest — fires the clipboard export on MainViewModel.

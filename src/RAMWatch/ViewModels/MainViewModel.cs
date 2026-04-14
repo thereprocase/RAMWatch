@@ -84,6 +84,19 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private async Task SaveSnapshotAsync(string? label = null)
+    {
+        if (!_pipe.IsConnected) return;
+        var msg = new SaveSnapshotMessage
+        {
+            Type = "saveSnapshot",
+            RequestId = Guid.NewGuid().ToString("N"),
+            Label = string.IsNullOrWhiteSpace(label) ? null : label.Trim()
+        };
+        await _pipe.SendAsync(MessageSerializer.Serialize(msg));
+    }
+
+    [RelayCommand]
     private async Task RefreshAsync()
     {
         if (!_pipe.IsConnected) return;

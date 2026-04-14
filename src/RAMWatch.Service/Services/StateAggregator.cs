@@ -22,6 +22,7 @@ public sealed class StateAggregator
     private DriftDetector? _driftDetector;
     private ValidationTestLogger? _validationLogger;
     private LkgTracker? _lkgTracker;
+    private SnapshotJournal? _snapshotJournal;
 
     // Phase 2 — current timing snapshot and driver status, set by RamWatchService
     // after each hardware read cycle.
@@ -64,7 +65,8 @@ public sealed class StateAggregator
         ConfigChangeDetector configChangeDetector,
         DriftDetector driftDetector,
         ValidationTestLogger validationLogger,
-        LkgTracker lkgTracker)
+        LkgTracker lkgTracker,
+        SnapshotJournal snapshotJournal)
     {
         lock (_lock)
         {
@@ -72,6 +74,7 @@ public sealed class StateAggregator
             _driftDetector = driftDetector;
             _validationLogger = validationLogger;
             _lkgTracker = lkgTracker;
+            _snapshotJournal = snapshotJournal;
         }
     }
 
@@ -101,6 +104,7 @@ public sealed class StateAggregator
         List<DriftEvent>? driftEvents = null;
         List<ValidationResult>? recentValidations = null;
         TimingSnapshot? lkg = null;
+        List<TimingSnapshot>? snapshots = null;
 
         lock (_lock)
         {
@@ -124,6 +128,15 @@ public sealed class StateAggregator
 
             if (_lkgTracker is not null)
                 lkg = _lkgTracker.CurrentLkg;
+
+            if (_snapshotJournal is not null)
+            {
+                var all = _snapshotJournal.GetAll();
+                // Only include the list when at least one snapshot exists.
+                // null is omitted from JSON by WhenWritingNull, keeping wire format lean.
+                if (all.Count > 0)
+                    snapshots = all;
+            }
         }
 
         var bootTime = GetLastBootTime();
@@ -142,7 +155,8 @@ public sealed class StateAggregator
             RecentChanges = recentChanges,
             DriftEvents = driftEvents,
             RecentValidations = recentValidations,
-            Lkg = lkg
+            Lkg = lkg,
+            Snapshots = snapshots
         };
     }
 

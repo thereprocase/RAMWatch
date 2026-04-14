@@ -72,6 +72,20 @@ public sealed class LogValidationMessage : IpcMessage
 }
 
 /// <summary>
+/// Trigger a manual snapshot save with an optional user-supplied label.
+/// Service uses the current timing reading as the snapshot source.
+/// </summary>
+public sealed class SaveSnapshotMessage : IpcMessage
+{
+    public required string RequestId { get; init; }
+    /// <summary>
+    /// Optional label for the snapshot. When null or empty, the service
+    /// uses a timestamp-based default label.
+    /// </summary>
+    public string? Label { get; init; }
+}
+
+/// <summary>
 /// Request the full list of timing snapshots.
 /// </summary>
 public sealed class GetSnapshotsMessage : IpcMessage

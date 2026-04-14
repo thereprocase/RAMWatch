@@ -24,6 +24,7 @@ namespace RAMWatch.Core;
 [JsonSerializable(typeof(RunIntegrityMessage))]
 [JsonSerializable(typeof(UpdateSettingsMessage))]
 [JsonSerializable(typeof(LogValidationMessage))]
+[JsonSerializable(typeof(SaveSnapshotMessage))]
 [JsonSerializable(typeof(GetSnapshotsMessage))]
 [JsonSerializable(typeof(GetDigestMessage))]
 [JsonSerializable(typeof(SnapshotsResponseMessage))]

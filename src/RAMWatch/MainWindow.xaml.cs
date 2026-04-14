@@ -49,7 +49,10 @@ public partial class MainWindow : System.Windows.Window
         // Restore window position (Critical fix #3)
         RestoreWindowPosition();
 
-        _tray = new TrayIconManager(this, onCopyDigest: () => _viewModel.CopyToClipboardCommand.Execute(null));
+        _tray = new TrayIconManager(
+            this,
+            onCopyDigest: () => _viewModel.CopyToClipboardCommand.Execute(null),
+            onSaveSnapshot: () => _viewModel.SaveSnapshotCommand.Execute(null));
         _tray.Initialize();
 
         await _viewModel.StartAsync();

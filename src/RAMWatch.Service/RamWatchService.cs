@@ -36,6 +36,11 @@ public sealed class RamWatchService : BackgroundService
     private DriftDetector? _driftDetector;
     private ValidationTestLogger? _validationLogger;
     private LkgTracker? _lkgTracker;
+    private SnapshotJournal? _snapshotJournal;
+
+    // Tracks whether the first-boot auto-save has fired for this service session.
+    // Resets to false on each service start; set to true after the first save.
+    private bool _autoSavedThisBoot;
 
     // Phase 4 — git-backed history
     private GitCommitter? _gitCommitter;
@@ -93,6 +98,9 @@ public sealed class RamWatchService : BackgroundService
         _lkgTracker = new LkgTracker(DataDirectory.BasePath);
         _lkgTracker.Load();
 
+        _snapshotJournal = new SnapshotJournal(DataDirectory.BasePath);
+        _snapshotJournal.Load();
+
         // Phase 4 — git committer (initialise after LKG so commit context is available)
         _gitCommitter = new GitCommitter(_settings, _logger);
         await _gitCommitter.InitializeAsync(stoppingToken);
@@ -117,7 +125,8 @@ public sealed class RamWatchService : BackgroundService
             _configChangeDetector,
             _driftDetector,
             _validationLogger,
-            _lkgTracker);
+            _lkgTracker,
+            _snapshotJournal);
 
         // Set initial driver status (even if no timings yet)
         _aggregator.SetTimings(null, _hardwareReader.DriverStatus);
@@ -210,6 +219,24 @@ public sealed class RamWatchService : BackgroundService
         _currentTimings = snapshot;
         _aggregator.SetTimings(snapshot, _hardwareReader.DriverStatus);
 
+        // Auto-save the first timing read of this boot into the snapshot journal.
+        // Subsequent reads in the same boot session are skipped — only one auto-save per boot.
+        if (!_autoSavedThisBoot && _snapshotJournal is not null)
+        {
+            _autoSavedThisBoot = true;
+            // TimingSnapshot.Label has a public setter; set it before persisting.
+            // _currentTimings holds the same reference — keep them in sync.
+            snapshot.Label = $"Auto {DateTime.UtcNow.ToLocalTime():yyyy-MM-dd HH:mm}";
+            try
+            {
+                _snapshotJournal.Save(snapshot);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Auto-save snapshot failed");
+            }
+        }
+
         // Log to timing CSV
         if (_settings.Current.EnableCsvLogging)
         {
@@ -300,8 +327,8 @@ public sealed class RamWatchService : BackgroundService
         }
 
         // Re-evaluate LKG against current validation results.
-        // Snapshot list is stubbed until the Phase 2 snapshot journal is wired.
-        _lkgTracker.UpdateLkg(_validationLogger.GetResults(), new List<TimingSnapshot> { snapshot });
+        var allSnapshots = _snapshotJournal?.GetAll() ?? new List<TimingSnapshot> { snapshot };
+        _lkgTracker.UpdateLkg(_validationLogger.GetResults(), allSnapshots);
     }
 
     private void OnEventDetected(MonitoredEvent evt)
@@ -382,14 +409,17 @@ public sealed class RamWatchService : BackgroundService
                 await HandleLogValidationAsync(log, client);
                 break;
 
+            case SaveSnapshotMessage save:
+                await HandleSaveSnapshotAsync(save, client);
+                break;
+
             case GetSnapshotsMessage getSnaps:
-                // Phase 3 stub: snapshot journal not yet wired — return empty list.
                 await client.SendAsync(MessageSerializer.Serialize(
                     new SnapshotsResponseMessage
                     {
                         Type = "snapshotsResponse",
                         RequestId = getSnaps.RequestId,
-                        Snapshots = new List<TimingSnapshot>()
+                        Snapshots = _snapshotJournal?.GetAll() ?? new List<TimingSnapshot>()
                     }));
                 break;
 
@@ -504,8 +534,8 @@ public sealed class RamWatchService : BackgroundService
         _validationLogger.LogResult(result);
 
         // Re-evaluate LKG against all results.
-        // Snapshot list is stubbed until the Phase 2 snapshot journal is wired.
-        _lkgTracker.UpdateLkg(_validationLogger.GetResults(), new List<TimingSnapshot>());
+        var journalSnapshots = _snapshotJournal?.GetAll() ?? new List<TimingSnapshot>();
+        _lkgTracker.UpdateLkg(_validationLogger.GetResults(), journalSnapshots);
 
         // Commit the validation result to git history.
         if (_currentTimings is not null)
@@ -520,6 +550,65 @@ public sealed class RamWatchService : BackgroundService
                 RecentValidations = _validationLogger.GetRecentResults(10)
             });
         }
+
+        await client.SendAsync(MessageSerializer.Serialize(
+            new ResponseMessage
+            {
+                Type = "response",
+                RequestId = msg.RequestId,
+                Status = "ok"
+            }));
+    }
+
+    private async Task HandleSaveSnapshotAsync(SaveSnapshotMessage msg, ConnectedClient client)
+    {
+        if (_snapshotJournal is null || _currentTimings is null)
+        {
+            await client.SendAsync(MessageSerializer.Serialize(
+                new ResponseMessage
+                {
+                    Type = "response",
+                    RequestId = msg.RequestId,
+                    Status = "error",
+                    Code = "not_ready",
+                    Message = _snapshotJournal is null
+                        ? "Snapshot journal not initialised"
+                        : "No timing data available yet"
+                }));
+            return;
+        }
+
+        // Apply the user-supplied label, or generate a default from the timestamp.
+        string label = !string.IsNullOrWhiteSpace(msg.Label)
+            ? msg.Label.Trim()
+            : $"Manual {DateTime.UtcNow.ToLocalTime():yyyy-MM-dd HH:mm}";
+
+        // Assign a new unique ID so this is always a distinct journal entry,
+        // even if the timing values are identical to an existing snapshot.
+        var snapshot = _currentTimings.WithIdAndLabel(Guid.NewGuid().ToString("N"), label);
+
+        try
+        {
+            _snapshotJournal.Save(snapshot);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Manual snapshot save failed");
+            await client.SendAsync(MessageSerializer.Serialize(
+                new ResponseMessage
+                {
+                    Type = "response",
+                    RequestId = msg.RequestId,
+                    Status = "error",
+                    Code = "io_error",
+                    Message = "Failed to persist snapshot"
+                }));
+            return;
+        }
+
+        // Broadcast updated state so the GUI snapshot dropdown refreshes immediately.
+        if (_aggregator is not null)
+            await _aggregator.BroadcastStateAsync();
 
         await client.SendAsync(MessageSerializer.Serialize(
             new ResponseMessage
