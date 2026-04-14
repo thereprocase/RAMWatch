@@ -568,6 +568,10 @@ public sealed class RamWatchService : BackgroundService
                 RequestId = msg.RequestId,
                 Status = "ok"
             }));
+
+        // Broadcast updated state immediately so Timeline/Snapshots refresh
+        if (_aggregator is not null)
+            await _aggregator.BroadcastStateAsync();
     }
 
     private async Task HandleSaveSnapshotAsync(SaveSnapshotMessage msg, ConnectedClient client)

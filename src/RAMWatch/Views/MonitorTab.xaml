@@ -113,7 +113,7 @@
             </DataGrid.CellStyle>
 
             <DataGrid.Columns>
-                <DataGridTextColumn Header="Source" Binding="{Binding Name}" Width="*">
+                <DataGridTextColumn Header="Source" Binding="{Binding Name}" Width="180">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock">
                             <!-- Default: severity color (red for WHEA/MCE/Bugcheck, amber for others) -->
@@ -131,7 +131,7 @@
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
-                <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="90">
+                <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="100">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock">
                             <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
@@ -156,7 +156,7 @@
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
-                <DataGridTextColumn Header="Last Seen" Binding="{Binding LastSeen, TargetNullValue='-'}" Width="80">
+                <DataGridTextColumn Header="Last Seen" Binding="{Binding LastSeen, TargetNullValue='-'}" Width="*">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock">
                             <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
