@@ -242,9 +242,11 @@ public sealed class RamWatchService : BackgroundService
         _currentTimings = snapshot;
         _aggregator.SetTimings(snapshot, _hardwareReader.DriverStatus);
 
-        // Auto-save the first timing read of this boot into the snapshot journal.
+        // Auto-save the first complete timing read of this boot into the snapshot journal.
+        // Defer until clocks are populated (FCLK/UCLK > 0) to avoid saving incomplete data.
         // Subsequent reads in the same boot session are skipped — only one auto-save per boot.
-        if (!_autoSavedThisBoot && _snapshotJournal is not null)
+        if (!_autoSavedThisBoot && _snapshotJournal is not null
+            && snapshot.FclkMhz > 0 && snapshot.UclkMhz > 0)
         {
             _autoSavedThisBoot = true;
             // TimingSnapshot.Label has a public setter; set it before persisting.
