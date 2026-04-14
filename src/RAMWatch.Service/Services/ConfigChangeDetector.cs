@@ -8,16 +8,21 @@ namespace RAMWatch.Service.Services;
 /// Detects timing configuration changes between boots by comparing
 /// the current TimingSnapshot against the one persisted from the previous boot.
 /// Persists the last-seen snapshot to disk using atomic write-temp-rename (B7).
+/// Also maintains a journal of all detected changes in changes.json so the
+/// StateAggregator can populate RecentChanges for the Timeline tab.
 /// </summary>
 public sealed class ConfigChangeDetector : IDisposable
 {
     private readonly string _snapshotPath;
+    private readonly string _changesPath;
     private readonly Lock _lock = new();
     private TimingSnapshot? _previous;
+    private List<ConfigChange> _changes = new();
 
     public ConfigChangeDetector(string dataDirectory)
     {
         _snapshotPath = Path.Combine(dataDirectory, "last_snapshot.json");
+        _changesPath  = Path.Combine(dataDirectory, "changes.json");
         Directory.CreateDirectory(dataDirectory);
     }
 
@@ -49,6 +54,35 @@ public sealed class ConfigChangeDetector : IDisposable
     }
 
     /// <summary>
+    /// Load the persisted changes journal from disk.
+    /// Call once on service startup, alongside LoadPrevious.
+    /// Missing or corrupt file produces an empty list — never throws.
+    /// </summary>
+    public void LoadChanges()
+    {
+        lock (_lock)
+        {
+            if (!File.Exists(_changesPath))
+            {
+                _changes = new List<ConfigChange>();
+                return;
+            }
+
+            try
+            {
+                string json = File.ReadAllText(_changesPath);
+                var loaded = JsonSerializer.Deserialize(json, RamWatchJsonContext.Default.ListConfigChange);
+                _changes = loaded ?? new List<ConfigChange>();
+            }
+            catch
+            {
+                // Corrupt file — empty list; we'll append correctly on the next change.
+                _changes = new List<ConfigChange>();
+            }
+        }
+    }
+
+    /// <summary>
     /// Compare current snapshot against the previous one.
     /// Returns a ConfigChange if any timing values differ, null if nothing changed
     /// or if this is the first boot (no previous snapshot).
@@ -74,7 +108,7 @@ public sealed class ConfigChangeDetector : IDisposable
                 return null;
             }
 
-            return new ConfigChange
+            var change = new ConfigChange
             {
                 ChangeId = Guid.NewGuid().ToString("N"),
                 Timestamp = current.Timestamp,
@@ -83,6 +117,24 @@ public sealed class ConfigChangeDetector : IDisposable
                 SnapshotBeforeId = before.SnapshotId,
                 SnapshotAfterId = current.SnapshotId
             };
+
+            _changes.Add(change);
+            SaveChanges();
+
+            return change;
+        }
+    }
+
+    /// <summary>
+    /// Returns the last <paramref name="count"/> detected changes in chronological order.
+    /// Returns fewer entries when the journal holds less than count.
+    /// </summary>
+    public List<ConfigChange> GetRecentChanges(int count)
+    {
+        lock (_lock)
+        {
+            int skip = Math.Max(0, _changes.Count - count);
+            return _changes.Skip(skip).ToList();
         }
     }
 
@@ -184,6 +236,25 @@ public sealed class ConfigChangeDetector : IDisposable
             try { File.Delete(tempPath); } catch { }
             // Persistence failure is non-fatal. The in-memory _previous is still valid
             // for the rest of this session; we'll try again on the next DetectChanges call.
+        }
+    }
+
+    // Persist the full changes journal atomically. Caller must hold _lock.
+    private void SaveChanges()
+    {
+        string dir = Path.GetDirectoryName(_changesPath)!;
+        string tempPath = Path.Combine(dir, $"changes.{Guid.NewGuid():N}.tmp");
+
+        try
+        {
+            string json = JsonSerializer.Serialize(_changes, RamWatchJsonContext.Default.ListConfigChange);
+            File.WriteAllText(tempPath, json);
+            File.Move(tempPath, _changesPath, overwrite: true);
+        }
+        catch
+        {
+            try { File.Delete(tempPath); } catch { }
+            // Persistence failure is non-fatal. The in-memory _changes list is still valid.
         }
     }
 

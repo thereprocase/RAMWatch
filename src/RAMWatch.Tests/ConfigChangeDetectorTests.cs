@@ -226,4 +226,143 @@ public class ConfigChangeDetectorTests : IDisposable
 
         Assert.True(File.Exists(Path.Combine(_tempDir, "last_snapshot.json")));
     }
+
+    // -----------------------------------------------------------------------
+    // Changes journal
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public void ChangesFile_ExistsAfterDetectedChange()
+    {
+        using var detector = new ConfigChangeDetector(_tempDir);
+
+        detector.DetectChanges(MakeSnapshot("boot_0414_0900", cl: 18));
+        detector.DetectChanges(MakeSnapshot("boot_0415_0900", cl: 16));
+
+        Assert.True(File.Exists(Path.Combine(_tempDir, "changes.json")));
+    }
+
+    [Fact]
+    public void ChangesFile_NotCreatedWhenNoChange()
+    {
+        using var detector = new ConfigChangeDetector(_tempDir);
+
+        // Identical snapshots produce no change.
+        detector.DetectChanges(MakeSnapshot("boot_0414_0900"));
+        detector.DetectChanges(MakeSnapshot("boot_0415_0900"));
+
+        Assert.False(File.Exists(Path.Combine(_tempDir, "changes.json")));
+    }
+
+    [Fact]
+    public void LoadChanges_MissingFile_ReturnsEmpty()
+    {
+        using var detector = new ConfigChangeDetector(_tempDir);
+        detector.LoadChanges();
+
+        Assert.Empty(detector.GetRecentChanges(10));
+    }
+
+    [Fact]
+    public void LoadChanges_CorruptFile_ReturnsEmpty()
+    {
+        File.WriteAllText(Path.Combine(_tempDir, "changes.json"), "{ not valid json !!!");
+
+        using var detector = new ConfigChangeDetector(_tempDir);
+        detector.LoadChanges();
+
+        Assert.Empty(detector.GetRecentChanges(10));
+    }
+
+    [Fact]
+    public void ChangesJournal_PersistedAndReloaded()
+    {
+        // First instance detects the change and persists it.
+        using (var detector = new ConfigChangeDetector(_tempDir))
+        {
+            detector.DetectChanges(MakeSnapshot("boot_0414_0900", cl: 18));
+            detector.DetectChanges(MakeSnapshot("boot_0415_0900", cl: 16));
+        }
+
+        // Second instance loads the journal from disk.
+        using var detector2 = new ConfigChangeDetector(_tempDir);
+        detector2.LoadChanges();
+
+        var changes = detector2.GetRecentChanges(10);
+        Assert.Single(changes);
+        Assert.True(changes[0].Changes.ContainsKey("CL"));
+        Assert.Equal("18", changes[0].Changes["CL"].Before);
+        Assert.Equal("16", changes[0].Changes["CL"].After);
+    }
+
+    [Fact]
+    public void GetRecentChanges_ReturnsLastN()
+    {
+        using var detector = new ConfigChangeDetector(_tempDir);
+
+        // Baseline, then 6 changes (cl alternates 18→16→18→... building a sequence).
+        // Each pair of adjacent snapshots differs so each detection produces a change.
+        int cl = 18;
+        detector.DetectChanges(MakeSnapshot("boot_0", cl: cl));
+        for (int i = 1; i <= 6; i++)
+        {
+            cl = (cl == 18) ? 16 : 18;
+            detector.DetectChanges(MakeSnapshot($"boot_{i}", cl: cl));
+        }
+
+        var recent = detector.GetRecentChanges(5);
+
+        // Exactly 5 returned even though 6 changes exist.
+        Assert.Equal(5, recent.Count);
+    }
+
+    [Fact]
+    public void GetRecentChanges_WhenFewerThanN_ReturnsAll()
+    {
+        using var detector = new ConfigChangeDetector(_tempDir);
+
+        detector.DetectChanges(MakeSnapshot("boot_0414_0900", cl: 18));
+        detector.DetectChanges(MakeSnapshot("boot_0415_0900", cl: 16));
+
+        var recent = detector.GetRecentChanges(5);
+
+        Assert.Single(recent);
+    }
+
+    [Fact]
+    public void GetRecentChanges_MultipleChanges_ChronologicalOrder()
+    {
+        using var detector = new ConfigChangeDetector(_tempDir);
+
+        // Four snapshots produce three changes:
+        //   change[0]: CL 18 → 16 (detected at boot_b)
+        //   change[1]: CL 16 → 14 (detected at boot_c)
+        //   change[2]: CL 14 → 12 (detected at boot_d)
+        detector.DetectChanges(MakeSnapshot("boot_a", cl: 18));
+        detector.DetectChanges(MakeSnapshot("boot_b", cl: 16));
+        detector.DetectChanges(MakeSnapshot("boot_c", cl: 14));
+        detector.DetectChanges(MakeSnapshot("boot_d", cl: 12));
+
+        var recent = detector.GetRecentChanges(3);
+
+        // All three returned in chronological (insertion) order.
+        Assert.Equal(3, recent.Count);
+        Assert.Equal("18", recent[0].Changes["CL"].Before); // change[0]: 18 → 16
+        Assert.Equal("16", recent[0].Changes["CL"].After);
+        Assert.Equal("16", recent[1].Changes["CL"].Before); // change[1]: 16 → 14
+        Assert.Equal("14", recent[2].Changes["CL"].Before); // change[2]: 14 → 12
+        Assert.Equal("12", recent[2].Changes["CL"].After);
+    }
+
+    [Fact]
+    public void ChangesJournal_AtomicWrite_NoTempFiles()
+    {
+        using var detector = new ConfigChangeDetector(_tempDir);
+
+        detector.DetectChanges(MakeSnapshot("boot_0414_0900", cl: 18));
+        detector.DetectChanges(MakeSnapshot("boot_0415_0900", cl: 16));
+
+        var tmpFiles = Directory.GetFiles(_tempDir, "changes.*.tmp");
+        Assert.Empty(tmpFiles);
+    }
 }

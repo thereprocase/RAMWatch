@@ -10,6 +10,9 @@ public sealed class ServiceState
     public required DateTime BootTime { get; init; }
     public required bool Ready { get; init; }
     public required string DriverStatus { get; init; }
+    // Despite the name, this field carries system uptime (time since last OS boot),
+    // not service process uptime. Renamed intent is system uptime; name kept for wire
+    // compatibility with the GUI client.
     public required TimeSpan ServiceUptime { get; init; }
     public required List<ErrorSource> Errors { get; init; }
     public required IntegrityState Integrity { get; init; }

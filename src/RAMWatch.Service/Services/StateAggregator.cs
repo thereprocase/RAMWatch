@@ -130,10 +130,9 @@ public sealed class StateAggregator
 
             if (_configChangeDetector is not null)
             {
-                // ConfigChangeDetector does not hold a list in memory — changes.json
-                // is not loaded on startup (it is append-only). The recent-changes
-                // field is populated in Phase 3 when a full changes journal is added.
-                // For now, leave null so the field is omitted from the push.
+                var recent = _configChangeDetector.GetRecentChanges(5);
+                if (recent.Count > 0)
+                    recentChanges = recent;
             }
 
             if (_driftDetector is not null)
@@ -163,7 +162,9 @@ public sealed class StateAggregator
             BootTime = bootTime,
             Ready = ready,
             DriverStatus = driverStatus,
-            ServiceUptime = DateTime.UtcNow - _serviceStartTime,
+            // ServiceUptime holds system uptime (time since last boot), not service process uptime.
+            // System uptime is what users care about for tuning context.
+            ServiceUptime = DateTime.UtcNow - bootTime,
             Errors = _eventLog.GetErrorSources(),
             Integrity = new IntegrityState(0, IntegrityCheckStatus.NotRun, IntegrityCheckStatus.NotRun),
             Timings = timings,
