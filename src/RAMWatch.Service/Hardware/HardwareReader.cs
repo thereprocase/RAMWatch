@@ -34,7 +34,12 @@ public sealed class HardwareReader : IDisposable
 
     /// <summary>
     /// Read current DRAM timings. Returns null if driver or CPU unsupported.
-    /// On success, also populates FCLK, UCLK, and VSoc from SMU data.
+    /// On success, also populates FCLK, UCLK, VSoc, and VDimm.
+    ///
+    /// VDimm is read from vendor-specific WMI via a PowerShell subprocess.
+    /// The call takes ~200–500 ms and is performed once per ReadTimings call.
+    /// The caller (RamWatchService) is responsible for not calling ReadTimings
+    /// on a tight loop — the existing 30-second poll interval is appropriate.
     /// </summary>
     public TimingSnapshot? ReadTimings(string bootId)
     {
@@ -47,6 +52,13 @@ public sealed class HardwareReader : IDisposable
 
             // SMU reads are best-effort: FCLK/UCLK/VSoc stay at 0 on failure.
             _smuDecode?.PopulateClockVoltage(snapshot);
+
+            // VDimm is not available from hardware registers on desktop boards.
+            // WMI path covers MSI (AMD_ACPI) and ASUS boards. Returns 0 on
+            // ASRock or any board that does not expose the value.
+            double vdimm = VdimmReader.ReadVdimm();
+            if (vdimm > 0)
+                snapshot.VDimm = vdimm;
 
             return snapshot;
         }

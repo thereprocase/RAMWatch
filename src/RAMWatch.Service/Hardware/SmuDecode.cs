@@ -58,7 +58,7 @@ public sealed class SmuDecode : IDisposable
 
     /// <summary>
     /// Populate FclkMhz, UclkMhz, and VSoc fields in the provided snapshot.
-    /// VDimm is left at 0 — it is not readable from hardware on desktop boards.
+    /// VDimm is populated by HardwareReader via VdimmReader (WMI), not here.
     /// </summary>
     public void PopulateClockVoltage(TimingSnapshot snapshot)
     {
