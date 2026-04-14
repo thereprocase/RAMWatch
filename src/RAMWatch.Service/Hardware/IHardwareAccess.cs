@@ -1,61 +1,50 @@
 namespace RAMWatch.Service.Hardware;
 
 /// <summary>
-/// Swappable hardware access interface. The driver backend (PawnIO, InpOutx64,
-/// or any future driver) implements this. The decode logic depends only on
-/// this interface, never on a specific driver.
+/// Swappable hardware access interface. The driver backend (PawnIO or any
+/// future driver) implements this. The decode logic depends only on this
+/// interface, never on a specific driver.
 ///
-/// If the driver project loses its signing cert or Microsoft tightens HVCI rules,
-/// we swap the implementation without rewriting the decode layer.
+/// Operations are SMN-level, not PCI-level. The SMN indirect access pattern
+/// (write address to PCI 0x60, read data from PCI 0x64) is an implementation
+/// detail hidden inside the driver backend. PawnIO does this atomically in
+/// the kernel via ioctl_read_smn. A hypothetical InpOutx64 backend would do
+/// it in userspace under a mutex.
+///
+/// Read-only contract: RAMWatch never modifies hardware configuration.
+/// The SMN address-pointer write (to PCI 0x60) is part of the read protocol,
+/// not a configuration change.
 /// </summary>
 public interface IHardwareAccess : IDisposable
 {
-    /// <summary>
-    /// Whether the driver is loaded and ready for reads.
-    /// </summary>
     bool IsAvailable { get; }
-
-    /// <summary>
-    /// Human-readable driver status for the UI.
-    /// </summary>
     string StatusDescription { get; }
+    string DriverName { get; }
 
     /// <summary>
-    /// Read a 32-bit value from PCI configuration space.
-    /// Used for UMC register reads (AMD memory controller).
+    /// Read a 32-bit value from the AMD SMN (System Management Network) address space.
+    /// Returns false if the driver is unavailable or the read fails.
     /// </summary>
-    uint ReadPciConfigDword(uint bus, uint device, uint function, uint offset);
+    bool TryReadSmn(uint address, out uint value);
 
     /// <summary>
     /// Read a 64-bit Model Specific Register.
-    /// Used for SVI2 voltage telemetry and SMU communication.
+    /// Used for SVI2 voltage telemetry.
     /// </summary>
-    ulong ReadMsr(uint index);
-
-    /// <summary>
-    /// Write a 32-bit value to PCI configuration space.
-    /// Used for SMU mailbox communication (write command, read response).
-    /// </summary>
-    void WritePciConfigDword(uint bus, uint device, uint function, uint offset, uint value);
+    bool TryReadMsr(uint index, out ulong value);
 }
 
 /// <summary>
-/// Null driver that always reports unavailable. Used when no real driver
-/// is installed — enables graceful degradation without null checks everywhere.
+/// Null driver — always unavailable. Used when no real driver is installed.
+/// Enables graceful degradation without null checks everywhere.
 /// </summary>
 public sealed class NullHardwareAccess : IHardwareAccess
 {
     public bool IsAvailable => false;
     public string StatusDescription => "No hardware driver available. Install PawnIO to enable timing reads.";
+    public string DriverName => "None";
 
-    public uint ReadPciConfigDword(uint bus, uint device, uint function, uint offset)
-        => throw new InvalidOperationException("Hardware driver not available");
-
-    public ulong ReadMsr(uint index)
-        => throw new InvalidOperationException("Hardware driver not available");
-
-    public void WritePciConfigDword(uint bus, uint device, uint function, uint offset, uint value)
-        => throw new InvalidOperationException("Hardware driver not available");
-
+    public bool TryReadSmn(uint address, out uint value) { value = 0; return false; }
+    public bool TryReadMsr(uint index, out ulong value) { value = 0; return false; }
     public void Dispose() { }
 }

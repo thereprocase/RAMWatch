@@ -22,4 +22,10 @@
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.*" />
   </ItemGroup>
 
+  <!-- PawnIO modules embedded as resources (B8: never load from user-writable paths) -->
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\PawnIo\AMDFamily17.bin" />
+    <EmbeddedResource Include="Resources\PawnIo\RyzenSMU.bin" />
+  </ItemGroup>
+
 </Project>

@@ -1,14 +1,11 @@
 using RAMWatch.Core.Models;
+using RAMWatch.Service.Hardware.PawnIo;
 
 namespace RAMWatch.Service.Hardware;
 
 /// <summary>
 /// Orchestrates hardware detection and timing reads.
-/// Manages the driver lifecycle with graceful degradation:
-/// PawnIO available → full timing reads.
-/// PawnIO missing → NullHardwareAccess, all reads return null.
-///
-/// The driver backend is a swappable IHardwareAccess implementation.
+/// Detection chain: PawnIO → NullHardwareAccess (graceful degradation).
 /// </summary>
 public sealed class HardwareReader : IDisposable
 {
@@ -19,6 +16,7 @@ public sealed class HardwareReader : IDisposable
     public bool IsAvailable => _driver.IsAvailable;
     public string DriverStatus => _driver.IsAvailable ? "loaded" : "not_found";
     public string DriverDescription => _driver.StatusDescription;
+    public string DriverName => _driver.DriverName;
     public CpuDetect.CpuFamily CpuFamily => _cpuFamily;
 
     public HardwareReader()
@@ -33,8 +31,7 @@ public sealed class HardwareReader : IDisposable
     }
 
     /// <summary>
-    /// Read current DRAM timings. Returns null if driver or CPU is unsupported.
-    /// Safe to call on any system — never throws.
+    /// Read current DRAM timings. Returns null if driver or CPU unsupported.
     /// </summary>
     public TimingSnapshot? ReadTimings(string bootId)
     {
@@ -55,19 +52,20 @@ public sealed class HardwareReader : IDisposable
         _driver.Dispose();
     }
 
-    /// <summary>
-    /// Try to initialize PawnIO. Fall back to NullHardwareAccess if unavailable.
-    /// </summary>
     private static IHardwareAccess DetectDriver()
     {
+        // Try PawnIO first (the only supported driver backend)
         try
         {
-            var pawnIo = new PawnIoAccess();
-            pawnIo.Initialize();
-            if (pawnIo.IsAvailable)
-                return pawnIo;
+            if (PawnIoDriver.IsInstalled)
+            {
+                var access = new PawnIoAccess();
+                access.Initialize();
+                if (access.IsAvailable)
+                    return access;
 
-            pawnIo.Dispose();
+                access.Dispose();
+            }
         }
         catch
         {

@@ -1,0 +1,6 @@
+PawnIO.Modules extracted from ZenStates-Core.dll v1.84.0.0 (ZenTimings v1.36)
+Source: https://github.com/namazso/PawnIO.Modules
+License: LGPL-2.1 (modules), GPL-2+ (PawnIO driver)
+
+AMDFamily17.bin  SHA256: 099DC01D6DB97EA997FEC4A461E191CC64B9D7CE47C9D2153C451C56C2ADCF50  9300 bytes
+RyzenSMU.bin     SHA256: 0CF0FE1296C5C38F4BEE0F96352B35F14D32AB97CB58FD17600646D98507D8AA  38036 bytes
