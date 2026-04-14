@@ -42,7 +42,7 @@ public static class BiosLayouts
         new TimingGroup { Name = "Secondary",    Fields = ["RRDS", "RRDL", "FAW", "WTRS", "WTRL", "WR", "RTP"] },
         new TimingGroup { Name = "Turn-around",  Fields = ["RDRDSCL", "WRWRSCL", "RDRDSC", "RDRDSD", "RDRDDD", "WRWRSC", "WRWRSD", "WRWRDD"] },
         new TimingGroup { Name = "Read/Write",   Fields = ["RDWR", "WRRD"] },
-        new TimingGroup { Name = "Misc",         Fields = ["CKE", "STAG", "MOD", "MRD", "REFI"] },
+        new TimingGroup { Name = "Misc",         Fields = ["CKE", "STAG", "MOD", "MRD", "REFI", "PowerDown"] },
         new TimingGroup { Name = "PHY",          Fields = ["PHYRDL_A", "PHYRDL_B"] },
     ];
 
@@ -54,7 +54,7 @@ public static class BiosLayouts
         new TimingGroup { Name = "Secondary",    Fields = ["RRDS", "RRDL", "FAW", "WTRS", "WTRL", "WR", "RTP", "CKE", "REFI"] },
         new TimingGroup { Name = "Training",     Fields = ["RDRDSCL", "WRWRSCL"] },
         new TimingGroup { Name = "Turn-around",  Fields = ["RDRDSC", "RDRDSD", "RDRDDD", "WRWRSC", "WRWRSD", "WRWRDD", "RDWR", "WRRD"] },
-        new TimingGroup { Name = "Misc",         Fields = ["STAG", "MOD", "MRD"] },
+        new TimingGroup { Name = "Misc",         Fields = ["STAG", "MOD", "MRD", "PowerDown"] },
         new TimingGroup { Name = "PHY",          Fields = ["PHYRDL_A", "PHYRDL_B"] },
     ];
 
@@ -67,7 +67,7 @@ public static class BiosLayouts
         new TimingGroup { Name = "SCL",          Fields = ["RDRDSCL", "WRWRSCL"] },
         new TimingGroup { Name = "Turn-around",  Fields = ["RDRDSC", "RDRDSD", "RDRDDD", "WRWRSC", "WRWRSD", "WRWRDD"] },
         new TimingGroup { Name = "Read/Write",   Fields = ["RDWR", "WRRD"] },
-        new TimingGroup { Name = "Misc",         Fields = ["CKE", "STAG", "MOD", "MRD", "REFI"] },
+        new TimingGroup { Name = "Misc",         Fields = ["CKE", "STAG", "MOD", "MRD", "REFI", "PowerDown"] },
         new TimingGroup { Name = "PHY",          Fields = ["PHYRDL_A", "PHYRDL_B"] },
     ];
 
@@ -80,7 +80,8 @@ public static class BiosLayouts
                                                             "RDRDSC", "RDRDSD", "RDRDDD",
                                                             "WRWRSC", "WRWRSD", "WRWRDD",
                                                             "RDWR", "WRRD",
-                                                            "CKE", "STAG", "MOD", "MRD", "REFI"] },
+                                                            "CKE", "STAG", "MOD", "MRD", "REFI",
+                                                            "PowerDown"] },
         new TimingGroup { Name = "PHY",          Fields = ["PHYRDL_A", "PHYRDL_B"] },
     ];
 
@@ -90,7 +91,7 @@ public static class BiosLayouts
         new TimingGroup { Name = "tRFC",         Fields = ["RFC", "RFC2", "RFC4"] },
         new TimingGroup { Name = "Secondaries",  Fields = ["RRDS", "RRDL", "FAW", "WTRS", "WTRL", "WR", "RTP", "RDRDSCL", "WRWRSCL"] },
         new TimingGroup { Name = "Turn-around",  Fields = ["RDRDSC", "RDRDSD", "RDRDDD", "WRWRSC", "WRWRSD", "WRWRDD", "RDWR", "WRRD"] },
-        new TimingGroup { Name = "Misc",         Fields = ["CKE", "STAG", "MOD", "MRD", "REFI"] },
+        new TimingGroup { Name = "Misc",         Fields = ["CKE", "STAG", "MOD", "MRD", "REFI", "PowerDown"] },
         new TimingGroup { Name = "PHY",          Fields = ["PHYRDL_A", "PHYRDL_B"] },
     ];
 

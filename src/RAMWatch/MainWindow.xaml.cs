@@ -46,7 +46,10 @@ public partial class MainWindow : System.Windows.Window
         // Dark title bar on Windows 11 (Frodo warning #9)
         EnableDarkTitleBar();
 
-        // Restore window position (Critical fix #3)
+        // Apply responsive defaults, then restore saved position if available.
+        // ApplyDefaultSize must run first so the window has a sensible size before
+        // RestoreWindowPosition overwrites it with the saved values.
+        ApplyDefaultSize();
         RestoreWindowPosition();
 
         _tray = new TrayIconManager(
@@ -123,6 +126,28 @@ public partial class MainWindow : System.Windows.Window
     {
         _quitting = true;
         Close();
+    }
+
+    // ── DPI-responsive default size ───────────────────────────
+
+    /// <summary>
+    /// Sets the window to a sensible DPI-independent default size.
+    /// Uses device-independent pixels (DIPs) so the size is appropriate
+    /// at all DPI scales. Only applied before a saved position is restored;
+    /// RestoreWindowPosition will overwrite these values when prefs exist.
+    /// </summary>
+    private void ApplyDefaultSize()
+    {
+        var workArea = SystemParameters.WorkArea;
+
+        // Target roughly 35% of work-area width, 75% of work-area height.
+        // These are device-independent pixel fractions — WPF handles scaling.
+        double targetW = workArea.Width  * 0.35;
+        double targetH = workArea.Height * 0.75;
+
+        // Clamp to reasonable bounds so the window is never absurdly small or large.
+        Width  = Math.Clamp(targetW, 440, 720);
+        Height = Math.Clamp(targetH, 500, 1100);
     }
 
     // ── Window position persistence (Critical fix #3) ────────

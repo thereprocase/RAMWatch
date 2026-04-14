@@ -167,8 +167,10 @@ public static class DigestBuilder
             // 1 clock = 1 / (MemClockMhz * 1e6) seconds = 1000 / MemClockMhz ns (half-period)
             // but the convention is tRFC in ns = RFC_clocks / (2 * MCLK_GHz)
             // i.e. RFC_clocks * 1000 / (2 * MemClockMhz)
+            // Use floating-point division to avoid integer truncation.
+            // RFC * 1000.0 / (2.0 * MCLK) gives nanoseconds; round to nearest integer.
             string nsStr = snap.MemClockMhz > 0
-                ? $"{snap.RFC * 1000 / (2 * snap.MemClockMhz)}ns"
+                ? $"{(int)Math.Round(snap.RFC * 1000.0 / (2.0 * snap.MemClockMhz))}ns"
                 : "?ns";
             sb.AppendLine($"{rfcLabel}: {snap.RFC}/{snap.RFC2}/{snap.RFC4} ({nsStr})");
             AppendDriftWarnings(sb, ["RFC", "RFC2", "RFC4"], latestDrift);

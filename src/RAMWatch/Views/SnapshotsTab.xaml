@@ -9,10 +9,22 @@
             <RowDefinition Height="*" />      <!-- Comparison grid -->
         </Grid.RowDefinitions>
 
-        <!-- Section header -->
-        <TextBlock Grid.Row="0"
-                   Text="SNAPSHOT COMPARISON"
-                   Style="{StaticResource SectionHeader}" />
+        <!-- Section header with filter toggle -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0"
+                       Text="SNAPSHOT COMPARISON"
+                       Style="{StaticResource SectionHeader}" />
+            <CheckBox Grid.Column="1"
+                      Content="Show all"
+                      IsChecked="{Binding ShowAllSnapshots}"
+                      Foreground="{StaticResource TextSecondary}"
+                      VerticalAlignment="Center"
+                      AutomationProperties.Name="Show all snapshots" />
+        </Grid>
 
         <!-- Empty state (no snapshots at all) -->
         <TextBlock Grid.Row="2"

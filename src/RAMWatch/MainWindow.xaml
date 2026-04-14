@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:RAMWatch.ViewModels"
         xmlns:views="clr-namespace:RAMWatch.Views"
-        Title="RAMWatch" Width="520" Height="960"
+        Title="RAMWatch"
         MinWidth="440" MinHeight="500"
         Style="{StaticResource DarkWindow}"
         WindowStartupLocation="CenterScreen"

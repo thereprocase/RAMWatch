@@ -110,9 +110,13 @@ public partial class TimingsViewModel : ObservableObject
         FclkDisplay = $"{snapshot.FclkMhz} MHz";
         UclkDisplay = $"{snapshot.UclkMhz} MHz";
 
-        // Voltages — four decimal places, trailing zeros communicate precision
+        // Voltages — four decimal places, trailing zeros communicate precision.
+        // VDIMM on desktop boards is not readable from hardware registers; BIOS WMI
+        // on some boards (e.g. MSI) provides it, but most will always return 0.
+        // Display "N/A" rather than "—" so users know the field exists but is not available
+        // (as opposed to "—" which reads as "no hardware reads at all").
         VsocDisplay  = snapshot.VSoc  > 0 ? $"{snapshot.VSoc:F4}"  : "—";
-        VdimmDisplay = snapshot.VDimm > 0 ? $"{snapshot.VDimm:F4}" : "—";
+        VdimmDisplay = snapshot.VDimm > 0 ? $"{snapshot.VDimm:F4}" : "N/A";
 
         // System info
         CpuCodename = snapshot.CpuCodename;
@@ -178,9 +182,10 @@ public partial class TimingsViewModel : ObservableObject
         "MRD"      => snap.MRD.ToString(),
         "PHYRDL_A" => snap.PHYRDL_A.ToString(),
         "PHYRDL_B" => snap.PHYRDL_B.ToString(),
-        "GDM"      => snap.GDM ? "On" : "Off",
-        "Cmd2T"    => snap.Cmd2T ? "2T" : "1T",
-        _          => "?",
+        "GDM"       => snap.GDM ? "On" : "Off",
+        "Cmd2T"     => snap.Cmd2T ? "2T" : "1T",
+        "PowerDown" => snap.PowerDown ? "On" : "Off",
+        _           => "?",
     };
 
     /// <summary>
