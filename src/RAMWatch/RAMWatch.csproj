@@ -13,6 +13,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Resource Include="Fonts\*.ttf" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\RAMWatch.Core\RAMWatch.Core.csproj" />
   </ItemGroup>
 

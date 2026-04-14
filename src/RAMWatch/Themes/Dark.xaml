@@ -10,8 +10,8 @@
 
     <!-- Text -->
     <Color x:Key="TextPrimaryColor">#E0E0E0</Color>
-    <Color x:Key="TextSecondaryColor">#9E9E9E</Color>
-    <Color x:Key="TextDisabledColor">#616161</Color>
+    <Color x:Key="TextSecondaryColor">#B0B0B0</Color>
+    <Color x:Key="TextDisabledColor">#787878</Color>
 
     <!-- Semantic -->
     <Color x:Key="StatusGreenColor">#00C853</Color>
@@ -40,8 +40,8 @@
     <SolidColorBrush x:Key="BorderFocus" Color="{StaticResource BorderFocusColor}" />
 
     <!-- Typography -->
-    <FontFamily x:Key="MonoFont">Cascadia Mono, Consolas, monospace</FontFamily>
-    <FontFamily x:Key="UIFont">Segoe UI, system-ui, sans-serif</FontFamily>
+    <FontFamily x:Key="MonoFont">./#JetBrainsMono Nerd Font, Cascadia Mono, Consolas, monospace</FontFamily>
+    <FontFamily x:Key="UIFont">./#JetBrainsMono Nerd Font, Segoe UI, system-ui, sans-serif</FontFamily>
 
     <!-- Focus visual ring — keyboard navigation indicator -->
     <Style x:Key="FocusVisual">
@@ -254,9 +254,9 @@
 
     <!-- Section header (e.g., "Error Monitor", "Integrity") -->
     <Style TargetType="TextBlock" x:Key="SectionHeader">
-        <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
         <Setter Property="FontFamily" Value="{StaticResource UIFont}" />
-        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontSize" Value="12" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Typography.Capitals" Value="AllSmallCaps" />
         <Setter Property="Margin" Value="0,8,0,4" />
