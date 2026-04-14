@@ -47,8 +47,8 @@ public sealed class RamWatchService : BackgroundService
         // Mirror logger (fire-and-forget copy to Dropbox/OneDrive/etc.)
         _mirrorLogger = new MirrorLogger(config.MirrorDirectory);
 
-        // Pipe server
-        _pipeServer = new PipeServer(OnClientMessage);
+        // Pipe server — push full state immediately when a client connects
+        _pipeServer = new PipeServer(OnClientMessage, OnClientConnected);
         _pipeServer.Start();
         _logger.LogInformation("Pipe server started on \\\\.\\pipe\\{PipeName}", PipeConstants.PipeName);
 
@@ -96,6 +96,21 @@ public sealed class RamWatchService : BackgroundService
         if (_pipeServer is not null)
             await _pipeServer.DisposeAsync();
         await base.StopAsync(cancellationToken);
+    }
+
+    private async Task OnClientConnected(ConnectedClient client)
+    {
+        if (_aggregator is null) return;
+        var state = _aggregator.BuildState();
+        var message = new StateMessage { Type = "state", State = state };
+        try
+        {
+            await client.SendAsync(MessageSerializer.Serialize(message));
+        }
+        catch
+        {
+            // Client may have disconnected already
+        }
     }
 
     private void OnEventDetected(MonitoredEvent evt)

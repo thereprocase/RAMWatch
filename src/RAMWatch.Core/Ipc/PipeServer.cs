@@ -16,11 +16,15 @@ public sealed class PipeServer : IAsyncDisposable
     private readonly List<ConnectedClient> _clients = [];
     private readonly Lock _clientsLock = new();
     private readonly Func<string, ConnectedClient, Task>? _onMessage;
+    private readonly Func<ConnectedClient, Task>? _onClientConnected;
     private Task? _acceptLoop;
 
-    public PipeServer(Func<string, ConnectedClient, Task>? onMessage = null)
+    public PipeServer(
+        Func<string, ConnectedClient, Task>? onMessage = null,
+        Func<ConnectedClient, Task>? onClientConnected = null)
     {
         _onMessage = onMessage;
+        _onClientConnected = onClientConnected;
     }
 
     public void Start()
@@ -74,6 +78,8 @@ public sealed class PipeServer : IAsyncDisposable
                 {
                     _clients.Add(client);
                 }
+                if (_onClientConnected is not null)
+                    _ = _onClientConnected(client);
                 _ = ReadFromClientAsync(client, ct);
             }
             catch (OperationCanceledException)

@@ -196,15 +196,15 @@ public partial class MainViewModel : ObservableObject
         }
 
         BootTimeText = $"Boot: {state.BootTime.ToLocalTime():MM/dd HH:mm}";
-        UptimeText = $"Up: {state.ServiceUptime:d\\.hh\\:mm}";
+        UptimeText = FormatUptime(state.ServiceUptime);
         LastUpdateText = $"Updated: {state.Timestamp.ToLocalTime():HH:mm:ss}";
         DriverStatus = state.DriverStatus;
 
-        // Integrity
+        // Integrity — human-readable, not raw enum names
         CbsStatus = state.Integrity.CbsCorruptionCount == 0
             ? "Clean" : $"{state.Integrity.CbsCorruptionCount} corruption markers";
-        SfcStatus = state.Integrity.SfcStatus.ToString();
-        DismStatus = state.Integrity.DismStatus.ToString();
+        SfcStatus = FormatCheckStatus(state.Integrity.SfcStatus);
+        DismStatus = FormatCheckStatus(state.Integrity.DismStatus);
     }
 
     private void ApplyEvent(MonitoredEvent evt)
@@ -246,6 +246,30 @@ public partial class MainViewModel : ObservableObject
         lines.Add($"Driver: {DriverStatus}");
 
         return string.Join(Environment.NewLine, lines);
+    }
+
+    private static string FormatUptime(TimeSpan uptime)
+    {
+        if (uptime.TotalDays >= 1)
+            return $"Up: {(int)uptime.TotalDays}d {uptime.Hours}h {uptime.Minutes}m";
+        if (uptime.TotalHours >= 1)
+            return $"Up: {(int)uptime.TotalHours}h {uptime.Minutes}m";
+        return $"Up: {uptime.Minutes}m {uptime.Seconds}s";
+    }
+
+    private static string FormatCheckStatus(IntegrityCheckStatus status)
+    {
+        return status switch
+        {
+            IntegrityCheckStatus.NotRun => "Not run",
+            IntegrityCheckStatus.Running => "Running...",
+            IntegrityCheckStatus.Clean => "Clean",
+            IntegrityCheckStatus.CorruptionFound => "Corruption found",
+            IntegrityCheckStatus.CorruptionRepaired => "Repaired",
+            IntegrityCheckStatus.Failed => "Failed",
+            IntegrityCheckStatus.Unknown => "Unknown",
+            _ => status.ToString()
+        };
     }
 }
 
