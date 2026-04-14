@@ -40,18 +40,20 @@ public sealed class PipeServer : IAsyncDisposable
             snapshot = [.. _clients];
         }
 
-        var disconnected = new List<ConnectedClient>();
-        foreach (var client in snapshot)
-        {
-            try
-            {
-                await client.SendAsync(serializedMessage);
-            }
-            catch
-            {
-                disconnected.Add(client);
-            }
-        }
+        if (snapshot.Length == 0)
+            return;
+
+        // Send to all clients in parallel. A slow or dead client cannot block
+        // the others — each send has a 5-second timeout.
+        var results = await Task.WhenAll(
+            snapshot.Select(c => SendWithTimeoutAsync(c, serializedMessage)));
+
+        // Clean up any clients that failed to receive.
+        var disconnected = snapshot
+            .Zip(results, (client, failed) => (client, failed))
+            .Where(p => p.failed)
+            .Select(p => p.client)
+            .ToList();
 
         if (disconnected.Count > 0)
         {
@@ -62,6 +64,25 @@ public sealed class PipeServer : IAsyncDisposable
             }
             foreach (var c in disconnected)
                 await c.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// Send to one client with a 5-second wall-clock timeout.
+    /// Returns true if the send failed (client should be removed).
+    /// Exceptions are swallowed — a dead client is not a service error.
+    /// </summary>
+    private static async Task<bool> SendWithTimeoutAsync(ConnectedClient client, string message)
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        try
+        {
+            await client.SendAsync(message, cts.Token);
+            return false; // success
+        }
+        catch
+        {
+            return true; // failed — caller will remove this client
         }
     }
 
@@ -183,12 +204,15 @@ public sealed class ConnectedClient : IAsyncDisposable
         _reader = new StreamReader(pipe, Encoding.UTF8, leaveOpen: true);
     }
 
-    public async Task SendAsync(string serializedMessage)
+    public Task SendAsync(string serializedMessage) =>
+        SendAsync(serializedMessage, CancellationToken.None);
+
+    public async Task SendAsync(string serializedMessage, CancellationToken ct)
     {
-        await _writeLock.WaitAsync();
+        await _writeLock.WaitAsync(ct);
         try
         {
-            await _writer.WriteAsync(serializedMessage);
+            await _writer.WriteAsync(serializedMessage.AsMemory(), ct);
         }
         finally
         {

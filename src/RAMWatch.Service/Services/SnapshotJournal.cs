@@ -11,6 +11,10 @@ namespace RAMWatch.Service.Services;
 /// </summary>
 public sealed class SnapshotJournal
 {
+    // Hard cap prevents unbounded disk growth if the service runs for years.
+    // Oldest entries are evicted first when the cap is reached.
+    private const int MaxSnapshots = 1000;
+
     private readonly string _path;
     private readonly Lock _lock = new();
     private List<TimingSnapshot> _snapshots;
@@ -53,6 +57,7 @@ public sealed class SnapshotJournal
     /// <summary>
     /// Add a snapshot and persist the full list atomically.
     /// Overwrites any existing snapshot with the same SnapshotId.
+    /// Evicts oldest entries when the list exceeds MaxSnapshots.
     /// </summary>
     public void Save(TimingSnapshot snapshot)
     {
@@ -64,6 +69,10 @@ public sealed class SnapshotJournal
                 _snapshots[idx] = snapshot;
             else
                 _snapshots.Add(snapshot);
+
+            // Evict oldest entries to stay within cap.
+            while (_snapshots.Count > MaxSnapshots)
+                _snapshots.RemoveAt(0);
 
             Persist();
         }

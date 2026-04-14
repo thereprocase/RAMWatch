@@ -376,6 +376,23 @@ public sealed class RamWatchService : BackgroundService
                 break;
 
             case UpdateSettingsMessage update:
+                if (!AppSettings.IsValidDataPath(update.Settings.LogDirectory) ||
+                    !AppSettings.IsValidDataPath(update.Settings.MirrorDirectory))
+                {
+                    await client.SendAsync(MessageSerializer.Serialize(
+                        new ResponseMessage
+                        {
+                            Type = "response",
+                            RequestId = update.RequestId,
+                            Status = "error",
+                            Code = "invalid_path",
+                            Message = "LogDirectory or MirrorDirectory contains a disallowed path"
+                        }));
+                    break;
+                }
+                // Clamp numeric fields to sane ranges before persisting.
+                update.Settings.RefreshIntervalSeconds =
+                    Math.Clamp(update.Settings.RefreshIntervalSeconds, 5, 3600);
                 _settings.Update(update.Settings);
                 await client.SendAsync(MessageSerializer.Serialize(
                     new ResponseMessage
@@ -526,11 +543,12 @@ public sealed class RamWatchService : BackgroundService
             return;
         }
 
+        // Truncate free-text fields to prevent unbounded data from reaching disk.
         var result = new ValidationResult
         {
             Timestamp = DateTime.UtcNow,
             BootId = _bootId,
-            TestTool = msg.TestTool,
+            TestTool = msg.TestTool is { Length: > 128 } t ? t[..128] : msg.TestTool,
             MetricName = msg.MetricName,
             MetricValue = msg.MetricValue,
             MetricUnit = msg.MetricUnit,
@@ -538,7 +556,7 @@ public sealed class RamWatchService : BackgroundService
             ErrorCount = msg.ErrorCount,
             DurationMinutes = msg.DurationMinutes,
             ActiveSnapshotId = msg.ActiveSnapshotId,
-            Notes = msg.Notes
+            Notes = msg.Notes is { Length: > 2048 } n ? n[..2048] : msg.Notes
         };
 
         _validationLogger.LogResult(result);
@@ -593,8 +611,9 @@ public sealed class RamWatchService : BackgroundService
         }
 
         // Apply the user-supplied label, or generate a default from the timestamp.
+        // Truncate to 256 chars to prevent unbounded data from reaching disk.
         string label = !string.IsNullOrWhiteSpace(msg.Label)
-            ? msg.Label.Trim()
+            ? (msg.Label.Trim() is { Length: > 256 } l ? l[..256] : msg.Label.Trim())
             : $"Manual {DateTime.UtcNow.ToLocalTime():yyyy-MM-dd HH:mm}";
 
         // Assign a new unique ID so this is always a distinct journal entry,

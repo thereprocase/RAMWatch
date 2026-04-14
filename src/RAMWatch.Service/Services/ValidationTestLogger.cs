@@ -11,6 +11,9 @@ namespace RAMWatch.Service.Services;
 /// </summary>
 public sealed class ValidationTestLogger
 {
+    // Hard cap prevents unbounded disk growth. Oldest results are evicted first.
+    private const int MaxResults = 500;
+
     private readonly string _path;
     private readonly Lock _lock = new();
     private List<ValidationResult> _results;
@@ -52,12 +55,18 @@ public sealed class ValidationTestLogger
 
     /// <summary>
     /// Append a result and persist the full list atomically.
+    /// Evicts oldest entries when the list exceeds MaxResults.
     /// </summary>
     public void LogResult(ValidationResult result)
     {
         lock (_lock)
         {
             _results.Add(result);
+
+            // Evict oldest entries to stay within cap.
+            while (_results.Count > MaxResults)
+                _results.RemoveAt(0);
+
             Persist();
         }
     }
@@ -81,8 +90,10 @@ public sealed class ValidationTestLogger
     {
         lock (_lock)
         {
-            int skip = Math.Max(0, _results.Count - count);
-            return _results.Skip(skip).ToList();
+            int take  = Math.Min(count, _results.Count);
+            int start = _results.Count - take;
+            // GetRange is O(count) rather than the O(n) enumeration of Skip+ToList.
+            return _results.GetRange(start, take);
         }
     }
 

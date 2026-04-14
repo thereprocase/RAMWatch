@@ -14,6 +14,37 @@ public sealed class AppSettings
     public static bool IsValidRemoteRepo(string? repo) =>
         string.IsNullOrEmpty(repo) || ValidRepoPattern.IsMatch(repo);
 
+    /// <summary>
+    /// Validate a user-supplied data path before the LocalSystem service acts on it.
+    /// Empty/null is accepted (caller uses the default path instead).
+    /// Rejects UNC paths, paths that still contain ".." after full resolution,
+    /// and paths rooted in system directories (Windows, Program Files).
+    /// </summary>
+    public static bool IsValidDataPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return true; // empty = use default
+        try
+        {
+            var full = Path.GetFullPath(path);
+            // Reject UNC paths — the service should never write to a network share.
+            if (full.StartsWith(@"\\")) return false;
+            // GetFullPath resolves ".." but the result should never still contain it.
+            if (full.Contains("..")) return false;
+            // Reject system directories the service must never be directed to write into.
+            var sysRoot = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+            if (!string.IsNullOrEmpty(sysRoot) &&
+                full.StartsWith(sysRoot, StringComparison.OrdinalIgnoreCase)) return false;
+            var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            if (!string.IsNullOrEmpty(programFiles) &&
+                full.StartsWith(programFiles, StringComparison.OrdinalIgnoreCase)) return false;
+            var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+            if (!string.IsNullOrEmpty(programFilesX86) &&
+                full.StartsWith(programFilesX86, StringComparison.OrdinalIgnoreCase)) return false;
+            return true;
+        }
+        catch { return false; }
+    }
+
     public int SchemaVersion { get; set; } = 1;
 
     // General

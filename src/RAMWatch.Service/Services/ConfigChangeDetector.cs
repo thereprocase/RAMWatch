@@ -133,8 +133,10 @@ public sealed class ConfigChangeDetector : IDisposable
     {
         lock (_lock)
         {
-            int skip = Math.Max(0, _changes.Count - count);
-            return _changes.Skip(skip).ToList();
+            int take  = Math.Min(count, _changes.Count);
+            int start = _changes.Count - take;
+            // GetRange is O(count) rather than the O(n) enumeration of Skip+ToList.
+            return _changes.GetRange(start, take);
         }
     }
 

@@ -111,47 +111,59 @@ public sealed class StateAggregator
 
     public ServiceState BuildState()
     {
+        // Step 1: capture shared state and service references inside the lock.
+        // Do NOT call methods on the service objects here — they acquire their
+        // own locks and calling them under _lock creates a nested-lock hazard.
         bool ready;
-        TimingSnapshot? timings = null;
+        TimingSnapshot? timings;
         string driverStatus;
-        string? biosLayoutVendor = null;
-        List<ConfigChange>? recentChanges = null;
-        List<DriftEvent>? driftEvents = null;
-        List<ValidationResult>? recentValidations = null;
-        TimingSnapshot? lkg = null;
-        List<TimingSnapshot>? snapshots = null;
+        string? biosLayoutVendor;
+        List<DriftEvent> driftSnapshot;
+        ConfigChangeDetector? changeDetector;
+        bool driftDetectorPresent;
+        ValidationTestLogger? validationLogger;
+        LkgTracker? lkgTracker;
+        SnapshotJournal? snapshotJournal;
 
         lock (_lock)
         {
-            ready = _ready;
-            timings = _currentTimings;
-            driverStatus = _driverStatus;
-            biosLayoutVendor = _biosLayoutVendor;
+            ready                = _ready;
+            timings              = _currentTimings;
+            driverStatus         = _driverStatus;
+            biosLayoutVendor     = _biosLayoutVendor;
+            driftSnapshot        = new List<DriftEvent>(_currentBootDrift);
+            changeDetector       = _configChangeDetector;
+            driftDetectorPresent = _driftDetector is not null;
+            validationLogger     = _validationLogger;
+            lkgTracker           = _lkgTracker;
+            snapshotJournal      = _snapshotJournal;
+        }
 
-            if (_configChangeDetector is not null)
-            {
-                var recent = _configChangeDetector.GetRecentChanges(5);
-                if (recent.Count > 0)
-                    recentChanges = recent;
-            }
+        // Step 2: call methods that acquire their own locks OUTSIDE _lock.
+        List<ConfigChange>? recentChanges = null;
+        if (changeDetector is not null)
+        {
+            var recent = changeDetector.GetRecentChanges(5);
+            if (recent.Count > 0)
+                recentChanges = recent;
+        }
 
-            if (_driftDetector is not null)
-                driftEvents = new List<DriftEvent>(_currentBootDrift);
+        List<DriftEvent>? driftEvents = driftDetectorPresent
+            ? driftSnapshot
+            : null;
 
-            if (_validationLogger is not null)
-                recentValidations = _validationLogger.GetRecentResults(5);
+        List<ValidationResult>? recentValidations = validationLogger?.GetRecentResults(5);
 
-            if (_lkgTracker is not null)
-                lkg = _lkgTracker.CurrentLkg;
+        TimingSnapshot? lkg = lkgTracker?.CurrentLkg;
 
-            if (_snapshotJournal is not null)
-            {
-                var all = _snapshotJournal.GetAll();
-                // Only include the list when at least one snapshot exists.
-                // null is omitted from JSON by WhenWritingNull, keeping wire format lean.
-                if (all.Count > 0)
-                    snapshots = all;
-            }
+        List<TimingSnapshot>? snapshots = null;
+        if (snapshotJournal is not null)
+        {
+            var all = snapshotJournal.GetAll();
+            // Only include the list when at least one snapshot exists.
+            // null is omitted from JSON by WhenWritingNull, keeping wire format lean.
+            if (all.Count > 0)
+                snapshots = all;
         }
 
         var bootTime = GetLastBootTime();

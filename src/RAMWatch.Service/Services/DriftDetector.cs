@@ -77,13 +77,16 @@ public sealed class DriftDetector : IDisposable
                     var history = CollectHistory(name);
                     if (history.Count == 0) continue;
 
-                    int mode = ComputeMode(history);
+                    var counts = BuildCounts(history);
+                    int mode = ComputeMode(history, counts);
                     int actual = value;
 
                     if (actual != mode)
                     {
-                        int bootsAtMode   = history.Count(v => v == mode);
-                        int bootsAtActual = history.Count(v => v == actual);
+                        // Re-use the counts dictionary built for mode computation
+                        // rather than iterating history twice with LINQ.
+                        int bootsAtMode   = counts.GetValueOrDefault(mode);
+                        int bootsAtActual = counts.GetValueOrDefault(actual);
 
                         // Stability ratio: fraction of the window that matches the mode.
                         double stabilityRatio = (double)bootsAtMode / _window.Boots.Count;
@@ -161,28 +164,37 @@ public sealed class DriftDetector : IDisposable
     }
 
     /// <summary>
-    /// Compute the mode of a list of values. Ties are broken by first-seen order:
-    /// if two values appear equally often, the one that appeared earliest in the
-    /// window (i.e. lowest index in the history list) wins. This means a long-
-    /// stable value is not displaced by a newer equally-frequent value.
+    /// Build a value-to-count dictionary from a history list.
+    /// Called before ComputeMode so both can share the same dictionary.
     /// </summary>
-    private static int ComputeMode(List<int> values)
+    private static Dictionary<int, int> BuildCounts(List<int> values)
+    {
+        var counts = new Dictionary<int, int>(values.Count);
+        foreach (int v in values)
+            counts[v] = counts.GetValueOrDefault(v) + 1;
+        return counts;
+    }
+
+    /// <summary>
+    /// Compute the mode of a list of values given a pre-built counts dictionary.
+    /// Ties are broken by first-seen order: if two values appear equally often,
+    /// the one that appeared earliest in the window wins. This means a long-stable
+    /// value is not displaced by a newer equally-frequent value.
+    /// </summary>
+    private static int ComputeMode(List<int> values, Dictionary<int, int> counts)
     {
         // values is ordered oldest-first; track the first index each distinct
         // value appears at so ties resolve to the older value.
-        var counts     = new Dictionary<int, int>();
-        var firstIndex = new Dictionary<int, int>();
-
+        var firstIndex = new Dictionary<int, int>(counts.Count);
         for (int i = 0; i < values.Count; i++)
         {
             int v = values[i];
-            counts[v] = counts.GetValueOrDefault(v) + 1;
             if (!firstIndex.ContainsKey(v))
                 firstIndex[v] = i;
         }
 
         // Pick the value with the highest count; break ties by smallest firstIndex.
-        int best = values[0];
+        int best      = values[0];
         int bestCount = 0;
         int bestFirst = int.MaxValue;
 
