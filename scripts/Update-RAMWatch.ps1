@@ -142,8 +142,14 @@ if (-not $GuiOnly) {
 # 6. Relaunch GUI if it was running — as the interactive user, not admin
 if (-not $ServiceOnly -and $guiWasRunning -and (Test-Path $guiExe)) {
     Write-Host "Relaunching GUI (as current user, not admin)..." -ForegroundColor Cyan
-    # Use explorer.exe to launch — it de-elevates to the interactive user token
-    explorer.exe $guiExe
+    # Use scheduled task trick to launch de-elevated as the interactive user
+    $action = New-ScheduledTaskAction -Execute $guiExe
+    $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
+    $task = New-ScheduledTask -Action $action -Principal $principal
+    Register-ScheduledTask -TaskName "_RAMWatch_Launch" -InputObject $task -Force | Out-Null
+    Start-ScheduledTask -TaskName "_RAMWatch_Launch"
+    Start-Sleep -Milliseconds 500
+    Unregister-ScheduledTask -TaskName "_RAMWatch_Launch" -Confirm:$false
     Write-Host "  GUI: launched" -ForegroundColor Green
 }
 
