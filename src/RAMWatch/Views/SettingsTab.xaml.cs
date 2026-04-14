@@ -7,9 +7,15 @@ namespace RAMWatch.Views;
 
 public partial class SettingsTab : UserControl
 {
+    // Valid BIOS layout choices presented in the dropdown.
+    // Order matches the vendor enum: Auto first, then alphabetical, Default last.
+    private static readonly string[] BiosLayoutChoices =
+        ["Auto", "MSI", "ASUS", "Gigabyte", "ASRock", "Default"];
+
     public SettingsTab()
     {
         InitializeComponent();
+        BiosLayoutComboBox.ItemsSource = BiosLayoutChoices;
     }
 
     private void OnBrowseMirrorDirectory(object sender, RoutedEventArgs e)

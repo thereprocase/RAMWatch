@@ -78,6 +78,17 @@ public partial class SettingsViewModel : ObservableObject
     // Theme is fixed to "dark" in Phase 1 — surfaced read-only for future phases.
     public string Theme { get; private set; } = "dark";
 
+    // ── BIOS layout ───────────────────────────────────────────
+
+    // Allowed values: "Auto", "MSI", "ASUS", "Gigabyte", "ASRock", "Default"
+    [ObservableProperty]
+    private string _biosLayout = "Auto";
+
+    // Display-only: "Auto (detected: MSI)" when Auto and a vendor was detected,
+    // else just the raw BiosLayout value. Set by MainViewModel after each state push.
+    [ObservableProperty]
+    private string _biosLayoutDetectedLabel = "";
+
     // ── Save state ───────────────────────────────────────────
 
     [ObservableProperty]
@@ -108,6 +119,7 @@ public partial class SettingsViewModel : ObservableObject
         NotifyOnAppCrash         = settings.NotifyOnAppCrash;
         NotifyCooldownSeconds    = settings.NotifyCooldownSeconds;
         Theme                    = settings.Theme;
+        BiosLayout               = string.IsNullOrWhiteSpace(settings.BiosLayout) ? "Auto" : settings.BiosLayout;
         SaveStatus               = "";
     }
 
@@ -134,6 +146,7 @@ public partial class SettingsViewModel : ObservableObject
         NotifyOnAppCrash         = NotifyOnAppCrash,
         NotifyCooldownSeconds    = NotifyCooldownSeconds,
         Theme                    = Theme,
+        BiosLayout               = BiosLayout,
     };
 
     // ── Commands ─────────────────────────────────────────────

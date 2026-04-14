@@ -11,16 +11,32 @@ namespace RAMWatch.Service.Services;
 public static class LkgMdBuilder
 {
     /// <summary>
-    /// Builds the LKG.md content.
+    /// Builds the LKG.md content using the default (generic) timing layout.
+    /// Preserved for callers that do not yet pass a board vendor.
     /// </summary>
-    /// <param name="lkgSnapshot">LKG timing snapshot, or null if none established.</param>
-    /// <param name="designations">Designation map, or null to treat all timings as manual.</param>
-    /// <param name="validationUsed">The validation result that qualified this snapshot as LKG.</param>
-    /// <returns>Markdown string, or null if lkgSnapshot is null.</returns>
     public static string? Build(
         TimingSnapshot? lkgSnapshot,
         DesignationMap? designations,
         ValidationResult? validationUsed)
+        => Build(lkgSnapshot, designations, validationUsed, BoardVendor.Default);
+
+    /// <summary>
+    /// Builds the LKG.md content.
+    /// Timing fields are ordered and grouped according to the vendor's BIOS OC menu.
+    /// </summary>
+    /// <param name="lkgSnapshot">LKG timing snapshot, or null if none established.</param>
+    /// <param name="designations">Designation map, or null to treat all timings as manual.</param>
+    /// <param name="validationUsed">The validation result that qualified this snapshot as LKG.</param>
+    /// <param name="vendor">
+    /// Board vendor whose BIOS layout to use. "Auto" is not meaningful here —
+    /// resolve it before calling (BoardVendor.Default produces a generic layout).
+    /// </param>
+    /// <returns>Markdown string, or null if lkgSnapshot is null.</returns>
+    public static string? Build(
+        TimingSnapshot? lkgSnapshot,
+        DesignationMap? designations,
+        ValidationResult? validationUsed,
+        BoardVendor vendor)
     {
         if (lkgSnapshot is null)
             return null;
@@ -37,7 +53,7 @@ public static class LkgMdBuilder
         AppendClockSection(sb, lkgSnapshot);
         sb.AppendLine();
 
-        AppendTimingSections(sb, lkgSnapshot, designations);
+        AppendGroupedTimings(sb, lkgSnapshot, BiosLayouts.GetLayout(vendor), designations);
 
         if (validationUsed is not null)
         {
@@ -48,6 +64,8 @@ public static class LkgMdBuilder
         return sb.ToString().TrimEnd();
     }
 
+    // ── Private helpers ───────────────────────────────────────────────────────
+
     private static void AppendClockSection(StringBuilder sb, TimingSnapshot snap)
     {
         int ddr = snap.MemClockMhz * 2;
@@ -55,45 +73,35 @@ public static class LkgMdBuilder
         sb.AppendLine($"DDR4-{ddr} | MCLK {snap.MemClockMhz} | FCLK {snap.FclkMhz} | UCLK {snap.UclkMhz}");
     }
 
-    private static void AppendTimingSections(StringBuilder sb, TimingSnapshot snap, DesignationMap? designations)
+    private static void AppendGroupedTimings(
+        StringBuilder sb,
+        TimingSnapshot snap,
+        IReadOnlyList<TimingGroup> layout,
+        DesignationMap? designations)
     {
-        if (designations is null)
+        bool firstGroup = true;
+        foreach (var group in layout)
         {
-            sb.AppendLine("## BIOS Settings (enter these manually)");
-            foreach (var (name, value) in CurrentMdBuilder.AllTimingPairsPublic(snap))
-                sb.AppendLine($"{name} = {value}");
-            return;
-        }
+            if (!firstGroup) sb.AppendLine();
+            firstGroup = false;
 
-        var manual = new List<(string name, string value)>();
-        var auto   = new List<(string name, string value)>();
-
-        foreach (var (name, value) in CurrentMdBuilder.AllTimingPairsPublic(snap))
-        {
-            if (designations.Designations.TryGetValue(name, out var desig) &&
-                desig == TimingDesignation.Auto)
+            sb.AppendLine($"## {group.Name}");
+            foreach (var field in group.Fields)
             {
-                auto.Add((name, value));
-            }
-            else
-            {
-                manual.Add((name, value));
-            }
-        }
+                var (_, value) = CurrentMdBuilder.GetTimingPair(snap, field);
 
-        if (manual.Count > 0)
-        {
-            sb.AppendLine("## BIOS Settings (enter these manually)");
-            foreach (var (name, value) in manual)
-                sb.AppendLine($"{name} = {value}");
-        }
-
-        if (auto.Count > 0)
-        {
-            sb.AppendLine();
-            sb.AppendLine("## Auto-trained (leave on Auto in BIOS)");
-            foreach (var (name, value) in auto)
-                sb.AppendLine($"{name} = {value}");
+                if (designations is null)
+                {
+                    sb.AppendLine($"{field} = {value}");
+                }
+                else
+                {
+                    bool isAuto = designations.Designations.TryGetValue(field, out var desig)
+                        && desig == TimingDesignation.Auto;
+                    string annotation = isAuto ? " (auto)" : " (manual)";
+                    sb.AppendLine($"{field} = {value}{annotation}");
+                }
+            }
         }
     }
 

@@ -17,6 +17,10 @@ public sealed class ServiceState
     // Phase 2 — null when hardware driver is unavailable
     public TimingSnapshot? Timings { get; init; }
 
+    // Resolved board vendor (never "Auto" — service resolves Auto at startup).
+    // Null when the registry key is inaccessible (treated as Default by the GUI).
+    public string? BiosLayoutVendor { get; init; }
+
     // Phase 3 — null when no journal data exists yet
     /// <summary>The five most recent config changes across boots.</summary>
     public List<ConfigChange>? RecentChanges { get; init; }

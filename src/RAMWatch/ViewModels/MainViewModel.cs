@@ -50,6 +50,11 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _driverStatus = "unknown";
 
+    // Resolved board vendor from the service — e.g. "MSI", "ASUS". Empty when not yet received.
+    // Used to populate the "detected:" label in Settings and to drive TimingsTab layout.
+    [ObservableProperty]
+    private string _detectedBiosVendor = "";
+
     // ── Error sources ────────────────────────────────────────
 
     public ObservableCollection<ErrorSourceVm> ErrorSources { get; } = [];
@@ -222,15 +227,23 @@ public partial class MainViewModel : ObservableObject
         LastUpdateText = $"Updated: {state.Timestamp.ToLocalTime():HH:mm:ss}";
         DriverStatus = state.DriverStatus;
 
+        // Resolved board vendor — set before the Timings call below so the
+        // Settings tab can also display it.
+        DetectedBiosVendor = state.BiosLayoutVendor ?? "";
+
         // Integrity — human-readable, not raw enum names
         CbsStatus = state.Integrity.CbsCorruptionCount == 0
             ? "Clean" : $"{state.Integrity.CbsCorruptionCount} corruption markers";
         SfcStatus = FormatCheckStatus(state.Integrity.SfcStatus);
         DismStatus = FormatCheckStatus(state.Integrity.DismStatus);
 
-        // Timings — null when driver is unavailable (Phase 1 service will send null)
+        // Timings — null when driver is unavailable (Phase 1 service will send null).
+        // BiosLayoutVendor is the resolved vendor string from the service ("MSI", "ASUS", etc.).
+        // Parse it back to the enum; fall back to Default when absent or unrecognised.
+        var vendor = BiosLayouts.ParseSetting(state.BiosLayoutVendor);
+        var resolvedVendor = vendor == BoardVendor.Auto ? BoardVendor.Default : vendor;
         Application.Current?.Dispatcher.Invoke(() =>
-            Timings.LoadFromSnapshot(state.Timings));
+            Timings.LoadFromSnapshot(state.Timings, resolvedVendor));
 
         // Timeline — interleave config changes, drift events, validation results
         Application.Current?.Dispatcher.Invoke(() =>

@@ -16,3 +16,4 @@ builder.Services.AddHostedService<RamWatchService>();
 
 var host = builder.Build();
 host.Run();
+

@@ -45,6 +45,8 @@ namespace RAMWatch.Core;
 [JsonSerializable(typeof(List<ConfigChange>))]
 [JsonSerializable(typeof(List<DriftEvent>))]
 [JsonSerializable(typeof(List<ValidationResult>))]
+// BIOS layout
+[JsonSerializable(typeof(BoardVendor))]
 // DriftDetector rolling window
 [JsonSerializable(typeof(DriftWindow))]
 [JsonSerializable(typeof(BootEntry))]

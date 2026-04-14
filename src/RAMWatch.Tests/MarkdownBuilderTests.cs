@@ -119,34 +119,29 @@ public class MarkdownBuilderTests
     }
 
     [Fact]
-    public void CurrentMd_NullDesignations_AllTimingsUnderBiosSettings()
+    public void CurrentMd_Default_ContainsGroupHeadings()
+    {
+        // Default layout emits per-group headings, not the legacy BIOS Settings heading
+        string md = CurrentMdBuilder.Build(MakeSnapshot(), null, null);
+        Assert.Contains("## Primaries", md);
+        Assert.Contains("## tRFC", md);
+    }
+
+    [Fact]
+    public void CurrentMd_NullDesignations_ContainsCl()
     {
         string md = CurrentMdBuilder.Build(MakeSnapshot(), null, null);
-        Assert.Contains("## BIOS Settings (enter these manually)", md);
-        // Should NOT contain an Auto-trained section when designations are null
-        Assert.DoesNotContain("## Auto-trained", md);
-    }
-
-    [Fact]
-    public void CurrentMd_WithDesignations_SplitsManualAndAuto()
-    {
-        string md = CurrentMdBuilder.Build(MakeSnapshot(), MakeDesignations(), null);
-        Assert.Contains("## BIOS Settings (enter these manually)", md);
-        Assert.Contains("## Auto-trained (leave on Auto in BIOS)", md);
-        // Manual timings appear under BIOS Settings
         Assert.Contains("CL = 16", md);
-        // Auto timings appear under Auto-trained
-        Assert.Contains("RRDS = 4", md);
     }
 
     [Fact]
-    public void CurrentMd_ManualTimings_NotInAutoSection()
+    public void CurrentMd_WithDesignations_AnnotatesManualAndAuto()
     {
         string md = CurrentMdBuilder.Build(MakeSnapshot(), MakeDesignations(), null);
-        // CL is Manual — should appear before the Auto-trained section
-        int clPos   = md.IndexOf("CL = 16", StringComparison.Ordinal);
-        int autoPos = md.IndexOf("## Auto-trained", StringComparison.Ordinal);
-        Assert.True(clPos < autoPos, "CL (Manual) should appear before the Auto-trained section");
+        // CL is Manual
+        Assert.Contains("CL = 16 (manual)", md);
+        // RRDS is Auto
+        Assert.Contains("RRDS = 4 (auto)", md);
     }
 
     [Fact]
@@ -190,6 +185,45 @@ public class MarkdownBuilderTests
         Assert.Contains("30 cycles", md);
     }
 
+    [Theory]
+    [InlineData(BoardVendor.MSI,      "Primary")]
+    [InlineData(BoardVendor.ASUS,     "Primary")]
+    [InlineData(BoardVendor.Gigabyte, "Primary")]
+    [InlineData(BoardVendor.ASRock,   "Primary")]
+    [InlineData(BoardVendor.Default,  "Primaries")]
+    public void CurrentMd_VendorLayout_ContainsFirstGroupHeading(BoardVendor vendor, string expectedGroup)
+    {
+        string md = CurrentMdBuilder.Build(MakeSnapshot(), null, null, vendor);
+        Assert.Contains($"## {expectedGroup}", md);
+    }
+
+    [Fact]
+    public void CurrentMd_MSI_OrdersPrimaryBeforeRFC()
+    {
+        string md = CurrentMdBuilder.Build(MakeSnapshot(), null, null, BoardVendor.MSI);
+        int primaryPos = md.IndexOf("## Primary", StringComparison.Ordinal);
+        int rfcPos     = md.IndexOf("## tRFC", StringComparison.Ordinal);
+        Assert.True(primaryPos < rfcPos, "Primary group must appear before tRFC");
+    }
+
+    [Fact]
+    public void CurrentMd_ASUS_ContainsCwlInCwlGdmGroup()
+    {
+        string md = CurrentMdBuilder.Build(MakeSnapshot(), null, null, BoardVendor.ASUS);
+        // ASUS splits CWL into a separate group from Primary
+        Assert.Contains("## CWL/GDM", md);
+    }
+
+    [Fact]
+    public void CurrentMd_ASRock_FlatSubTimings()
+    {
+        string md = CurrentMdBuilder.Build(MakeSnapshot(), null, null, BoardVendor.ASRock);
+        Assert.Contains("## Sub Timings", md);
+        // All secondary timings should appear in one group
+        Assert.Contains("RRDS = ", md);
+        Assert.Contains("RDRDSCL = ", md);
+    }
+
     // -----------------------------------------------------------------------
     // LkgMdBuilder tests
     // -----------------------------------------------------------------------
@@ -227,12 +261,29 @@ public class MarkdownBuilderTests
     }
 
     [Fact]
-    public void LkgMd_WithDesignations_SplitsManualAndAuto()
+    public void LkgMd_Default_ContainsGroupHeadings()
+    {
+        string? md = LkgMdBuilder.Build(MakeSnapshot(), null, null);
+        Assert.NotNull(md);
+        Assert.Contains("## Primaries", md);
+        Assert.Contains("## tRFC", md);
+    }
+
+    [Fact]
+    public void LkgMd_WithDesignations_AnnotatesManualAndAuto()
     {
         string? md = LkgMdBuilder.Build(MakeSnapshot(), MakeDesignations(), null);
         Assert.NotNull(md);
-        Assert.Contains("## BIOS Settings (enter these manually)", md);
-        Assert.Contains("## Auto-trained (leave on Auto in BIOS)", md);
+        Assert.Contains("CL = 16 (manual)", md);
+        Assert.Contains("RRDS = 4 (auto)", md);
+    }
+
+    [Fact]
+    public void LkgMd_MSI_ContainsGdmCmdGroup()
+    {
+        string? md = LkgMdBuilder.Build(MakeSnapshot(), null, null, BoardVendor.MSI);
+        Assert.NotNull(md);
+        Assert.Contains("## GDM/Cmd", md);
     }
 
     [Fact]
@@ -246,11 +297,10 @@ public class MarkdownBuilderTests
     }
 
     [Fact]
-    public void LkgMd_NullDesignations_AllTimingsUnderBiosSettings()
+    public void LkgMd_NullDesignations_ContainsCl()
     {
         string? md = LkgMdBuilder.Build(MakeSnapshot(), null, null);
         Assert.NotNull(md);
-        Assert.Contains("## BIOS Settings (enter these manually)", md);
-        Assert.DoesNotContain("## Auto-trained", md);
+        Assert.Contains("CL = 16", md);
     }
 }

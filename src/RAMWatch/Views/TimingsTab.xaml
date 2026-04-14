@@ -86,276 +86,65 @@
                     </Grid>
                 </Border>
 
-                <!-- ── PRIMARIES ───────────────────────────────────────── -->
-                <TextBlock Text="PRIMARIES" Style="{StaticResource SectionHeader}" />
-                <Border Background="{StaticResource BgPanel}"
-                        CornerRadius="2"
-                        Padding="12,8"
-                        Margin="0,4,0,8">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="28" />
-                            <RowDefinition Height="28" />
-                            <RowDefinition Height="28" />
-                        </Grid.RowDefinitions>
+                <!-- ── TIMING GROUPS (vendor-ordered, dynamic) ───────── -->
+                <!-- BiosLayoutLabel is non-empty only when a specific vendor was detected. -->
+                <TextBlock Text="{Binding BiosLayoutLabel}"
+                           Foreground="{StaticResource TextSecondary}"
+                           FontFamily="{StaticResource UIFont}"
+                           FontSize="10"
+                           Margin="0,0,0,4">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <!-- Visible by default; collapse when label is empty or null. -->
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding BiosLayoutLabel}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding BiosLayoutLabel}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
 
-                        <!-- Row 0 -->
-                        <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="CL"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}"
-                                       FontSize="12"
-                                       Width="56" />
-                            <TextBlock Text="{Binding ClDisplay}"
-                                       Style="{StaticResource MonoText}" />
-                        </StackPanel>
-
-                        <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="tRCDRD"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}"
-                                       FontSize="12"
-                                       Width="56" />
-                            <TextBlock Text="{Binding RcdrdDisplay}"
-                                       Style="{StaticResource MonoText}" />
-                        </StackPanel>
-
-                        <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="tRCDWR"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}"
-                                       FontSize="12"
-                                       Width="56" />
-                            <TextBlock Text="{Binding RcdwrDisplay}"
-                                       Style="{StaticResource MonoText}" />
-                        </StackPanel>
-
-                        <!-- Row 1 -->
-                        <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="tRP"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}"
-                                       FontSize="12"
-                                       Width="56" />
-                            <TextBlock Text="{Binding RpDisplay}"
-                                       Style="{StaticResource MonoText}" />
-                        </StackPanel>
-
-                        <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="tRAS"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}"
-                                       FontSize="12"
-                                       Width="56" />
-                            <TextBlock Text="{Binding RasDisplay}"
-                                       Style="{StaticResource MonoText}" />
-                        </StackPanel>
-
-                        <StackPanel Grid.Row="1" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="tRC"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}"
-                                       FontSize="12"
-                                       Width="56" />
-                            <TextBlock Text="{Binding RcDisplay}"
-                                       Style="{StaticResource MonoText}" />
-                        </StackPanel>
-
-                        <!-- Row 2 -->
-                        <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="CWL"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}"
-                                       FontSize="12"
-                                       Width="56" />
-                            <TextBlock Text="{Binding CwlDisplay}"
-                                       Style="{StaticResource MonoText}" />
-                        </StackPanel>
-
-                        <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="GDM"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}"
-                                       FontSize="12"
-                                       Width="56" />
-                            <TextBlock Text="{Binding GdmDisplay}"
-                                       Style="{StaticResource MonoText}" />
-                        </StackPanel>
-
-                        <StackPanel Grid.Row="2" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="Cmd"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}"
-                                       FontSize="12"
-                                       Width="56" />
-                            <TextBlock Text="{Binding CommandRateDisplay}"
-                                       Style="{StaticResource MonoText}" />
-                        </StackPanel>
-                    </Grid>
-                </Border>
-
-                <!-- ── tRFC ────────────────────────────────────────────── -->
-                <TextBlock Text="tRFC" Style="{StaticResource SectionHeader}" />
-                <Border Background="{StaticResource BgPanel}"
-                        CornerRadius="2"
-                        Padding="12,8"
-                        Margin="0,4,0,8">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-
-                        <StackPanel Grid.Column="0" Orientation="Horizontal">
-                            <TextBlock Text="tRFC1"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}"
-                                       FontSize="12"
-                                       Width="56" />
-                            <TextBlock Text="{Binding RfcDisplay}"
-                                       Style="{StaticResource MonoText}" />
-                        </StackPanel>
-
-                        <StackPanel Grid.Column="1" Orientation="Horizontal">
-                            <TextBlock Text="tRFC2"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}"
-                                       FontSize="12"
-                                       Width="56" />
-                            <TextBlock Text="{Binding Rfc2Display}"
-                                       Style="{StaticResource MonoText}" />
-                        </StackPanel>
-
-                        <StackPanel Grid.Column="2" Orientation="Horizontal">
-                            <TextBlock Text="tRFC4"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}"
-                                       FontSize="12"
-                                       Width="56" />
-                            <TextBlock Text="{Binding Rfc4Display}"
-                                       Style="{StaticResource MonoText}" />
-                        </StackPanel>
-                    </Grid>
-                </Border>
-
-                <!-- ── SECONDARIES ────────────────────────────────────── -->
-                <TextBlock Text="SECONDARIES" Style="{StaticResource SectionHeader}" />
-                <Border Background="{StaticResource BgPanel}"
-                        CornerRadius="2"
-                        Padding="12,8"
-                        Margin="0,4,0,8">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="28" />
-                            <RowDefinition Height="28" />
-                            <RowDefinition Height="28" />
-                        </Grid.RowDefinitions>
-
-                        <!-- Row 0 -->
-                        <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="tRRDS"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}"
-                                       FontSize="12"
-                                       Width="56" />
-                            <TextBlock Text="{Binding RrdsDisplay}"
-                                       Style="{StaticResource MonoText}" />
-                        </StackPanel>
-
-                        <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="tRRDL"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}"
-                                       FontSize="12"
-                                       Width="56" />
-                            <TextBlock Text="{Binding RrdlDisplay}"
-                                       Style="{StaticResource MonoText}" />
-                        </StackPanel>
-
-                        <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="tFAW"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}"
-                                       FontSize="12"
-                                       Width="56" />
-                            <TextBlock Text="{Binding FawDisplay}"
-                                       Style="{StaticResource MonoText}" />
-                        </StackPanel>
-
-                        <!-- Row 1 -->
-                        <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="tWTRS"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}"
-                                       FontSize="12"
-                                       Width="56" />
-                            <TextBlock Text="{Binding WtrsDisplay}"
-                                       Style="{StaticResource MonoText}" />
-                        </StackPanel>
-
-                        <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="tWTRL"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}"
-                                       FontSize="12"
-                                       Width="56" />
-                            <TextBlock Text="{Binding WtrlDisplay}"
-                                       Style="{StaticResource MonoText}" />
-                        </StackPanel>
-
-                        <StackPanel Grid.Row="1" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="tWR"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}"
-                                       FontSize="12"
-                                       Width="56" />
-                            <TextBlock Text="{Binding WrDisplay}"
-                                       Style="{StaticResource MonoText}" />
-                        </StackPanel>
-
-                        <!-- Row 2 -->
-                        <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="tRTP"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}"
-                                       FontSize="12"
-                                       Width="56" />
-                            <TextBlock Text="{Binding RtpDisplay}"
-                                       Style="{StaticResource MonoText}" />
-                        </StackPanel>
-
-                        <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="RDRDSCL"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}"
-                                       FontSize="12"
-                                       Width="56" />
-                            <TextBlock Text="{Binding RdrdSclDisplay}"
-                                       Style="{StaticResource MonoText}" />
-                        </StackPanel>
-
-                        <StackPanel Grid.Row="2" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="WRWRSCL"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}"
-                                       FontSize="12"
-                                       Width="56" />
-                            <TextBlock Text="{Binding WrwrSclDisplay}"
-                                       Style="{StaticResource MonoText}" />
-                        </StackPanel>
-                    </Grid>
-                </Border>
+                <ItemsControl ItemsSource="{Binding TimingDisplayGroups}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <!-- One vendor-defined group (e.g. "Primary", "tRFC", "Turn-around") -->
+                            <StackPanel Margin="0,0,0,8">
+                                <TextBlock Text="{Binding GroupName}"
+                                           Style="{StaticResource SectionHeader}" />
+                                <Border Background="{StaticResource BgPanel}"
+                                        CornerRadius="2"
+                                        Padding="12,8"
+                                        Margin="0,4,0,0">
+                                    <!-- Rows within the group: one row per timing field -->
+                                    <ItemsControl ItemsSource="{Binding Rows}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal"
+                                                            Height="24"
+                                                            VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Name}"
+                                                               Foreground="{StaticResource TextSecondary}"
+                                                               FontFamily="{StaticResource UIFont}"
+                                                               FontSize="12"
+                                                               Width="80"
+                                                               VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding Value}"
+                                                               Style="{StaticResource MonoText}"
+                                                               VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Border>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
 
                 <!-- ── VOLTAGES ────────────────────────────────────────── -->
                 <TextBlock Text="VOLTAGES" Style="{StaticResource SectionHeader}" />

@@ -282,19 +282,59 @@
                 <Border Background="{StaticResource BgPanel}"
                         CornerRadius="0,0,2,2"
                         Padding="12,8">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="Theme"
-                                   Foreground="{StaticResource TextPrimary}"
-                                   VerticalAlignment="Center"
-                                   Margin="0,0,8,0" />
-                        <TextBlock Text="Dark"
-                                   Foreground="{StaticResource TextSecondary}"
-                                   VerticalAlignment="Center" />
-                        <TextBlock Text="(additional themes in a future phase)"
+                    <StackPanel>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,8">
+                            <TextBlock Text="Theme"
+                                       Foreground="{StaticResource TextPrimary}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0" />
+                            <TextBlock Text="Dark"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Text="(additional themes in a future phase)"
+                                       Foreground="{StaticResource TextDisabled}"
+                                       FontSize="10"
+                                       VerticalAlignment="Center"
+                                       Margin="8,0,0,0" />
+                        </StackPanel>
+
+                        <!-- BIOS timing layout ordering -->
+                        <Grid Margin="0,4,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0"
+                                       Text="BIOS timing layout"
+                                       Foreground="{StaticResource TextPrimary}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,10,0" />
+                            <ComboBox Grid.Column="1"
+                                      x:Name="BiosLayoutComboBox"
+                                      SelectedItem="{Binding BiosLayout, Mode=TwoWay}"
+                                      Background="{StaticResource BgAccent}"
+                                      Foreground="{StaticResource TextPrimary}"
+                                      BorderThickness="0"
+                                      Padding="6,3"
+                                      FontFamily="{StaticResource UIFont}"
+                                      FontSize="12"
+                                      MinWidth="120"
+                                      AutomationProperties.Name="BIOS timing layout" />
+                            <TextBlock Grid.Column="2"
+                                       Text="{Binding BiosLayoutDetectedLabel}"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       FontSize="10"
+                                       VerticalAlignment="Center"
+                                       Margin="8,0,0,0" />
+                        </Grid>
+                        <TextBlock Text="Orders the Timings tab to match your motherboard's BIOS OC menu."
                                    Foreground="{StaticResource TextDisabled}"
                                    FontSize="10"
-                                   VerticalAlignment="Center"
-                                   Margin="8,0,0,0" />
+                                   Margin="0,0,0,4" />
+
                     </StackPanel>
                 </Border>
             </Expander>

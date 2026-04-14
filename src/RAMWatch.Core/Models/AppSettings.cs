@@ -47,6 +47,9 @@ public sealed class AppSettings
     // Advanced
     public bool DebugLogging { get; set; }
 
+    // BIOS layout — "Auto" detects from board vendor, or override to specific vendor
+    public string BiosLayout { get; set; } = "Auto";
+
     // Git integration (Phase 4)
     public bool EnableGitIntegration { get; set; }
     public bool EnableGitPush { get; set; }

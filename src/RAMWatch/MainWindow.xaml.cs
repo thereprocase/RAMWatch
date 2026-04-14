@@ -107,10 +107,14 @@ public partial class MainWindow : System.Windows.Window
                 break;
         }
 
-        // Feed state to settings VM when it arrives
-        if (e.PropertyName == nameof(MainViewModel.IsReady) && _viewModel.IsReady)
+        // When the service sends a detected board vendor, update the Settings tab label
+        // so it shows e.g. "Auto (detected: MSI)" next to the layout dropdown.
+        if (e.PropertyName == nameof(MainViewModel.DetectedBiosVendor))
         {
-            // Settings will be populated from the next state push
+            var vendor = _viewModel.DetectedBiosVendor;
+            _settingsVm.BiosLayoutDetectedLabel = string.IsNullOrEmpty(vendor)
+                ? ""
+                : $"(detected: {vendor})";
         }
     }
 

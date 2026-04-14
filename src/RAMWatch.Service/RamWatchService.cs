@@ -120,6 +120,15 @@ public sealed class RamWatchService : BackgroundService
         // State aggregator
         _aggregator = new StateAggregator(_eventLog, _settings, _pipeServer);
 
+        // Resolve the board vendor for BIOS timing layout ordering.
+        // Settings may override "Auto" with an explicit vendor name.
+        var vendorSetting = BiosLayouts.ParseSetting(config.BiosLayout);
+        var resolvedVendor = BiosLayouts.Resolve(vendorSetting);
+        _aggregator.SetBiosVendor(resolvedVendor == BoardVendor.Default
+            ? null
+            : resolvedVendor.ToString());
+        _logger.LogInformation("BIOS layout vendor: {Vendor}", resolvedVendor);
+
         // Wire Phase 3 services into the aggregator so state pushes include journal data.
         _aggregator.SetPhase3Services(
             _configChangeDetector,

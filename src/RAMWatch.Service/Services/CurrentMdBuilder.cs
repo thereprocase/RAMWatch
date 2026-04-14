@@ -10,19 +10,35 @@ namespace RAMWatch.Service.Services;
 public static class CurrentMdBuilder
 {
     /// <summary>
-    /// Builds the CURRENT.md content.
+    /// Builds the CURRENT.md content using the default (generic) timing layout.
+    /// Preserved for callers that do not yet pass a board vendor.
     /// </summary>
-    /// <param name="snapshot">Current timing snapshot.</param>
-    /// <param name="designations">
-    /// Designation map. If null, all timings are placed under BIOS Settings
-    /// (conservative — assume manual).
-    /// </param>
-    /// <param name="lastValidation">Most recent validation result, or null if none.</param>
-    /// <returns>Markdown string.</returns>
     public static string Build(
         TimingSnapshot snapshot,
         DesignationMap? designations,
         ValidationResult? lastValidation)
+        => Build(snapshot, designations, lastValidation, BoardVendor.Default);
+
+    /// <summary>
+    /// Builds the CURRENT.md content.
+    /// Timing fields are ordered and grouped according to the vendor's BIOS OC menu.
+    /// </summary>
+    /// <param name="snapshot">Current timing snapshot.</param>
+    /// <param name="designations">
+    /// Designation map used to annotate each group with (manual)/(auto).
+    /// If null, all timings are placed under BIOS Settings (conservative).
+    /// </param>
+    /// <param name="lastValidation">Most recent validation result, or null if none.</param>
+    /// <param name="vendor">
+    /// Board vendor whose BIOS layout to use. "Auto" is not meaningful here —
+    /// resolve it before calling (BoardVendor.Default produces a generic layout).
+    /// </param>
+    /// <returns>Markdown string.</returns>
+    public static string Build(
+        TimingSnapshot snapshot,
+        DesignationMap? designations,
+        ValidationResult? lastValidation,
+        BoardVendor vendor)
     {
         var sb = new StringBuilder(1024);
         string date = DateTime.Now.ToString("yyyy-MM-dd");
@@ -34,7 +50,17 @@ public static class CurrentMdBuilder
         AppendClockSection(sb, snapshot);
         sb.AppendLine();
 
-        AppendTimingSections(sb, snapshot, designations);
+        if (designations is null)
+        {
+            // No designation data — emit grouped layout without manual/auto annotation.
+            AppendGroupedTimings(sb, snapshot, BiosLayouts.GetLayout(vendor), annotate: false,
+                designations: null);
+        }
+        else
+        {
+            AppendGroupedTimings(sb, snapshot, BiosLayouts.GetLayout(vendor), annotate: true,
+                designations: designations);
+        }
 
         if (lastValidation is not null)
         {
@@ -45,6 +71,8 @@ public static class CurrentMdBuilder
         return sb.ToString().TrimEnd();
     }
 
+    // ── Private helpers ───────────────────────────────────────────────────────
+
     private static void AppendClockSection(StringBuilder sb, TimingSnapshot snap)
     {
         int ddr = snap.MemClockMhz * 2;
@@ -52,53 +80,41 @@ public static class CurrentMdBuilder
         sb.AppendLine($"DDR4-{ddr} | MCLK {snap.MemClockMhz} | FCLK {snap.FclkMhz} | UCLK {snap.UclkMhz}");
     }
 
-    private static void AppendTimingSections(StringBuilder sb, TimingSnapshot snap, DesignationMap? designations)
+    /// <summary>
+    /// Emits one markdown section per timing group from the layout.
+    /// When annotate is true, appends "(manual)" or "(auto)" per line based on designations.
+    /// </summary>
+    private static void AppendGroupedTimings(
+        StringBuilder sb,
+        TimingSnapshot snap,
+        IReadOnlyList<TimingGroup> layout,
+        bool annotate,
+        DesignationMap? designations)
     {
-        // When no designation map, put everything under BIOS Settings (conservative).
-        if (designations is null)
+        bool firstGroup = true;
+        foreach (var group in layout)
         {
-            sb.AppendLine("## BIOS Settings (enter these manually)");
-            AppendAllTimings(sb, snap);
-            return;
-        }
+            if (!firstGroup) sb.AppendLine();
+            firstGroup = false;
 
-        var manual = new List<(string name, string value)>();
-        var auto   = new List<(string name, string value)>();
-
-        foreach (var (name, value) in AllTimingPairs(snap))
-        {
-            if (designations.Designations.TryGetValue(name, out var desig) &&
-                desig == TimingDesignation.Auto)
+            sb.AppendLine($"## {group.Name}");
+            foreach (var field in group.Fields)
             {
-                auto.Add((name, value));
+                var (_, value) = GetTimingPair(snap, field);
+
+                if (!annotate || designations is null)
+                {
+                    sb.AppendLine($"{field} = {value}");
+                }
+                else
+                {
+                    bool isAuto = designations.Designations.TryGetValue(field, out var desig)
+                        && desig == TimingDesignation.Auto;
+                    string annotation = isAuto ? " (auto)" : " (manual)";
+                    sb.AppendLine($"{field} = {value}{annotation}");
+                }
             }
-            else
-            {
-                // Manual or Unknown both go under BIOS Settings.
-                manual.Add((name, value));
-            }
         }
-
-        if (manual.Count > 0)
-        {
-            sb.AppendLine("## BIOS Settings (enter these manually)");
-            foreach (var (name, value) in manual)
-                sb.AppendLine($"{name} = {value}");
-        }
-
-        if (auto.Count > 0)
-        {
-            sb.AppendLine();
-            sb.AppendLine("## Auto-trained (leave on Auto in BIOS)");
-            foreach (var (name, value) in auto)
-                sb.AppendLine($"{name} = {value}");
-        }
-    }
-
-    private static void AppendAllTimings(StringBuilder sb, TimingSnapshot snap)
-    {
-        foreach (var (name, value) in AllTimingPairsPublic(snap))
-            sb.AppendLine($"{name} = {value}");
     }
 
     private static void AppendLastValidation(StringBuilder sb, ValidationResult v)
@@ -116,7 +132,9 @@ public static class CurrentMdBuilder
         sb.AppendLine($"{v.TestTool} {metric} {result} — {date}");
     }
 
-    // Returns all timing fields as (name, value) pairs in display order.
+    // ── AllTimingPairs — legacy flat ordering (used by LkgMdBuilder and tests) ──
+
+    // Returns all timing fields as (name, value) pairs in the default display order.
     // Boolean fields (GDM, Cmd2T) are included as On/Off and 2T/1T respectively.
     // Internal so LkgMdBuilder can share the same ordered list without duplication.
     internal static IEnumerable<(string name, string value)> AllTimingPairsPublic(TimingSnapshot snap)
@@ -159,4 +177,53 @@ public static class CurrentMdBuilder
         yield return ("GDM",      snap.GDM ? "On" : "Off");
         yield return ("Cmd2T",    snap.Cmd2T ? "2T" : "1T");
     }
+
+    // ── GetTimingPair — maps a field name to its snapshot value ───────────────
+
+    /// <summary>
+    /// Returns the (name, formatted-value) pair for a named timing field.
+    /// Unknown field names return ("Unknown", "?") rather than throwing —
+    /// the caller is responsible for only passing valid field names from the layout.
+    /// </summary>
+    internal static (string name, string value) GetTimingPair(TimingSnapshot snap, string field)
+        => field switch
+        {
+            "CL"       => ("CL",       snap.CL.ToString()),
+            "RCDRD"    => ("RCDRD",    snap.RCDRD.ToString()),
+            "RCDWR"    => ("RCDWR",    snap.RCDWR.ToString()),
+            "RP"       => ("RP",       snap.RP.ToString()),
+            "RAS"      => ("RAS",      snap.RAS.ToString()),
+            "RC"       => ("RC",       snap.RC.ToString()),
+            "CWL"      => ("CWL",      snap.CWL.ToString()),
+            "RFC"      => ("RFC",      snap.RFC.ToString()),
+            "RFC2"     => ("RFC2",     snap.RFC2.ToString()),
+            "RFC4"     => ("RFC4",     snap.RFC4.ToString()),
+            "RRDS"     => ("RRDS",     snap.RRDS.ToString()),
+            "RRDL"     => ("RRDL",     snap.RRDL.ToString()),
+            "FAW"      => ("FAW",      snap.FAW.ToString()),
+            "WTRS"     => ("WTRS",     snap.WTRS.ToString()),
+            "WTRL"     => ("WTRL",     snap.WTRL.ToString()),
+            "WR"       => ("WR",       snap.WR.ToString()),
+            "RTP"      => ("RTP",      snap.RTP.ToString()),
+            "RDRDSCL"  => ("RDRDSCL",  snap.RDRDSCL.ToString()),
+            "WRWRSCL"  => ("WRWRSCL",  snap.WRWRSCL.ToString()),
+            "RDRDSC"   => ("RDRDSC",   snap.RDRDSC.ToString()),
+            "RDRDSD"   => ("RDRDSD",   snap.RDRDSD.ToString()),
+            "RDRDDD"   => ("RDRDDD",   snap.RDRDDD.ToString()),
+            "WRWRSC"   => ("WRWRSC",   snap.WRWRSC.ToString()),
+            "WRWRSD"   => ("WRWRSD",   snap.WRWRSD.ToString()),
+            "WRWRDD"   => ("WRWRDD",   snap.WRWRDD.ToString()),
+            "RDWR"     => ("RDWR",     snap.RDWR.ToString()),
+            "WRRD"     => ("WRRD",     snap.WRRD.ToString()),
+            "REFI"     => ("REFI",     snap.REFI.ToString()),
+            "CKE"      => ("CKE",      snap.CKE.ToString()),
+            "STAG"     => ("STAG",     snap.STAG.ToString()),
+            "MOD"      => ("MOD",      snap.MOD.ToString()),
+            "MRD"      => ("MRD",      snap.MRD.ToString()),
+            "PHYRDL_A" => ("PHYRDL_A", snap.PHYRDL_A.ToString()),
+            "PHYRDL_B" => ("PHYRDL_B", snap.PHYRDL_B.ToString()),
+            "GDM"      => ("GDM",      snap.GDM ? "On" : "Off"),
+            "Cmd2T"    => ("Cmd2T",    snap.Cmd2T ? "2T" : "1T"),
+            _          => (field,      "?"),
+        };
 }

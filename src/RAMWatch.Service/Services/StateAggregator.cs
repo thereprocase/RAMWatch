@@ -29,6 +29,11 @@ public sealed class StateAggregator
     private TimingSnapshot? _currentTimings;
     private string _driverStatus = "not_found";
 
+    // Resolved board vendor — set once at service startup, never changes.
+    // Stored as string so the Core model doesn't need a reference to the
+    // BoardVendor enum in the serialised ServiceState.
+    private string? _biosLayoutVendor;
+
     // Phase 3 — current-boot drift events, accumulated here so they survive
     // until the next periodic state push.
     private readonly List<DriftEvent> _currentBootDrift = new();
@@ -42,6 +47,15 @@ public sealed class StateAggregator
         _settings = settings;
         _pipeServer = pipeServer;
         _serviceStartTime = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Record the resolved board vendor so it is included in every state push.
+    /// Called once at service startup after vendor detection completes.
+    /// </summary>
+    public void SetBiosVendor(string? vendorName)
+    {
+        lock (_lock) { _biosLayoutVendor = vendorName; }
     }
 
     /// <summary>
@@ -100,6 +114,7 @@ public sealed class StateAggregator
         bool ready;
         TimingSnapshot? timings = null;
         string driverStatus;
+        string? biosLayoutVendor = null;
         List<ConfigChange>? recentChanges = null;
         List<DriftEvent>? driftEvents = null;
         List<ValidationResult>? recentValidations = null;
@@ -111,6 +126,7 @@ public sealed class StateAggregator
             ready = _ready;
             timings = _currentTimings;
             driverStatus = _driverStatus;
+            biosLayoutVendor = _biosLayoutVendor;
 
             if (_configChangeDetector is not null)
             {
@@ -151,6 +167,7 @@ public sealed class StateAggregator
             Errors = _eventLog.GetErrorSources(),
             Integrity = new IntegrityState(0, IntegrityCheckStatus.NotRun, IntegrityCheckStatus.NotRun),
             Timings = timings,
+            BiosLayoutVendor = biosLayoutVendor,
             // Phase 3 — null when no data yet (omitted from JSON by WhenWritingNull)
             RecentChanges = recentChanges,
             DriftEvents = driftEvents,
