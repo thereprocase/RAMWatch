@@ -29,7 +29,11 @@ AMD Ryzen 7 5800X3D, MSI B550 TOMAHAWK MAX WIFI, DDR4-3600 CL16-20-20-42, PawnIO
 ## What Needs Doing (priority order)
 
 ### User-Requested Features
-1. **Timeline enrichment** — each entry should show RAM freq + primary timings (e.g., "DDR4-3600 CL16-20-20-42") for tuning progression visibility. Add a detail toggle that expands to show secondaries, voltages, duration, notes. The validation result links to a snapshot via `ActiveSnapshotId` — use that to pull timing context.
+1. **Default window size** — should be taller and narrower so timings fit without scrolling. See `docs/screenshots/timings-ideal-size.png` for the target size. Current 40%/60% of work area is too wide and not tall enough.
+
+2. **Monitor tab empty space** — the bottom half of the Monitor tab is empty (see `docs/screenshots/monitor-empty-space.png`). Fill it with useful OC info: quick timing summary, last test result, uptime-since-last-change, WHEA count history, buttons for common actions. Things overclockers want to see every boot.
+
+3. **Timeline enrichment** — each entry should show RAM freq + primary timings (e.g., "DDR4-3600 CL16-20-20-42") for tuning progression visibility. Add a detail toggle that expands to show secondaries, voltages, duration, notes. The validation result links to a snapshot via `ActiveSnapshotId` — use that to pull timing context.
 
 2. **Designation dots in Timings tab** — `TimingDisplayRow` already has `DesignationIndicator` ("●" for Manual). Just needs a `TextBlock` bound to it in the row template in `TimingsTab.xaml` (both left and right column ItemsControl templates). Use `InteractiveBlue` color.
 
