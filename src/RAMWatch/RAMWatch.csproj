@@ -16,6 +16,9 @@
 
   <ItemGroup>
     <Resource Include="Fonts\*.ttf" />
+    <Resource Include="tray-green.ico" />
+    <Resource Include="tray-red.ico" />
+    <Resource Include="tray-gray.ico" />
   </ItemGroup>
 
   <ItemGroup>

@@ -34,10 +34,10 @@ public sealed class TrayIconManager : IDisposable
 
     public void Initialize()
     {
-        // Build icons once; reuse handles for all subsequent SetState calls.
-        _iconGreen = CreateColorIcon(Color.FromArgb(0x00, 0xC8, 0x53));
-        _iconRed   = CreateColorIcon(Color.FromArgb(0xFF, 0x17, 0x44));
-        _iconGray  = CreateColorIcon(Color.FromArgb(0x61, 0x61, 0x61));
+        // Load Lucide circuit-board icons in green/red/gray from embedded resources.
+        _iconGreen = LoadResourceIcon("tray-green.ico");
+        _iconRed   = LoadResourceIcon("tray-red.ico");
+        _iconGray  = LoadResourceIcon("tray-gray.ico");
 
         _trayIcon = new TaskbarIcon
         {
@@ -145,17 +145,29 @@ public sealed class TrayIconManager : IDisposable
     }
 
     /// <summary>
-    /// Generate a simple colored circle icon programmatically.
-    /// 16x16, transparent background, filled circle in the given color.
-    /// Called once per color in Initialize(); never called during state updates.
+    /// Load an icon from a WPF embedded resource (pack:// URI).
+    /// Falls back to a simple colored circle if the resource is missing.
     /// </summary>
-    private static Icon CreateColorIcon(Color color)
+    private static Icon LoadResourceIcon(string fileName)
     {
+        try
+        {
+            var uri = new Uri($"pack://application:,,,/{fileName}", UriKind.Absolute);
+            var stream = System.Windows.Application.GetResourceStream(uri)?.Stream;
+            if (stream is not null)
+            {
+                using (stream)
+                    return new Icon(stream);
+            }
+        }
+        catch { }
+
+        // Fallback: simple colored circle.
         using var bitmap = new Bitmap(16, 16);
         using var g = Graphics.FromImage(bitmap);
         g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         g.Clear(Color.Transparent);
-        using var brush = new SolidBrush(color);
+        using var brush = new SolidBrush(Color.FromArgb(0x61, 0x61, 0x61));
         g.FillEllipse(brush, 1, 1, 14, 14);
         return Icon.FromHandle(bitmap.GetHicon());
     }
