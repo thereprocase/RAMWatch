@@ -40,7 +40,23 @@ You're continuing work on RAMWatch, a Windows DRAM tuning monitor at F:\Claude\p
 
 **Files:** `src/RAMWatch/ViewModels/SnapshotsViewModel.cs` lines 396-427
 
-### 2. Snapshot dropdown entries need dates + primaries + freq
+### 2. Spurious config changes on boot from incomplete hardware reads
+**Problem:** Three bogus CHANGE entries appear on every boot (see screenshot):
+- 15:31:30 — Detects "change" from previous boot snapshot, but FCLK/UCLK read as 0 (SMU not ready yet). Shows `FclkMhz: 1800 -> 0, UclkMhz: 1800 -> 0` plus all the real timing differences from a profile switch.
+- 15:31:31 — FCLK/UCLK now available: `FclkMhz: 0 -> 1900, UclkMhz: 0 -> 1900` — second spurious change.
+- 15:32:32 — FCLK/UCLK jitter: `1900 -> 1902, 1900 -> 1902` — 2 MHz noise from SMU readback.
+
+**Root cause:** `ConfigChangeDetector.DetectChanges()` fires on every hardware read cycle. Early reads have incomplete data (clocks at 0). Subsequent reads have minor jitter. The detector treats each as a real config change.
+
+**Fix options (pick one or combine):**
+- **Stabilization window:** Don't compare until N consecutive reads produce the same values (e.g., 3 stable reads in a row). This handles both the 0-value startup and jitter.
+- **Jitter tolerance:** For FCLK/UCLK/MemClockMhz, ignore differences <= 5 MHz.
+- **Skip zero values:** Don't treat a snapshot with FCLK=0 or UCLK=0 as valid for change detection.
+- **First-read flag:** Skip the first comparison after boot (the previous-boot-to-first-read transition is always noisy).
+
+**Files:** `src/RAMWatch.Service/Services/ConfigChangeDetector.cs`, `src/RAMWatch.Service/RamWatchService.cs` (the `OnTimingSnapshotAsync` method that calls DetectChanges)
+
+### 3. Snapshot dropdown entries need dates + primaries + freq
 **Problem:** The dropdown entries are bare labels like "26-04-14 Mid Evo Stab" — no timing info to distinguish entries. User needs to see e.g. "26-04-14 Mid Evo Stab — DDR4-3600 CL16-20-20-42" or similar.
 
 **Files:** `SnapshotDisplayName.Build()` is where display names are constructed. Search for `SnapshotDisplayName` in the codebase.
