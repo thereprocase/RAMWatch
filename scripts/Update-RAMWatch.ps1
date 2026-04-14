@@ -15,6 +15,12 @@ $distRoot   = Join-Path $repoRoot 'dist\RAMWatch'
 $installDir = Join-Path $env:ProgramFiles 'RAMWatch'
 $serviceName = 'RAMWatch'
 
+# Ensure vswhere.exe is discoverable (VS Installer doesn't add it to PATH)
+$vsInstallerDir = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer"
+if ((Test-Path $vsInstallerDir) -and ($env:PATH -notlike "*$vsInstallerDir*")) {
+    $env:PATH += ";$vsInstallerDir"
+}
+
 $serviceInstall = Join-Path $installDir 'service'
 $guiInstall     = Join-Path $installDir 'gui'
 $guiExe         = Join-Path $guiInstall 'RAMWatch.exe'

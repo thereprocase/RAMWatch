@@ -15,6 +15,12 @@ if (-not (Test-Path $dotnet)) {
     exit 1
 }
 
+# Ensure vswhere.exe is discoverable (VS Installer doesn't add it to PATH)
+$vsInstallerDir = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer"
+if ((Test-Path $vsInstallerDir) -and ($env:PATH -notlike "*$vsInstallerDir*")) {
+    $env:PATH += ";$vsInstallerDir"
+}
+
 # Check SDK version
 $sdkVersion = & $dotnet --version 2>&1
 Write-Host "=== RAMWatch Publish ===" -ForegroundColor Cyan
