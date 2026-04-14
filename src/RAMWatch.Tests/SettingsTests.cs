@@ -1,3 +1,4 @@
+using Xunit;
 using RAMWatch.Service.Services;
 using RAMWatch.Core.Models;
 

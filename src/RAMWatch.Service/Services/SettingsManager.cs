@@ -15,22 +15,6 @@ public sealed class SettingsManager
     private readonly Lock _lock = new();
     private AppSettings _current;
 
-    private static readonly JsonSerializerOptions ReadOptions = new()
-    {
-        TypeInfoResolver = RamWatchJsonContext.Default,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        ReadCommentHandling = JsonCommentHandling.Skip,
-        AllowTrailingCommas = true
-    };
-
-    private static readonly JsonSerializerOptions WriteOptions = new()
-    {
-        TypeInfoResolver = RamWatchJsonContext.Default,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = true,
-        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
-    };
-
     public SettingsManager(string? path = null)
     {
         _path = path ?? DataDirectory.SettingsPath;
@@ -59,7 +43,7 @@ public sealed class SettingsManager
             try
             {
                 string json = File.ReadAllText(_path);
-                var settings = JsonSerializer.Deserialize<AppSettings>(json, ReadOptions);
+                var settings = JsonSerializer.Deserialize(json, RamWatchJsonContext.Default.AppSettings);
                 _current = settings ?? new AppSettings();
             }
             catch (Exception)
@@ -81,7 +65,7 @@ public sealed class SettingsManager
         lock (_lock)
         {
             _current = settings;
-            string json = JsonSerializer.Serialize(settings, WriteOptions);
+            string json = JsonSerializer.Serialize(settings, RamWatchJsonContext.Default.AppSettings);
 
             string dir = Path.GetDirectoryName(_path)!;
             string tempPath = Path.Combine(dir, $"settings.{Guid.NewGuid():N}.tmp");

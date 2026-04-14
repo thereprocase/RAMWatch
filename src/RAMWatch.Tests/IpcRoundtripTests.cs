@@ -1,3 +1,4 @@
+using Xunit;
 using RAMWatch.Core.Ipc;
 using RAMWatch.Core.Models;
 

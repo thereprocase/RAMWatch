@@ -5,9 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <PublishAot>true</PublishAot>
-    <SelfContained>true</SelfContained>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 

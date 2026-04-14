@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tmux ls:*)",
+      "Bash(tmux list-windows:*)",
+      "Bash(tmux move-window:*)",
+      "Bash(tmux new-window:*)",
+      "Bash(tmux split-window:*)",
+      "Bash(tmux select-layout:*)",
+      "Bash(tmux list-panes:*)",
+      "Read(//home/repro/**)",
+      "Read(//home/repro/.config/**)",
+      "Bash(tmux set:*)",
+      "Bash(tmux source-file:*)",
+      "Bash(mkdir -p /mnt/f/Claude/projects/tmux)",
+      "Bash(cp /home/repro/.claude/skills/tmux/SKILL.md /mnt/f/Claude/projects/tmux/tmux-skill-reference.md)",
+      "Bash(cp /home/repro/.tmux.conf /mnt/f/Claude/projects/tmux/tmux.conf)"
+    ]
+  }
+}
