@@ -193,6 +193,60 @@ public class McaBankClassifierTests
         Assert.True(mca.IsContextCorrupted);
     }
 
+    // ── Bank range boundary tests ─────────────────────────────
+
+    [Theory]
+    [InlineData(7, 0, McaClassification.Core)]       // highest core bank
+    [InlineData(8, 6, McaClassification.L3Cache)]     // lowest L3 bank
+    [InlineData(15, 6, McaClassification.L3Cache)]    // highest L3 bank
+    [InlineData(16, 3, McaClassification.Umc)]        // lowest UMC bank
+    [InlineData(23, 3, McaClassification.Umc)]        // highest UMC bank
+    [InlineData(24, 10, McaClassification.DataFabric)] // lowest DF bank
+    [InlineData(31, 10, McaClassification.DataFabric)] // highest DF bank
+    [InlineData(32, 0, McaClassification.Unknown)]    // beyond known ranges
+    [InlineData(64, 0, McaClassification.Unknown)]    // far beyond
+    public void BankBoundaries_ClassifyCorrectly(int bank, int errorType, McaClassification expected)
+    {
+        string xml = MakeWheaXml(bankNumber: bank, mciStat: "0x9800000000000001", errorType: errorType);
+        var mca = McaBankClassifier.TryParse(xml);
+
+        Assert.NotNull(mca);
+        Assert.Equal(expected, mca.Classification);
+    }
+
+    [Fact]
+    public void UmcBank_NonMemoryErrorType_StillClassifiedAsUmc()
+    {
+        // UMC bank (16-23) with a non-memory errorType falls through to the UMC fallback
+        string xml = MakeWheaXml(bankNumber: 20, mciStat: "0x9800000000000001", errorType: 0);
+        var mca = McaBankClassifier.TryParse(xml);
+
+        Assert.NotNull(mca);
+        Assert.Equal(McaClassification.Umc, mca.Classification);
+    }
+
+    [Fact]
+    public void DfBank_NonBusErrorType_ClassifiedAsPcie()
+    {
+        // DF bank (24-31) with a non-bus/interconnect errorType
+        string xml = MakeWheaXml(bankNumber: 26, mciStat: "0x9800000000000001", errorType: 0);
+        var mca = McaBankClassifier.TryParse(xml);
+
+        Assert.NotNull(mca);
+        Assert.Equal(McaClassification.Pcie, mca.Classification);
+    }
+
+    [Fact]
+    public void MciAddr_WithAddrVBitSet_ReturnsNonNull()
+    {
+        // AddrV bit (58) is set: 0x9C20... = bits 63=1, 62=0, 61=0, 60=1, 59=1, 58=1
+        string xml = MakeWheaXml(bankNumber: 27, mciStat: "0x9c2000000002080b", errorType: 10);
+        var mca = McaBankClassifier.TryParse(xml);
+
+        Assert.NotNull(mca);
+        Assert.NotNull(mca.MciAddr);  // addr is 0x0 but AddrV is set, so non-null
+    }
+
     /// <summary>
     /// Helper to generate WHEA event XML with specified MCA fields.
     /// </summary>

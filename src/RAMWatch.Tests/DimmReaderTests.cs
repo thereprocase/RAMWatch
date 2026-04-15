@@ -67,4 +67,18 @@ public class DimmReaderTests
         Assert.Equal(0L, result[0].CapacityBytes);
         Assert.Equal(0, result[0].SpeedMTs);
     }
+
+    [Fact]
+    public void ParseDimmOutput_WindowsLineEndings_SlotHasNoCarriageReturn()
+    {
+        string output = "BANK 0|17179869184|3600|G.Skill|F4-3600C16-16GTZN\r\nBANK 2|17179869184|3600|G.Skill|F4-3600C16-16GTZN\r\n";
+        var result = DimmReader.ParseDimmOutput(output);
+
+        Assert.NotNull(result);
+        Assert.Equal(2, result.Count);
+        Assert.Equal("BANK 0", result[0].Slot);
+        Assert.Equal("BANK 2", result[1].Slot);
+        Assert.DoesNotContain("\r", result[0].Slot);
+        Assert.DoesNotContain("\r", result[1].PartNumber);
+    }
 }

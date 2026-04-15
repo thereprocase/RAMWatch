@@ -89,7 +89,7 @@ public static class SystemInfoReader
     /// the actual version, and sometimes the AGESA string. Pick the one
     /// that looks like a real version number.
     /// </summary>
-    private static string ExtractBiosVersion(string[] entries)
+    internal static string ExtractBiosVersion(string[] entries)
     {
         // Prefer entries that look like version numbers (contain digits and dots/letters)
         // but aren't the AGESA string (handled separately).
@@ -114,7 +114,7 @@ public static class SystemInfoReader
     /// From a REG_MULTI_SZ, find the AGESA version string.
     /// Typically looks like "AMD AGESA V2 PI 1.2.0.7" or "AGESA ComboAM4v2PI 1.2.0.7".
     /// </summary>
-    private static string ExtractAgesaVersion(string[] entries)
+    internal static string ExtractAgesaVersion(string[] entries)
     {
         foreach (var entry in entries)
         {
@@ -132,7 +132,7 @@ public static class SystemInfoReader
     ///   "AGESA CastlePeakPI-SP3r3 1.0.0.6" → "CastlePeakPI-SP3r3 1.0.0.6"
     /// Returns everything after "AGESA " (trimmed).
     /// </summary>
-    private static string ExtractAgesaFromString(string s)
+    internal static string ExtractAgesaFromString(string s)
     {
         int idx = s.IndexOf("AGESA", StringComparison.OrdinalIgnoreCase);
         if (idx < 0) return "";
