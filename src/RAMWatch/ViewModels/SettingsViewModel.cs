@@ -36,15 +36,61 @@ public sealed partial class DesignationItem : ObservableObject
 
 /// <summary>
 /// Backing view model for SettingsTab. All properties shadow AppSettings fields.
-/// Changes are staged here until SaveCommand is invoked; no live-apply.
+/// Auto-saves to the service on every property change with a 500ms debounce.
 /// </summary>
 public partial class SettingsViewModel : ObservableObject
 {
     private readonly MainViewModel _main;
+    private bool _suppressAutoSave;
+    private CancellationTokenSource? _debounceCts;
 
     public SettingsViewModel(MainViewModel main)
     {
         _main = main;
+    }
+
+    /// <summary>
+    /// Auto-save on any property change (debounced 500ms).
+    /// Skipped during LoadFromSettings to avoid echo-saving.
+    /// </summary>
+    protected override void OnPropertyChanged(System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        base.OnPropertyChanged(e);
+
+        // Skip non-setting properties and internal state.
+        if (_suppressAutoSave || e.PropertyName is "SaveStatus" or "BiosLayoutDetectedLabel"
+            or "SaveDesignationsStatus" or "HasDesignations")
+            return;
+
+        ScheduleAutoSave();
+    }
+
+    private void ScheduleAutoSave()
+    {
+        _debounceCts?.Cancel();
+        _debounceCts = new CancellationTokenSource();
+        var token = _debounceCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(500, token);
+                if (!token.IsCancellationRequested)
+                {
+                    await System.Windows.Application.Current.Dispatcher.InvokeAsync(
+                        async () => await AutoSaveAsync());
+                }
+            }
+            catch (OperationCanceledException) { }
+        }, token);
+    }
+
+    private async Task AutoSaveAsync()
+    {
+        await _main.SendUpdateSettingsAsync(ToSettings());
+        ApplyLaunchAtLogon(LaunchAtLogon);
+        SaveStatus = $"Saved {DateTime.Now:HH:mm:ss}";
     }
 
     // ── General ──────────────────────────────────────────────
@@ -224,11 +270,14 @@ public partial class SettingsViewModel : ObservableObject
     // ── Public API ───────────────────────────────────────────
 
     /// <summary>
-    /// Populates all properties from a received AppSettings. Does not trigger
-    /// a save — the user must click Save to push changes back to the service.
+    /// Populates all properties from a received AppSettings.
+    /// Auto-save is suppressed during this call to avoid echo-saving.
     /// </summary>
     public void LoadFromSettings(AppSettings settings)
     {
+        _suppressAutoSave = true;
+        try
+        {
         StartMinimized           = settings.StartMinimized;
         MinimizeToTray           = settings.MinimizeToTray;
         AlwaysOnTop              = settings.AlwaysOnTop;
@@ -248,6 +297,8 @@ public partial class SettingsViewModel : ObservableObject
         Theme                    = settings.Theme;
         BiosLayout               = string.IsNullOrWhiteSpace(settings.BiosLayout) ? "Auto" : settings.BiosLayout;
         SaveStatus               = "";
+        }
+        finally { _suppressAutoSave = false; }
     }
 
     /// <summary>
@@ -277,15 +328,6 @@ public partial class SettingsViewModel : ObservableObject
     };
 
     // ── Commands ─────────────────────────────────────────────
-
-    [RelayCommand]
-    private async Task SaveAsync()
-    {
-        SaveStatus = "Saving...";
-        await _main.SendUpdateSettingsAsync(ToSettings());
-        ApplyLaunchAtLogon(LaunchAtLogon);
-        SaveStatus = $"Saved {DateTime.Now:HH:mm:ss}";
-    }
 
     /// <summary>
     /// Write or remove the HKCU Run entry that launches RAMWatch at logon.

@@ -414,26 +414,12 @@
                 </Border>
             </Expander>
 
-            <!-- ── Save row ───────────────────────────────────── -->
-            <Grid Margin="0,16,0,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-
-                <Button Grid.Column="0"
-                        Content="Save"
-                        Command="{Binding SaveCommand}"
-                        Style="{StaticResource DarkButton}"
-                        AutomationProperties.Name="Save"
-                        Width="80" />
-                <TextBlock Grid.Column="1"
-                           Text="{Binding SaveStatus}"
-                           Foreground="{StaticResource TextSecondary}"
-                           FontSize="11"
-                           VerticalAlignment="Center"
-                           Margin="12,0,0,0" />
-            </Grid>
+            <!-- Auto-save status -->
+            <TextBlock Text="{Binding SaveStatus}"
+                       Foreground="{StaticResource TextSecondary}"
+                       FontSize="11"
+                       HorizontalAlignment="Right"
+                       Margin="0,8,0,0" />
 
         </StackPanel>
     </ScrollViewer>
