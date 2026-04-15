@@ -124,8 +124,9 @@ public class EventClassificationTests
         var source = EventLogMonitor.WatchedSources
             .First(s => s.Name == "WHEA Hardware Errors");
 
-        // WHEA Logger has its own dedicated log channel
-        Assert.Equal("Microsoft-Windows-WHEA-Logger", source.LogName);
+        // WHEA Logger events live in the System log; ProviderName is the ETW provider
+        Assert.Equal("System", source.LogName);
+        Assert.Equal("Microsoft-Windows-WHEA-Logger", source.ProviderName);
     }
 
     // ── Source count ─────────────────────────────────────────
@@ -133,8 +134,8 @@ public class EventClassificationTests
     [Fact]
     public void WatchedSources_HasExpectedCount()
     {
-        // Architecture doc defines 12 watched sources
-        Assert.Equal(12, EventLogMonitor.WatchedSources.Length);
+        // 14 watched sources: 12 original + Kernel-WHEA + Kernel-PCI
+        Assert.Equal(14, EventLogMonitor.WatchedSources.Length);
     }
 
     [Fact]

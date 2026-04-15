@@ -24,7 +24,8 @@ public sealed record MonitoredEvent(
     int EventId,
     EventSeverity Severity,
     string Summary,
-    string? RawXml = null
+    string? RawXml = null,
+    McaDetails? Mca = null
 );
 
 public sealed record ErrorSource(

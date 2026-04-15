@@ -183,6 +183,7 @@ public sealed class RamWatchService : BackgroundService
         // state push to connecting clients already has timing data.
         await ReadTimingsAsync();
 
+        _aggregator.ScanLiveKernelReports();
         _aggregator.MarkReady();
         _logger.LogInformation("Monitoring active. Boot ID: {BootId}, Driver: {Driver}",
             _bootId, _hardwareReader.DriverStatus);

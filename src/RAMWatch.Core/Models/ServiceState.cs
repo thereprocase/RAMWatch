@@ -57,4 +57,10 @@ public sealed class ServiceState
     /// Used by the GUI to color-code event counts and show "normal" column.
     /// </summary>
     public Dictionary<string, BaselineStat>? SourceBaselines { get; init; }
+
+    /// <summary>
+    /// Summary of Windows LiveKernelReports for WHEA events.
+    /// Null when no reports directory exists or no dumps found.
+    /// </summary>
+    public LiveKernelReportSummary? LiveKernelReports { get; init; }
 }

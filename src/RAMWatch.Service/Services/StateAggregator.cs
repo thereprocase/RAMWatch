@@ -41,6 +41,9 @@ public sealed class StateAggregator
     private EraJournal? _eraJournal;
     private BootFailJournal? _bootFailJournal;
 
+    // LiveKernelReports — scanned once at startup, cached.
+    private LiveKernelReportSummary? _liveKernelReports;
+
     // Phase 3 — current-boot drift events, accumulated here so they survive
     // until the next periodic state push.
     private readonly List<DriftEvent> _currentBootDrift = new();
@@ -123,6 +126,16 @@ public sealed class StateAggregator
         }
     }
 
+    /// <summary>
+    /// Scan LiveKernelReports directory and cache the result.
+    /// Called once at service startup (service runs as SYSTEM, has access).
+    /// </summary>
+    public void ScanLiveKernelReports()
+    {
+        var summary = LiveKernelReportScanner.Scan();
+        lock (_lock) { _liveKernelReports = summary; }
+    }
+
     public void MarkReady()
     {
         lock (_lock) { _ready = true; }
@@ -146,6 +159,7 @@ public sealed class StateAggregator
         BootBaselineJournal? baselineJournal;
         EraJournal? eraJournal;
         BootFailJournal? bootFailJournal;
+        LiveKernelReportSummary? liveKernelReports;
 
         lock (_lock)
         {
@@ -162,6 +176,7 @@ public sealed class StateAggregator
             baselineJournal      = _baselineJournal;
             eraJournal           = _eraJournal;
             bootFailJournal      = _bootFailJournal;
+            liveKernelReports    = _liveKernelReports;
         }
 
         // Step 2: call methods that acquire their own locks OUTSIDE _lock.
@@ -228,7 +243,8 @@ public sealed class StateAggregator
             ActiveEra = eraJournal?.GetActive(),
             BootFails = bootFailJournal?.GetRecent(20),
             // Minimums — computed across all snapshots (era filtering done GUI-side)
-            Minimums = ComputeMinimums(snapshots, recentValidations)
+            Minimums = ComputeMinimums(snapshots, recentValidations),
+            LiveKernelReports = liveKernelReports
         };
     }
 

@@ -30,11 +30,19 @@ public sealed class EventLogMonitor : IDisposable
     /// </summary>
     public static readonly WatchedSource[] WatchedSources =
     [
-        // Hardware
+        // Hardware — WHEA
         new("WHEA Hardware Errors", "Microsoft-Windows-WHEA-Logger", EventCategory.Hardware,
-            [17, 18, 19, 20, 47], EventSeverity.Warning),
+            [17, 18, 19, 20, 46, 47, 48], EventSeverity.Warning),
         new("Machine Check Exception", "Microsoft-Windows-WHEA-Logger", EventCategory.Hardware,
             [1], EventSeverity.Critical),
+        // Kernel-WHEA is a separate provider that routes corrected errors on some
+        // Windows builds / AGESA versions. Same event structure as WHEA-Logger.
+        new("Kernel WHEA Errors", "Microsoft-Windows-Kernel-WHEA", EventCategory.Hardware,
+            [1, 17, 18, 19, 20, 46, 47, 48], EventSeverity.Warning),
+        // PCIe Advanced Error Reporting — fabric-adjacent on Zen platforms where
+        // Infinity Fabric connects to PCIe root complexes.
+        new("PCIe Bus Errors", "Microsoft-Windows-Kernel-PCI", EventCategory.Hardware,
+            [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23], EventSeverity.Warning),
         new("Kernel Bugcheck", "Microsoft-Windows-WER-SystemErrorReporting", EventCategory.Hardware,
             [1001], EventSeverity.Critical),
         new("Unexpected Shutdown", "Microsoft-Windows-Kernel-Power", EventCategory.Hardware,
@@ -187,6 +195,13 @@ public sealed class EventLogMonitor : IDisposable
         string? rawXml = null;
         try { rawXml = record.ToXml(); } catch { }
 
+        // For WHEA events, attempt to decode MCA bank data from the raw XML.
+        McaDetails? mca = null;
+        if (source.ProviderName is "Microsoft-Windows-WHEA-Logger" or "Microsoft-Windows-Kernel-WHEA")
+        {
+            mca = McaBankClassifier.TryParse(rawXml);
+        }
+
         var evt = new MonitoredEvent(
             timestamp,
             source.Name,
@@ -194,7 +209,8 @@ public sealed class EventLogMonitor : IDisposable
             record.Id,
             source.DefaultSeverity,
             summary,
-            rawXml);
+            rawXml,
+            mca);
 
         bool shouldFire = false;
         MonitoredEvent? coalescedEvt = null;
@@ -254,7 +270,7 @@ public sealed class EventLogMonitor : IDisposable
     {
         var sinceUtc = since.ToUniversalTime();
         string ids = string.Join(" or ", source.EventIds.Select(id => $"EventID={id}"));
-        return $"*[System[({ids}) and TimeCreated[@SystemTime>='{sinceUtc:o}']]]";
+        return $"*[System[Provider[@Name='{source.ProviderName}'] and ({ids}) and TimeCreated[@SystemTime>='{sinceUtc:o}']]]";
     }
 
     private static string TruncateSummary(string? text, int maxLength = 200)
@@ -366,7 +382,12 @@ public sealed record WatchedSource(
         "disk" or "Ntfs" or "volsnap" => "System",
         "Microsoft-Windows-WER-SystemErrorReporting" => "System",
         "Microsoft-Windows-Kernel-Power" => "System",
+        "Microsoft-Windows-Kernel-PCI" => "System",
+        "Microsoft-Windows-Kernel-WHEA" => "System",
         "Microsoft-Windows-FilterManager" => "System",
+        "Microsoft-Windows-WHEA-Logger" => "System",
+        "Microsoft-Windows-MemoryDiagnostics-Results" => "System",
+        "Microsoft-Windows-CodeIntegrity" => "Microsoft-Windows-CodeIntegrity/Operational",
         _ => LogName
     };
 
