@@ -45,6 +45,10 @@ public sealed class RamWatchService : BackgroundService
     // Boot baseline — rolling 50-boot event count history for normal/elevated coloring
     private BootBaselineJournal? _baselineJournal;
 
+    // Eras and boot fails
+    private EraJournal? _eraJournal;
+    private BootFailJournal? _bootFailJournal;
+
     // Phase 4 — git-backed history
     private GitCommitter? _gitCommitter;
 
@@ -121,6 +125,12 @@ public sealed class RamWatchService : BackgroundService
         _baselineJournal = new BootBaselineJournal(DataDirectory.BasePath);
         _baselineJournal.Load();
 
+        _eraJournal = new EraJournal(DataDirectory.BasePath);
+        _eraJournal.Load();
+
+        _bootFailJournal = new BootFailJournal(DataDirectory.BasePath);
+        _bootFailJournal.Load();
+
         // Phase 4 — git committer (initialise after LKG so commit context is available)
         _gitCommitter = new GitCommitter(_settings, _logger);
         await _gitCommitter.InitializeAsync(stoppingToken);
@@ -155,7 +165,9 @@ public sealed class RamWatchService : BackgroundService
             _driftDetector,
             _validationLogger,
             _lkgTracker,
-            _snapshotJournal);
+            _snapshotJournal,
+            _eraJournal,
+            _bootFailJournal);
 
         // Wire boot baseline journal for per-source normal/elevated coloring.
         _aggregator.SetBaselineJournal(_baselineJournal);
@@ -266,6 +278,7 @@ public sealed class RamWatchService : BackgroundService
             // TimingSnapshot.Label has a public setter; set it before persisting.
             // _currentTimings holds the same reference — keep them in sync.
             snapshot.Label = $"Auto {DateTime.UtcNow.ToLocalTime():yyyy-MM-dd HH:mm}";
+            snapshot.EraId = _eraJournal?.GetActive()?.EraId;
             try
             {
                 _snapshotJournal.Save(snapshot);
@@ -522,6 +535,28 @@ public sealed class RamWatchService : BackgroundService
                 await HandleRenameSnapshotAsync(renSnap, client);
                 break;
 
+            // Eras
+            case CreateEraMessage createEra:
+                await HandleCreateEraAsync(createEra, client);
+                break;
+
+            case CloseEraMessage closeEra:
+                await HandleCloseEraAsync(closeEra, client);
+                break;
+
+            case MoveToEraMessage moveToEra:
+                await HandleMoveToEraAsync(moveToEra, client);
+                break;
+
+            // Boot fails
+            case LogBootFailMessage logFail:
+                await HandleLogBootFailAsync(logFail, client);
+                break;
+
+            case DeleteBootFailMessage delFail:
+                await HandleDeleteBootFailAsync(delFail, client);
+                break;
+
             default:
                 _logger.LogDebug("Unhandled message type: {Type}", message.Type);
                 break;
@@ -639,7 +674,8 @@ public sealed class RamWatchService : BackgroundService
             ErrorCount = msg.ErrorCount,
             DurationMinutes = msg.DurationMinutes,
             ActiveSnapshotId = linkedSnapshotId,
-            Notes = msg.Notes is { Length: > 2048 } n ? n[..2048] : msg.Notes
+            Notes = msg.Notes is { Length: > 2048 } n ? n[..2048] : msg.Notes,
+            EraId = _eraJournal?.GetActive()?.EraId
         };
 
         _validationLogger.LogResult(result);
@@ -1011,4 +1047,109 @@ public sealed class RamWatchService : BackgroundService
                 Status    = "ok"
             }));
     }
+
+    // ── Era handlers ────────────────────────────────────────────
+
+    private async Task HandleCreateEraAsync(CreateEraMessage msg, ConnectedClient client)
+    {
+        if (_eraJournal is null)
+        {
+            await SendErrorAsync(client, msg.RequestId, "not_ready", "Era journal not initialised");
+            return;
+        }
+
+        string name = msg.Name is { Length: > 256 } ? msg.Name[..256] : msg.Name;
+        _eraJournal.Create(name);
+
+        await SendOkAsync(client, msg.RequestId);
+        if (_aggregator is not null)
+            await _aggregator.BroadcastStateAsync();
+    }
+
+    private async Task HandleCloseEraAsync(CloseEraMessage msg, ConnectedClient client)
+    {
+        if (_eraJournal is null || !_eraJournal.Close(msg.EraId))
+        {
+            await SendErrorAsync(client, msg.RequestId, "not_found", "Era not found or already closed");
+            return;
+        }
+
+        await SendOkAsync(client, msg.RequestId);
+        if (_aggregator is not null)
+            await _aggregator.BroadcastStateAsync();
+    }
+
+    private async Task HandleMoveToEraAsync(MoveToEraMessage msg, ConnectedClient client)
+    {
+        if (_snapshotJournal is null)
+        {
+            await SendErrorAsync(client, msg.RequestId, "not_ready", "Snapshot journal not initialised");
+            return;
+        }
+
+        var snap = _snapshotJournal.GetById(msg.SnapshotId);
+        if (snap is null)
+        {
+            await SendErrorAsync(client, msg.RequestId, "not_found", "Snapshot not found");
+            return;
+        }
+
+        snap.EraId = msg.EraId;
+        _snapshotJournal.Save(snap);
+
+        await SendOkAsync(client, msg.RequestId);
+        if (_aggregator is not null)
+            await _aggregator.BroadcastStateAsync();
+    }
+
+    // ── Boot fail handlers ──────────────────────────────────────
+
+    private async Task HandleLogBootFailAsync(LogBootFailMessage msg, ConnectedClient client)
+    {
+        if (_bootFailJournal is null)
+        {
+            await SendErrorAsync(client, msg.RequestId, "not_ready", "Boot fail journal not initialised");
+            return;
+        }
+
+        var entry = new BootFailEntry
+        {
+            BootFailId = Guid.NewGuid().ToString("N"),
+            Timestamp = msg.AttemptTimestamp,
+            Kind = msg.Kind,
+            BaseSnapshotId = msg.BaseSnapshotId,
+            AttemptedChanges = msg.AttemptedChanges,
+            Notes = msg.Notes is { Length: > 1024 } ? msg.Notes[..1024] : (msg.Notes ?? ""),
+            EraId = _eraJournal?.GetActive()?.EraId
+        };
+
+        _bootFailJournal.Save(entry);
+
+        await SendOkAsync(client, msg.RequestId);
+        if (_aggregator is not null)
+            await _aggregator.BroadcastStateAsync();
+    }
+
+    private async Task HandleDeleteBootFailAsync(DeleteBootFailMessage msg, ConnectedClient client)
+    {
+        if (_bootFailJournal is null || !_bootFailJournal.DeleteById(msg.BootFailId))
+        {
+            await SendErrorAsync(client, msg.RequestId, "not_found", "Boot fail entry not found");
+            return;
+        }
+
+        await SendOkAsync(client, msg.RequestId);
+        if (_aggregator is not null)
+            await _aggregator.BroadcastStateAsync();
+    }
+
+    // ── Response helpers ────────────────────────────────────────
+
+    private static Task SendOkAsync(ConnectedClient client, string requestId) =>
+        client.SendAsync(MessageSerializer.Serialize(
+            new ResponseMessage { Type = "response", RequestId = requestId, Status = "ok" }));
+
+    private static Task SendErrorAsync(ConnectedClient client, string requestId, string code, string message) =>
+        client.SendAsync(MessageSerializer.Serialize(
+            new ResponseMessage { Type = "response", RequestId = requestId, Status = "error", Code = code, Message = message }));
 }

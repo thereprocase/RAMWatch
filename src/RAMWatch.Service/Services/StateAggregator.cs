@@ -37,6 +37,10 @@ public sealed class StateAggregator
     // Boot baseline — per-source mean counts from past boots
     private BootBaselineJournal? _baselineJournal;
 
+    // Eras and boot fails
+    private EraJournal? _eraJournal;
+    private BootFailJournal? _bootFailJournal;
+
     // Phase 3 — current-boot drift events, accumulated here so they survive
     // until the next periodic state push.
     private readonly List<DriftEvent> _currentBootDrift = new();
@@ -83,7 +87,9 @@ public sealed class StateAggregator
         DriftDetector driftDetector,
         ValidationTestLogger validationLogger,
         LkgTracker lkgTracker,
-        SnapshotJournal snapshotJournal)
+        SnapshotJournal snapshotJournal,
+        EraJournal? eraJournal = null,
+        BootFailJournal? bootFailJournal = null)
     {
         lock (_lock)
         {
@@ -92,6 +98,8 @@ public sealed class StateAggregator
             _validationLogger = validationLogger;
             _lkgTracker = lkgTracker;
             _snapshotJournal = snapshotJournal;
+            _eraJournal = eraJournal;
+            _bootFailJournal = bootFailJournal;
         }
     }
 
@@ -210,8 +218,29 @@ public sealed class StateAggregator
             Lkg = lkg,
             Snapshots = snapshots,
             SourceBaselines = baselines,
-            CurrentSettings = _settings.Current
+            CurrentSettings = _settings.Current,
+            // Eras and boot fails
+            Eras = _eraJournal?.GetAll(),
+            ActiveEra = _eraJournal?.GetActive(),
+            BootFails = _bootFailJournal?.GetRecent(20),
+            // Minimums — computed across all snapshots (era filtering done GUI-side)
+            Minimums = ComputeMinimums(snapshots, recentValidations)
         };
+    }
+
+    private static List<FrequencyMinimums>? ComputeMinimums(
+        List<TimingSnapshot>? snapshots,
+        List<ValidationResult>? validations)
+    {
+        if (snapshots is null or { Count: 0 })
+            return null;
+
+        var result = MinimumComputer.Compute(
+            snapshots,
+            validations ?? [],
+            eraId: null); // All eras — GUI can filter client-side
+
+        return result.Count > 0 ? result : null;
     }
 
     public async Task BroadcastStateAsync()
