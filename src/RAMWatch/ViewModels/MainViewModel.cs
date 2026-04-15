@@ -31,6 +31,8 @@ public partial class MainViewModel : ObservableObject
 
     // ── Connection state ─────────────────────────────────────
 
+    private bool _settingsLoaded;
+
     [ObservableProperty]
     private bool _isConnected;
 
@@ -530,6 +532,16 @@ public partial class MainViewModel : ObservableObject
         // RecentValidations provides the data needed to label entries with test results.
         Application.Current?.Dispatcher.Invoke(() =>
             Snapshots.LoadSnapshots(state.Snapshots, state.Timings, state.Lkg, state.RecentValidations));
+
+        // Settings — populate the Settings tab from the service's current config.
+        // Only on the first state push (initial connect) to avoid overwriting
+        // in-progress user edits during periodic refreshes.
+        if (state.CurrentSettings is not null && !_settingsLoaded)
+        {
+            _settingsLoaded = true;
+            Application.Current?.Dispatcher.Invoke(() =>
+                Settings?.LoadFromSettings(state.CurrentSettings));
+        }
     }
 
     private void ApplyEvent(MonitoredEvent evt)

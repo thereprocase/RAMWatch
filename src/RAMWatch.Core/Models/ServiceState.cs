@@ -37,6 +37,11 @@ public sealed class ServiceState
     public List<TimingSnapshot>? Snapshots { get; init; }
 
     /// <summary>
+    /// Current settings so the GUI can populate the Settings tab on connect.
+    /// </summary>
+    public AppSettings? CurrentSettings { get; init; }
+
+    /// <summary>
     /// Per-source baseline statistics from past boots (IQR-filtered).
     /// Null when fewer than 3 boots of history exist.
     /// Used by the GUI to color-code event counts and show "normal" column.

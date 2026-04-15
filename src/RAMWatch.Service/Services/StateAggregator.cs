@@ -209,7 +209,8 @@ public sealed class StateAggregator
             RecentValidations = recentValidations,
             Lkg = lkg,
             Snapshots = snapshots,
-            SourceBaselines = baselines
+            SourceBaselines = baselines,
+            CurrentSettings = _settings.Current
         };
     }
 
