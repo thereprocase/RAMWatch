@@ -178,6 +178,27 @@ Record failed boot attempts (no POST, no boot, unstable) that RAMWatch can't obs
 
 **Files to create/modify:** BootFailEntry model, LogBootFailMessage IPC, LogBootFailDialog.xaml, BootFailStore service, timeline integration, compare dropdown integration.
 
+## Minimums Tab (Frodo Design)
+
+Frequency dropdown → table showing Timing | Current | Best Posted | Best Validated | Room.
+- Service computes `FrequencyMinimums` per distinct MemClockMhz, sends in state push
+- "Posted" = any snapshot with CL > 0, excluding NoPost boot fails
+- "Validated" = snapshot linked to a passing ValidationResult
+- Room = Current - BestPosted (amber when > 0, gray 0 when at floor)
+- tREFI is higher-is-better. Voltages, PHY, booleans excluded.
+- Tab order: Monitor | Timings | Minimums | Timeline | Snapshots | Settings
+
+## Eras / Directories (Gandalf Design)
+
+Eras are tags, not containers. `EraId` nullable field on TimingSnapshot, ValidationResult, ConfigChange, BootFailEntry. Active era (EndTimestamp == null) stamps new records. Old eras browsable via filter. One era active at a time.
+
+- `TuningEra` record: EraId, Name, StartTimestamp, EndTimestamp?, Notes
+- Stored in `eras.json` (flat file, same directory)
+- IPC: CreateEraMessage, CloseEraMessage, MoveToEraMessage
+- Migration: all existing records have EraId = null, display in all views
+- Minimums can compute per-era or globally (toggle in UI)
+- Keep sequential boot IDs (no ISO timestamp change)
+
 ## Window Sizing & Layout Density (User Feedback)
 
 The Timings tab is the widest content — it drives the minimum window width. The Monitor tab has wasted vertical space below the error table. Two linked changes:

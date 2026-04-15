@@ -97,6 +97,7 @@ public partial class MainViewModel : ObservableObject
 
     public TimelineViewModel Timeline { get; } = new();
     public SnapshotsViewModel Snapshots { get; } = new();
+    public MinimumsViewModel Minimums { get; } = new();
 
     public MainViewModel()
     {
@@ -532,6 +533,10 @@ public partial class MainViewModel : ObservableObject
         // RecentValidations provides the data needed to label entries with test results.
         Application.Current?.Dispatcher.Invoke(() =>
             Snapshots.LoadSnapshots(state.Snapshots, state.Timings, state.Lkg, state.RecentValidations));
+
+        // Minimums — per-frequency tightest values for the Minimums tab.
+        Application.Current?.Dispatcher.Invoke(() =>
+            Minimums.LoadFromState(state.Minimums, state.Timings));
 
         // Settings — populate the Settings tab from the service's current config.
         // Only on the first state push (initial connect) to avoid overwriting

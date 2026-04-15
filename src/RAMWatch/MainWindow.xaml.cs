@@ -51,6 +51,7 @@ public partial class MainWindow : System.Windows.Window
         InputBindings.Add(new KeyBinding(new RelayCommand(() => MainTabControl.SelectedIndex = 2), Key.D3, ModifierKeys.Control));
         InputBindings.Add(new KeyBinding(new RelayCommand(() => MainTabControl.SelectedIndex = 3), Key.D4, ModifierKeys.Control));
         InputBindings.Add(new KeyBinding(new RelayCommand(() => MainTabControl.SelectedIndex = 4), Key.D5, ModifierKeys.Control));
+        InputBindings.Add(new KeyBinding(new RelayCommand(() => MainTabControl.SelectedIndex = 5), Key.D6, ModifierKeys.Control));
         // Ctrl+S — show snapshot naming dialog then save
         InputBindings.Add(new KeyBinding(new RelayCommand(ShowSnapshotDialogAndSave), Key.S, ModifierKeys.Control));
     }

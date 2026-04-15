@@ -106,6 +106,10 @@
                      AutomationProperties.Name="Timings">
                 <views:TimingsTab DataContext="{Binding Timings}" />
             </TabItem>
+            <TabItem Header="Minimums" Style="{StaticResource DarkTabItem}"
+                     AutomationProperties.Name="Minimums">
+                <views:MinimumsTab DataContext="{Binding Minimums}" />
+            </TabItem>
             <TabItem Header="Timeline" Style="{StaticResource DarkTabItem}"
                      AutomationProperties.Name="Timeline">
                 <views:TimelineTab DataContext="{Binding Timeline}" />
