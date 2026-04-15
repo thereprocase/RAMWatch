@@ -495,6 +495,22 @@ public static class DigestBuilder
             && a.WTRL == b.WTRL
             && a.WR == b.WR
             && a.RTP == b.RTP
+            && a.RDRDSCL == b.RDRDSCL
+            && a.WRWRSCL == b.WRWRSCL
+            && a.RDRDSC == b.RDRDSC
+            && a.RDRDSD == b.RDRDSD
+            && a.RDRDDD == b.RDRDDD
+            && a.WRWRSC == b.WRWRSC
+            && a.WRWRSD == b.WRWRSD
+            && a.WRWRDD == b.WRWRDD
+            && a.RDWR == b.RDWR
+            && a.WRRD == b.WRRD
+            && a.REFI == b.REFI
+            && a.CKE == b.CKE
+            && a.STAG == b.STAG
+            && a.MOD == b.MOD
+            && a.MRD == b.MRD
+            && a.PowerDown == b.PowerDown
             && a.GDM == b.GDM
             && a.Cmd2T == b.Cmd2T
             && a.MemClockMhz == b.MemClockMhz

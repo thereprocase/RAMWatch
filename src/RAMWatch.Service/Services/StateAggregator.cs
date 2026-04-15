@@ -51,6 +51,11 @@ public sealed class StateAggregator
     // until the next periodic state push.
     private readonly List<DriftEvent> _currentBootDrift = new();
 
+    // Boot time computed once at construction — TickCount64 is monotonic but
+    // DateTime.UtcNow can shift from NTP syncs, so recomputing on every state
+    // push would cause the boot timestamp to wobble.
+    private readonly DateTime _bootTime;
+
     public StateAggregator(
         EventLogMonitor eventLog,
         SettingsManager settings,
@@ -60,6 +65,7 @@ public sealed class StateAggregator
         _settings = settings;
         _pipeServer = pipeServer;
         _serviceStartTime = DateTime.UtcNow;
+        _bootTime = GetLastBootTime();
     }
 
     /// <summary>
@@ -229,17 +235,15 @@ public sealed class StateAggregator
                 baselines = computed;
         }
 
-        var bootTime = GetLastBootTime();
-
         return new ServiceState
         {
             Timestamp = DateTime.UtcNow,
-            BootTime = bootTime,
+            BootTime = _bootTime,
             Ready = ready,
             DriverStatus = driverStatus,
             // ServiceUptime holds system uptime (time since last boot), not service process uptime.
             // System uptime is what users care about for tuning context.
-            ServiceUptime = DateTime.UtcNow - bootTime,
+            ServiceUptime = DateTime.UtcNow - _bootTime,
             Errors = _eventLog.GetErrorSources(),
             Integrity = new IntegrityState(0, IntegrityCheckStatus.NotRun, IntegrityCheckStatus.NotRun),
             Timings = timings,

@@ -249,8 +249,9 @@ public static class CurrentMdBuilder
             "MRD"      => ("MRD",      snap.MRD.ToString()),
             "PHYRDL_A" => ("PHYRDL_A", snap.PHYRDL_A.ToString()),
             "PHYRDL_B" => ("PHYRDL_B", snap.PHYRDL_B.ToString()),
-            "GDM"      => ("GDM",      snap.GDM ? "On" : "Off"),
-            "Cmd2T"    => ("Cmd2T",    snap.Cmd2T ? "2T" : "1T"),
-            _          => (field,      "?"),
+            "GDM"       => ("GDM",       snap.GDM ? "On" : "Off"),
+            "Cmd2T"     => ("Cmd2T",     snap.Cmd2T ? "2T" : "1T"),
+            "PowerDown" => ("PowerDown", snap.PowerDown ? "On" : "Off"),
+            _           => (field,       "?"),
         };
 }
