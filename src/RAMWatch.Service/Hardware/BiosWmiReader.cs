@@ -357,7 +357,17 @@ public static class BiosWmiReader
 
     // ── Subprocess helper ────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Run a PowerShell script and return ALL stdout (multi-line).
+    /// Used by DimmReader for per-DIMM output.
+    /// </summary>
+    internal static string RunPowerShellScriptAll(string script)
+        => RunPowerShellCore(script, firstLineOnly: false);
+
     internal static string RunPowerShellScript(string script)
+        => RunPowerShellCore(script, firstLineOnly: true);
+
+    private static string RunPowerShellCore(string script, bool firstLineOnly)
     {
         try
         {
@@ -384,9 +394,9 @@ public static class BiosWmiReader
             }
 
             string output = process.StandardOutput.ReadToEnd();
-            string firstLine = output.Split('\n', StringSplitOptions.RemoveEmptyEntries)
-                                     .FirstOrDefault()?.Trim() ?? "0";
-            return firstLine;
+            if (!firstLineOnly) return output.Trim();
+            return output.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                         .FirstOrDefault()?.Trim() ?? "0";
         }
         catch
         {

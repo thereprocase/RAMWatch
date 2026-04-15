@@ -35,7 +35,7 @@ public static class DimmReader
             }
             """;
 
-        string raw = RunPowerShellScriptAll(script);
+        string raw = BiosWmiReader.RunPowerShellScriptAll(script);
         return ParseDimmOutput(raw);
     }
 
@@ -71,40 +71,4 @@ public static class DimmReader
         return result;
     }
 
-    /// <summary>
-    /// Multi-line variant of RunPowerShellScript that returns ALL stdout lines.
-    /// </summary>
-    internal static string RunPowerShellScriptAll(string script)
-    {
-        try
-        {
-            var psi = new System.Diagnostics.ProcessStartInfo("powershell.exe")
-            {
-                RedirectStandardOutput = true,
-                RedirectStandardError  = true,
-                UseShellExecute        = false,
-                CreateNoWindow         = true,
-            };
-            psi.ArgumentList.Add("-NoProfile");
-            psi.ArgumentList.Add("-NonInteractive");
-            psi.ArgumentList.Add("-Command");
-            psi.ArgumentList.Add(script);
-
-            using var process = System.Diagnostics.Process.Start(psi);
-            if (process is null) return "";
-
-            bool exited = process.WaitForExit(5000);
-            if (!exited)
-            {
-                try { process.Kill(); } catch { }
-                return "";
-            }
-
-            return process.StandardOutput.ReadToEnd().Trim();
-        }
-        catch
-        {
-            return "";
-        }
-    }
 }

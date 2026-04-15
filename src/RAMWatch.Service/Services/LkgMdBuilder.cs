@@ -123,6 +123,13 @@ public static class LkgMdBuilder
         if (snap.RttNom.Length > 0) sb.AppendLine($"RttNom = {snap.RttNom}");
         if (snap.RttWr.Length > 0) sb.AppendLine($"RttWr = {snap.RttWr}");
         if (snap.RttPark.Length > 0) sb.AppendLine($"RttPark = {snap.RttPark}");
+        if (snap.ClkDrvStren > 0) sb.AppendLine($"ClkDrvStren = {snap.ClkDrvStren:F1}Ω");
+        if (snap.AddrCmdDrvStren > 0) sb.AppendLine($"AddrCmdDrvStren = {snap.AddrCmdDrvStren:F1}Ω");
+        if (snap.CsOdtCmdDrvStren > 0) sb.AppendLine($"CsOdtCmdDrvStren = {snap.CsOdtCmdDrvStren:F1}Ω");
+        if (snap.CkeDrvStren > 0) sb.AppendLine($"CkeDrvStren = {snap.CkeDrvStren:F1}Ω");
+        if (snap.AddrCmdSetup.Length > 0) sb.AppendLine($"AddrCmdSetup = {snap.AddrCmdSetup}");
+        if (snap.CsOdtSetup.Length > 0) sb.AppendLine($"CsOdtSetup = {snap.CsOdtSetup}");
+        if (snap.CkeSetup.Length > 0) sb.AppendLine($"CkeSetup = {snap.CkeSetup}");
     }
 
     private static void AppendValidationUsed(StringBuilder sb, ValidationResult v)

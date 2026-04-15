@@ -126,37 +126,17 @@ public sealed class SmuPowerTableReader : IDisposable
     /// </summary>
     public void ReadFclkUclk(TimingSnapshot snapshot)
     {
-        if (_driver is null || !_available) return;
-
-        try
-        {
-            float[]? table = ReadPmTable();
-            if (table is null) return;
-
-            // Offsets are byte offsets into the float array.
-            // Convert to float-array index: byteOffset / 4.
-            int fclkIndex = (int)(_layout.FclkByteOffset / 4);
-            int uclkIndex = (int)(_layout.UclkByteOffset / 4);
-
-            if (fclkIndex < table.Length && table[fclkIndex] > 0)
-                snapshot.FclkMhz = SnapClockMhz(table[fclkIndex]);
-
-            if (uclkIndex < table.Length && table[uclkIndex] > 0)
-                snapshot.UclkMhz = SnapClockMhz(table[uclkIndex]);
-        }
-        catch
-        {
-            // Non-fatal — snapshot retains 0 for FCLK/UCLK
-        }
+        // Reads clocks only — kept for backward compatibility with callers that
+        // don't need voltages. Prefer ReadClocksAndVoltages for the full read.
+        ReadClocksAndVoltages(snapshot);
     }
 
     /// <summary>
-    /// Populate VDDP, VDDG_IOD, and VDDG_CCD from the SMU power table.
-    /// Each is a float at a version-specific byte offset. Returns immediately
-    /// if not available. Fields stay at 0.0 when their offset is 0 (not
-    /// available for this PM table version) or when the value is implausible.
+    /// Populate FCLK, UCLK, VDDP, VDDG_IOD, and VDDG_CCD from a single
+    /// SMU power table read. Replaces the old separate ReadFclkUclk +
+    /// ReadVoltages calls that each triggered an independent IOCTL read.
     /// </summary>
-    public void ReadVoltages(TimingSnapshot snapshot)
+    public void ReadClocksAndVoltages(TimingSnapshot snapshot)
     {
         if (_driver is null || !_available) return;
 
@@ -165,15 +145,29 @@ public sealed class SmuPowerTableReader : IDisposable
             float[]? table = ReadPmTable();
             if (table is null) return;
 
+            // Clocks
+            int fclkIndex = (int)(_layout.FclkByteOffset / 4);
+            int uclkIndex = (int)(_layout.UclkByteOffset / 4);
+
+            if (fclkIndex < table.Length && table[fclkIndex] > 0)
+                snapshot.FclkMhz = SnapClockMhz(table[fclkIndex]);
+
+            if (uclkIndex < table.Length && table[uclkIndex] > 0)
+                snapshot.UclkMhz = SnapClockMhz(table[uclkIndex]);
+
+            // Voltages
             TryReadVoltage(table, _layout.CldoVddpByteOffset, 0.5, 1.2, v => snapshot.VDDP = v);
             TryReadVoltage(table, _layout.CldoVddgIodByteOffset, 0.7, 1.3, v => snapshot.VDDG_IOD = v);
             TryReadVoltage(table, _layout.CldoVddgCcdByteOffset, 0.7, 1.3, v => snapshot.VDDG_CCD = v);
         }
         catch
         {
-            // Non-fatal — snapshot retains 0 for voltages
+            // Non-fatal — snapshot retains 0 for clocks/voltages
         }
     }
+
+    /// <summary>Kept for backward compatibility. Use ReadClocksAndVoltages instead.</summary>
+    public void ReadVoltages(TimingSnapshot _) { /* no-op: merged into ReadClocksAndVoltages */ }
 
     private static void TryReadVoltage(float[] table, uint byteOffset, double min, double max, Action<double> setter)
     {

@@ -66,11 +66,8 @@ public sealed class SmuDecode : IDisposable
 
         ReadSvi2Voltages(snapshot);
 
-        if (_ptReader is not null)
-        {
-            _ptReader.ReadFclkUclk(snapshot);
-            _ptReader.ReadVoltages(snapshot);
-        }
+        // Single power table read for clocks + voltages (avoids double IOCTL)
+        _ptReader?.ReadClocksAndVoltages(snapshot);
     }
 
     public void Dispose()

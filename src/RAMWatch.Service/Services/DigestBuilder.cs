@@ -118,7 +118,8 @@ public static class DigestBuilder
     {
         int ddr = snap.MemClockMhz * 2;
         string ratio = DeriveRatio(snap);
-        sb.AppendLine($"Current: DDR4-{ddr} | FCLK {snap.FclkMhz} | VDIMM {snap.VDimm:F3}V | {ratio}");
+        string vdimmLabel = snap.VDimm > 0 ? $" | VDIMM {snap.VDimm:F3}V" : "";
+        sb.AppendLine($"Current: DDR4-{ddr} | FCLK {snap.FclkMhz}{vdimmLabel} | {ratio}");
     }
 
     private static string DeriveRatio(TimingSnapshot snap)
@@ -216,7 +217,26 @@ public static class DigestBuilder
         }
 
         // Voltages — always auto (hardware read-back), label omitted
-        sb.AppendLine($"Voltages: VSOC {snap.VSoc:F3} | VDIMM {snap.VDimm:F3}");
+        var vParts = new List<string>();
+        if (snap.VSoc > 0) vParts.Add($"VSOC {snap.VSoc:F3}");
+        if (snap.VCore > 0) vParts.Add($"VCore {snap.VCore:F3}");
+        if (snap.VDimm > 0) vParts.Add($"VDIMM {snap.VDimm:F3}");
+        if (snap.VDDP > 0) vParts.Add($"VDDP {snap.VDDP:F3}");
+        if (snap.VDDG_IOD > 0) vParts.Add($"VDDG_IOD {snap.VDDG_IOD:F3}");
+        if (snap.VDDG_CCD > 0) vParts.Add($"VDDG_CCD {snap.VDDG_CCD:F3}");
+        if (snap.Vtt > 0) vParts.Add($"Vtt {snap.Vtt:F3}");
+        if (snap.Vpp > 0) vParts.Add($"Vpp {snap.Vpp:F3}");
+        if (vParts.Count > 0) sb.AppendLine($"Voltages: {string.Join(" | ", vParts)}");
+        // Resistance/termination
+        if (snap.ProcODT > 0 || snap.RttNom.Length > 0)
+        {
+            var rParts = new List<string>();
+            if (snap.ProcODT > 0) rParts.Add($"ProcODT {snap.ProcODT:F1}Ω");
+            if (snap.RttNom.Length > 0) rParts.Add($"RttNom {snap.RttNom}");
+            if (snap.RttWr.Length > 0) rParts.Add($"RttWr {snap.RttWr}");
+            if (snap.RttPark.Length > 0) rParts.Add($"RttPark {snap.RttPark}");
+            sb.AppendLine($"Signal: {string.Join(" | ", rParts)}");
+        }
     }
 
     private static void AppendDriftWarnings(

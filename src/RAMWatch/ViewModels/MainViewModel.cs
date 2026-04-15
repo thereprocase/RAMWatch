@@ -678,7 +678,17 @@ public partial class MainViewModel : ObservableObject
             lines.Add($"  CL-RCDRD-RP-RAS: {t.CL}-{t.RCDRD}-{t.RP}-{t.RAS}");
             lines.Add($"  CWL {t.CWL}  RFC {t.RFC}  REFI {t.REFI}");
             lines.Add($"  GDM {(t.GDM ? "on" : "off")}  {(t.Cmd2T ? "2T" : "1T")}");
-            if (t.VDimm > 0) lines.Add($"  VDIMM {t.VDimm:F3}V  VSOC {t.VSoc:F3}V");
+            var volts = new List<string>();
+            if (t.VCore > 0) volts.Add($"VCore {t.VCore:F3}V");
+            if (t.VSoc > 0) volts.Add($"VSOC {t.VSoc:F3}V");
+            if (t.VDimm > 0) volts.Add($"VDIMM {t.VDimm:F3}V");
+            if (t.VDDP > 0) volts.Add($"VDDP {t.VDDP:F3}V");
+            if (t.VDDG_IOD > 0) volts.Add($"VDDG_IOD {t.VDDG_IOD:F3}V");
+            if (t.VDDG_CCD > 0) volts.Add($"VDDG_CCD {t.VDDG_CCD:F3}V");
+            if (t.Vtt > 0) volts.Add($"Vtt {t.Vtt:F3}V");
+            if (t.Vpp > 0) volts.Add($"Vpp {t.Vpp:F3}V");
+            if (volts.Count > 0) lines.Add($"  {string.Join("  ", volts)}");
+            if (t.ProcODT > 0) lines.Add($"  ProcODT {t.ProcODT:F1}Ω  RttNom {t.RttNom}  RttWr {t.RttWr}  RttPark {t.RttPark}");
         }
 
         return string.Join(Environment.NewLine, lines);
