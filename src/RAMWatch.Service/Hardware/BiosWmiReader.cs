@@ -374,7 +374,6 @@ public static class BiosWmiReader
             var psi = new ProcessStartInfo("powershell.exe")
             {
                 RedirectStandardOutput = true,
-                RedirectStandardError  = true,
                 UseShellExecute        = false,
                 CreateNoWindow         = true,
             };
@@ -386,14 +385,12 @@ public static class BiosWmiReader
             using var process = Process.Start(psi);
             if (process is null) return "0";
 
-            bool exited = process.WaitForExit(5000);
-            if (!exited)
-            {
-                try { process.Kill(); } catch { }
-                return "0";
-            }
-
+            // Read stdout BEFORE WaitForExit to avoid deadlock when the pipe
+            // buffer fills (>4KB). ReadToEnd blocks until the child closes its
+            // stdout handle, which happens at exit — so this naturally waits.
             string output = process.StandardOutput.ReadToEnd();
+            process.WaitForExit(5000);
+
             if (!firstLineOnly) return output.Trim();
             return output.Split('\n', StringSplitOptions.RemoveEmptyEntries)
                          .FirstOrDefault()?.Trim() ?? "0";

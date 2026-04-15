@@ -50,7 +50,7 @@ public static class DimmReader
             return null;
 
         var result = new List<DimmInfo>();
-        foreach (string line in raw.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        foreach (string line in raw.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
         {
             var parts = line.Trim().Split('|');
             if (parts.Length < 5) continue;

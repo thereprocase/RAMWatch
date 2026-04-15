@@ -13,6 +13,9 @@ public sealed class HardwareReader : IDisposable
     private readonly UmcDecode? _umcDecode;
     private readonly SmuDecode? _smuDecode;
     private readonly CpuDetect.CpuFamily _cpuFamily;
+    // BIOS WMI values are BIOS-set constants — read once, reuse forever.
+    // A service restart picks up changes after a BIOS flash.
+    private BiosWmiReader.BiosConfig? _cachedBiosConfig;
 
     public bool IsAvailable => _driver.IsAvailable;
     public string DriverStatus => _driver.IsAvailable ? "loaded" : "not_found";
@@ -56,7 +59,9 @@ public sealed class HardwareReader : IDisposable
             // BIOS WMI: VDimm, Vtt, Vpp, resistance/impedance parameters.
             // Covers MSI (AMD_ACPI) and ASUS boards. Returns zeroes on ASRock
             // or any board that does not expose the WMI interface.
-            var bios = BiosWmiReader.ReadAll();
+            // Cached after first read — these are BIOS-set constants, not telemetry.
+            _cachedBiosConfig ??= BiosWmiReader.ReadAll();
+            var bios = _cachedBiosConfig.Value;
             if (bios.VDimm > 0) snapshot.VDimm = bios.VDimm;
             if (bios.Vtt > 0) snapshot.Vtt = bios.Vtt;
             if (bios.Vpp > 0) snapshot.Vpp = bios.Vpp;
