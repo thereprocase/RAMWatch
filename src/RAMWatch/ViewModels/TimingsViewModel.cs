@@ -160,6 +160,11 @@ public partial class TimingsViewModel : ObservableObject
     [ObservableProperty]
     private List<TimingDisplayGroup> _rightColumnGroups = [];
 
+    // Guard to skip TimingDisplayGroups rebuild when timing ints haven't changed.
+    // Voltages update as flat properties independently — only timing group rows
+    // need a rebuild, and those come from integer register values that rarely change.
+    private string _lastTimingKey = "";
+
     // ── Summary label ────────────────────────────────────────
 
     // "CL16-20-20-42" — built from primary timings, empty when no timings available.
@@ -246,25 +251,34 @@ public partial class TimingsViewModel : ObservableObject
             ? ""
             : $"Layout: {vendor}";
 
-        // Build dynamic groups from the vendor layout
-        TimingDisplayGroups.Clear();
-        var layout = BiosLayouts.GetLayout(vendor);
-        foreach (var group in layout)
+        // Build dynamic groups from the vendor layout.
+        // Skip the rebuild when timing integers haven't changed — voltages
+        // update as flat properties above, but the group rows (timing ints)
+        // rarely change between polls. This avoids 8+ CollectionChanged
+        // notifications per 30-second state push during steady state.
+        var timingKey = $"{snapshot.CL}-{snapshot.RCDRD}-{snapshot.RP}-{snapshot.RAS}-{snapshot.RC}-{snapshot.CWL}-{snapshot.RFC}-{snapshot.RDRDSCL}-{snapshot.WRWRSCL}-{vendor}";
+        if (timingKey != _lastTimingKey)
         {
-            var rows = group.Fields
-                .Select(field =>
-                {
-                    string desig = designations is not null && designations.TryGetValue(field, out var d)
-                        ? d
-                        : "";
-                    return new TimingDisplayRow(field, GetFieldValue(snapshot, field), desig);
-                })
-                .ToList();
-            TimingDisplayGroups.Add(new TimingDisplayGroup(group.Name, rows));
-        }
+            _lastTimingKey = timingKey;
+            TimingDisplayGroups.Clear();
+            var layout = BiosLayouts.GetLayout(vendor);
+            foreach (var group in layout)
+            {
+                var rows = group.Fields
+                    .Select(field =>
+                    {
+                        string desig = designations is not null && designations.TryGetValue(field, out var d)
+                            ? d
+                            : "";
+                        return new TimingDisplayRow(field, GetFieldValue(snapshot, field), desig);
+                    })
+                    .ToList();
+                TimingDisplayGroups.Add(new TimingDisplayGroup(group.Name, rows));
+            }
 
-        // Compute masonry column split
-        ComputeColumns();
+            // Compute masonry column split
+            ComputeColumns();
+        }
 
         HasTimings = true;
     }

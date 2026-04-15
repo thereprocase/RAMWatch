@@ -94,6 +94,7 @@ public partial class MainViewModel : ObservableObject
     private TimingSnapshot? _currentTimings;
     // Cached DIMM list for clipboard export.
     private List<DimmInfo>? _currentDimms;
+    private bool _dimmsLoaded;
 
     // ── Timeline + Snapshots (Phase 3) ──────────────────────
 
@@ -528,10 +529,13 @@ public partial class MainViewModel : ObservableObject
         Application.Current?.Dispatcher.Invoke(() =>
             Timings.LoadFromSnapshot(state.Timings, resolvedVendor, designationsSnapshot));
 
-        // DIMMs — read once at service startup, rarely changes. Load every state push
-        // (idempotent, LoadDimms short-circuits if data is unchanged).
-        Application.Current?.Dispatcher.Invoke(() =>
-            Timings.LoadDimms(state.Dimms));
+        // DIMMs — read once at service startup, never changes at runtime.
+        if (!_dimmsLoaded && state.Dimms is { Count: > 0 })
+        {
+            _dimmsLoaded = true;
+            Application.Current?.Dispatcher.Invoke(() =>
+                Timings.LoadDimms(state.Dimms));
+        }
 
         // Timeline — interleave config changes, drift events, validation results
         Application.Current?.Dispatcher.Invoke(() =>
