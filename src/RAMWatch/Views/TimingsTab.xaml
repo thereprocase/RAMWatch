@@ -339,8 +339,6 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="22" />
                             <RowDefinition Height="22" />
-                            <RowDefinition Height="22" />
-                            <RowDefinition Height="22" />
                         </Grid.RowDefinitions>
 
                         <!-- Row 0: Termination -->

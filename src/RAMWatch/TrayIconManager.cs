@@ -67,16 +67,9 @@ public sealed partial class TrayIconManager : IDisposable
             _               => _iconGray,
         };
 
-        // Keep status line in sync with the current tray state.
-        if (_statusItem is not null)
-        {
-            _statusItem.Header = state switch
-            {
-                TrayState.Green => "Status: OK",
-                TrayState.Red   => "Status: Errors detected",
-                _               => "Status: Not connected",
-            };
-        }
+        // Don't write _statusItem.Header here — UpdateTooltip always
+        // overwrites it with richer info (uptime, error count) and the
+        // two methods would fight over the same property.
     }
 
     public void UpdateTooltip(string text)

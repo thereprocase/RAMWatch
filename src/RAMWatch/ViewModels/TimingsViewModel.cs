@@ -219,7 +219,7 @@ public partial class TimingsViewModel : ObservableObject
         // on some boards (e.g. MSI) provides it, but most will always return 0.
         // Display "N/A" rather than "—" so users know the field exists but is not available
         // (as opposed to "—" which reads as "no hardware reads at all").
-        VsocDisplay     = snapshot.VSoc     > 0 ? $"{snapshot.VSoc:F4}"     : "—";
+        VsocDisplay     = snapshot.VSoc     > 0 ? $"{snapshot.VSoc:F4}"     : "N/A";
         VcoreDisplay    = snapshot.VCore    > 0 ? $"{snapshot.VCore:F4}"    : "N/A";
         VdimmDisplay    = snapshot.VDimm    > 0 ? $"{snapshot.VDimm:F4}"    : "N/A";
         VddpDisplay     = snapshot.VDDP     > 0 ? $"{snapshot.VDDP:F4}"     : "N/A";

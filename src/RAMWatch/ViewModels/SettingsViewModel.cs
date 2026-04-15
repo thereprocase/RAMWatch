@@ -90,8 +90,10 @@ public partial class SettingsViewModel : ObservableObject
     private async Task AutoSaveAsync()
     {
         await _main.SendUpdateSettingsAsync(ToSettings());
-        ApplyLaunchAtLogon(LaunchAtLogon);
-        SaveStatus = $"Saved {DateTime.Now:HH:mm:ss}";
+        bool autoStartOk = ApplyLaunchAtLogon(LaunchAtLogon);
+        SaveStatus = autoStartOk
+            ? $"Saved {DateTime.Now:HH:mm:ss}"
+            : $"Saved {DateTime.Now:HH:mm:ss} (autostart: registry write failed)";
     }
 
     // ── General ──────────────────────────────────────────────
@@ -354,7 +356,10 @@ public partial class SettingsViewModel : ObservableObject
     /// Write or remove the HKCU Run entry that launches RAMWatch at logon.
     /// This is a user-level registry key (no admin required).
     /// </summary>
-    private static void ApplyLaunchAtLogon(bool enable)
+    /// <summary>
+    /// Returns false if the registry write failed (e.g., group policy blocking HKCU\Run).
+    /// </summary>
+    private static bool ApplyLaunchAtLogon(bool enable)
     {
         const string keyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
         const string valueName = "RAMWatch";
@@ -362,24 +367,25 @@ public partial class SettingsViewModel : ObservableObject
         try
         {
             using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(keyPath, writable: true);
-            if (key is null) return;
+            if (key is null) return false;
 
             if (enable)
             {
                 // Environment.ProcessPath is reliable for single-file deployments.
                 // Process.MainModule?.FileName can return null for self-contained apps.
                 var exePath = Environment.ProcessPath;
-                if (!string.IsNullOrEmpty(exePath))
-                    key.SetValue(valueName, $"\"{exePath}\" --minimized");
+                if (string.IsNullOrEmpty(exePath)) return false;
+                key.SetValue(valueName, $"\"{exePath}\" --minimized");
             }
             else
             {
                 key.DeleteValue(valueName, throwOnMissingValue: false);
             }
+            return true;
         }
         catch
         {
-            // Non-fatal — registry write can fail under unusual security policies.
+            return false;
         }
     }
 }
