@@ -29,7 +29,7 @@
 
                     <!-- Empty state (no snapshots at all) -->
                     <TextBlock Grid.Row="1"
-                               Text="Save a snapshot to enable comparison."
+                               Text="No snapshots yet. Press Ctrl+S or use Save Snapshot on the Timings tab."
                                Foreground="{StaticResource TextSecondary}"
                                FontStyle="Italic"
                                VerticalAlignment="Center"
@@ -81,6 +81,7 @@
                                   IsChecked="{Binding ShowAllSnapshots}"
                                   Foreground="{StaticResource TextSecondary}"
                                   VerticalAlignment="Center"
+                                  ToolTip="Show all saved snapshots, including duplicates with identical timings"
                                   AutomationProperties.Name="Show all snapshots" />
                     </Grid>
 

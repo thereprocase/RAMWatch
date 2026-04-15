@@ -188,14 +188,15 @@ public partial class MainWindow : System.Windows.Window
     {
         var workArea = SystemParameters.WorkArea;
 
-        // Target 28% of work-area width, 60% of work-area height.
-        // Timings tab needs ~440px minimum; 40% was ~30% too wide on 2560px displays.
+        // Target 28% of work-area width, 50% of work-area height.
+        // Timings tab drives minimum width (~440px at tightened density).
+        // 50% height shows full timings without scrolling on most displays.
         double targetW = workArea.Width  * 0.28;
-        double targetH = workArea.Height * 0.60;
+        double targetH = workArea.Height * 0.50;
 
         // Clamp to reasonable bounds so the window is never absurdly small or large.
-        Width  = Math.Clamp(targetW, 440, 560);
-        Height = Math.Clamp(targetH, 500, 850);
+        Width  = Math.Clamp(targetW, 440, 520);
+        Height = Math.Clamp(targetH, 500, 720);
     }
 
     // ── Window position persistence (Critical fix #3) ────────

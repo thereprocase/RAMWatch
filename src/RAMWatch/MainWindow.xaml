@@ -82,7 +82,7 @@
                 </StackPanel>
 
                 <!-- Metadata line -->
-                <TextBlock Style="{StaticResource SecondaryText}" Margin="22,2,0,0">
+                <TextBlock Style="{StaticResource SecondaryText}" Margin="22,4,0,0">
                     <Run Text="{Binding BootTimeText, Mode=OneWay}" />
                     <Run Text="  |  " />
                     <Run Text="{Binding UptimeText, Mode=OneWay}" />

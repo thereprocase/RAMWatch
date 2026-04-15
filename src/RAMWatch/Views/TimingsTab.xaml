@@ -4,7 +4,7 @@
 
     <!-- DataContext is TimingsViewModel, set by MainWindow via x:Name binding -->
 
-    <Grid Margin="16">
+    <Grid Margin="8,8,8,0">
 
         <!-- No-driver overlay — visible when HasTimings is false -->
         <TextBlock Text="Timing display requires PawnIO driver"
@@ -45,8 +45,8 @@
                 <TextBlock Text="CLOCKS" Style="{StaticResource SectionHeader}" />
                 <Border Background="{StaticResource BgPanel}"
                         CornerRadius="2"
-                        Padding="12,8"
-                        Margin="0,4,0,8">
+                        Padding="8,4"
+                        Margin="0,2,0,4">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -59,7 +59,7 @@
                                        Foreground="{StaticResource TextSecondary}"
                                        FontFamily="{StaticResource UIFont}"
                                        FontSize="12"
-                                       Width="48" />
+                                       Width="40" />
                             <TextBlock Text="{Binding MclkDisplay}"
                                        Style="{StaticResource MonoText}" />
                         </StackPanel>
@@ -69,7 +69,7 @@
                                        Foreground="{StaticResource TextSecondary}"
                                        FontFamily="{StaticResource UIFont}"
                                        FontSize="12"
-                                       Width="48" />
+                                       Width="40" />
                             <TextBlock Text="{Binding FclkDisplay}"
                                        Style="{StaticResource MonoText}" />
                         </StackPanel>
@@ -79,7 +79,7 @@
                                        Foreground="{StaticResource TextSecondary}"
                                        FontFamily="{StaticResource UIFont}"
                                        FontSize="12"
-                                       Width="48" />
+                                       Width="40" />
                             <TextBlock Text="{Binding UclkDisplay}"
                                        Style="{StaticResource MonoText}" />
                         </StackPanel>
@@ -117,7 +117,7 @@
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="6" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
@@ -126,24 +126,24 @@
                                   ItemsSource="{Binding LeftColumnGroups}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <StackPanel Margin="0,0,0,8">
+                                <StackPanel Margin="0,0,0,4">
                                     <TextBlock Text="{Binding GroupName}"
                                                Style="{StaticResource SectionHeader}" />
                                     <Border Background="{StaticResource BgPanel}"
                                             CornerRadius="2"
-                                            Padding="12,8"
-                                            Margin="0,4,0,0">
+                                            Padding="8,4"
+                                            Margin="0,2,0,0">
                                         <ItemsControl ItemsSource="{Binding Rows}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <StackPanel Orientation="Horizontal"
-                                                                Height="24"
+                                                                Height="20"
                                                                 VerticalAlignment="Center">
                                                         <TextBlock Text="{Binding Name}"
                                                                    Foreground="{StaticResource TextSecondary}"
                                                                    FontFamily="{StaticResource UIFont}"
                                                                    FontSize="12"
-                                                                   Width="80"
+                                                                   Width="64"
                                                                    VerticalAlignment="Center" />
                                                         <TextBlock Text="{Binding Value}"
                                                                    Style="{StaticResource MonoText}"
@@ -163,24 +163,24 @@
                                   ItemsSource="{Binding RightColumnGroups}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <StackPanel Margin="0,0,0,8">
+                                <StackPanel Margin="0,0,0,4">
                                     <TextBlock Text="{Binding GroupName}"
                                                Style="{StaticResource SectionHeader}" />
                                     <Border Background="{StaticResource BgPanel}"
                                             CornerRadius="2"
-                                            Padding="12,8"
-                                            Margin="0,4,0,0">
+                                            Padding="8,4"
+                                            Margin="0,2,0,0">
                                         <ItemsControl ItemsSource="{Binding Rows}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <StackPanel Orientation="Horizontal"
-                                                                Height="24"
+                                                                Height="20"
                                                                 VerticalAlignment="Center">
                                                         <TextBlock Text="{Binding Name}"
                                                                    Foreground="{StaticResource TextSecondary}"
                                                                    FontFamily="{StaticResource UIFont}"
                                                                    FontSize="12"
-                                                                   Width="80"
+                                                                   Width="64"
                                                                    VerticalAlignment="Center" />
                                                         <TextBlock Text="{Binding Value}"
                                                                    Style="{StaticResource MonoText}"
@@ -200,8 +200,8 @@
                 <TextBlock Text="VOLTAGES" Style="{StaticResource SectionHeader}" />
                 <Border Background="{StaticResource BgPanel}"
                         CornerRadius="2"
-                        Padding="12,8"
-                        Margin="0,4,0,0">
+                        Padding="8,4"
+                        Margin="0,2,0,0">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -214,7 +214,7 @@
                                        Foreground="{StaticResource TextSecondary}"
                                        FontFamily="{StaticResource UIFont}"
                                        FontSize="12"
-                                       Width="56" />
+                                       Width="48" />
                             <TextBlock Text="{Binding VsocDisplay}"
                                        Style="{StaticResource MonoText}" />
                         </StackPanel>
@@ -224,7 +224,7 @@
                                        Foreground="{StaticResource TextSecondary}"
                                        FontFamily="{StaticResource UIFont}"
                                        FontSize="12"
-                                       Width="56" />
+                                       Width="48" />
                             <TextBlock Text="{Binding VdimmDisplay}"
                                        Style="{StaticResource MonoText}" />
                         </StackPanel>
@@ -233,7 +233,7 @@
 
                 <!-- ── ACTIONS ────────────────────────────────────────── -->
                 <!-- DataContext is MainViewModel (set at tab level by MainWindow) -->
-                <Border Margin="0,12,0,0"
+                <Border Margin="0,6,0,0"
                         Padding="0">
                     <StackPanel Orientation="Horizontal"
                                 HorizontalAlignment="Right">

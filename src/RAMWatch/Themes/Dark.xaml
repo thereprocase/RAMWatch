@@ -11,7 +11,7 @@
     <!-- Text -->
     <Color x:Key="TextPrimaryColor">#E0E0E0</Color>
     <Color x:Key="TextSecondaryColor">#9DA3AE</Color>
-    <Color x:Key="TextDisabledColor">#5A5F69</Color>
+    <Color x:Key="TextDisabledColor">#7A8090</Color>
 
     <!-- Semantic -->
     <Color x:Key="StatusGreenColor">#00C853</Color>
@@ -41,7 +41,7 @@
 
     <!-- Typography -->
     <FontFamily x:Key="MonoFont">./#JetBrainsMono Nerd Font, Cascadia Mono, Consolas, monospace</FontFamily>
-    <FontFamily x:Key="UIFont">./#JetBrainsMono Nerd Font, Segoe UI, system-ui, sans-serif</FontFamily>
+    <FontFamily x:Key="UIFont">Segoe UI, system-ui, sans-serif</FontFamily>
 
     <!-- Focus visual ring — keyboard navigation indicator -->
     <Style x:Key="FocusVisual">
@@ -126,7 +126,9 @@
                 <ControlTemplate TargetType="TabItem">
                     <Border x:Name="Border"
                             Background="{TemplateBinding Background}"
-                            Padding="{TemplateBinding Padding}">
+                            Padding="{TemplateBinding Padding}"
+                            BorderThickness="0,0,0,2"
+                            BorderBrush="Transparent">
                         <ContentPresenter ContentSource="Header"
                                           HorizontalAlignment="Center" />
                     </Border>
@@ -140,6 +142,8 @@
                                     Value="{StaticResource BgAccent}" />
                             <Setter Property="Foreground"
                                     Value="{StaticResource TextPrimary}" />
+                            <Setter TargetName="Border" Property="BorderBrush"
+                                    Value="{StaticResource InteractiveBlue}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -156,7 +160,7 @@
         <Setter Property="RowBackground" Value="{StaticResource BgPanel}" />
         <Setter Property="AlternatingRowBackground" Value="{StaticResource BgAlternateRow}" />
         <Setter Property="HeadersVisibility" Value="Column" />
-        <Setter Property="RowHeight" Value="28" />
+        <Setter Property="RowHeight" Value="22" />
         <Setter Property="FontFamily" Value="{StaticResource UIFont}" />
         <Setter Property="FontSize" Value="12" />
         <Setter Property="IsReadOnly" Value="True" />
@@ -169,8 +173,8 @@
         <Setter Property="Background" Value="{StaticResource BgAccent}" />
         <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
         <Setter Property="FontWeight" Value="Bold" />
-        <Setter Property="Height" Value="32" />
-        <Setter Property="Padding" Value="8,0" />
+        <Setter Property="Height" Value="26" />
+        <Setter Property="Padding" Value="6,0" />
         <Setter Property="BorderThickness" Value="0" />
     </Style>
 
@@ -256,10 +260,10 @@
     <Style TargetType="TextBlock" x:Key="SectionHeader">
         <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
         <Setter Property="FontFamily" Value="{StaticResource UIFont}" />
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontSize" Value="13" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Typography.Capitals" Value="AllSmallCaps" />
-        <Setter Property="Margin" Value="0,8,0,4" />
+        <Setter Property="Margin" Value="0,4,0,2" />
     </Style>
 
     <!-- ComboBox — full dark template so the popup background and item highlight
@@ -297,7 +301,13 @@
                                                   Margin="{TemplateBinding Padding}"
                                                   Content="{TemplateBinding SelectionBoxItem}"
                                                   ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                                  VerticalAlignment="Center" />
+                                                  VerticalAlignment="Center">
+                                    <ContentPresenter.Resources>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                                        </Style>
+                                    </ContentPresenter.Resources>
+                                </ContentPresenter>
                                 <!-- Drop arrow -->
                                 <TextBlock Grid.Column="1"
                                            Text="▾"

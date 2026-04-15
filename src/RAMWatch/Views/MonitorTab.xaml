@@ -23,10 +23,11 @@
         </CollectionViewSource>
     </UserControl.Resources>
 
-    <Grid Margin="16">
+    <Grid Margin="8,8,8,0">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />   <!-- Section header -->
-            <RowDefinition Height="*" />      <!-- Error table -->
+            <RowDefinition Height="Auto" />   <!-- Error table (auto-sized, not star) -->
+            <RowDefinition Height="*" />      <!-- Spacer — pushes integrity to bottom -->
             <RowDefinition Height="Auto" />   <!-- Integrity section header -->
             <RowDefinition Height="Auto" />   <!-- Integrity panel -->
         </Grid.RowDefinitions>
@@ -45,7 +46,8 @@
                   ColumnHeaderStyle="{StaticResource DarkColumnHeader}"
                   AutomationProperties.Name="Error Monitor"
                   ScrollViewer.CanContentScroll="False"
-                  Margin="0,4,0,16">
+                  VerticalAlignment="Top"
+                  Margin="0,2,0,8">
 
             <!-- Group header row: "STABILITY" or "SYSTEM" label separates the two tiers. -->
             <DataGrid.GroupStyle>
@@ -64,7 +66,6 @@
                                                 <!-- Name is the group key (True for stability, False for system) -->
                                                 <DataTrigger Binding="{Binding Name}" Value="True">
                                                     <Setter Property="Text" Value="STABILITY" />
-                                                    <Setter Property="Foreground" Value="{StaticResource StatusRed}" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -98,6 +99,10 @@
                             <Setter Property="Background" Value="{StaticResource BgHover}" />
                             <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
                         </Trigger>
+                        <!-- Dim zero-count rows so "nothing happened" is instantly visible -->
+                        <DataTrigger Binding="{Binding CountSeverity}" Value="None">
+                            <Setter Property="Opacity" Value="0.5" />
+                        </DataTrigger>
                     </Style.Triggers>
                 </Style>
             </DataGrid.RowStyle>
@@ -199,16 +204,16 @@
         </DataGrid>
 
         <!-- Integrity header -->
-        <TextBlock Grid.Row="2"
+        <TextBlock Grid.Row="3"
                    Text="INTEGRITY"
                    Style="{StaticResource SectionHeader}" />
 
         <!-- Integrity panel -->
-        <Border Grid.Row="3"
+        <Border Grid.Row="4"
                 Background="{StaticResource BgPanel}"
                 CornerRadius="2"
-                Padding="12,8"
-                Margin="0,4,0,0">
+                Padding="8,4"
+                Margin="0,2,0,0">
             <StackPanel>
                 <StackPanel Orientation="Horizontal" Margin="0,2">
                     <Ellipse Width="8" Height="8" Margin="0,0,8,0">
@@ -229,6 +234,15 @@
                     </TextBlock>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Margin="0,2">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SfcStatus}" Value="Not run">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
                     <Ellipse Width="8" Height="8" Fill="{StaticResource TextDisabled}" Margin="0,0,8,0" />
                     <TextBlock Foreground="{StaticResource TextSecondary}">
                         <Run Text="SFC: " />
@@ -236,6 +250,15 @@
                     </TextBlock>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Margin="0,2">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding DismStatus}" Value="Not run">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
                     <Ellipse Width="8" Height="8" Fill="{StaticResource TextDisabled}" Margin="0,0,8,0" />
                     <TextBlock Foreground="{StaticResource TextSecondary}">
                         <Run Text="DISM: " />
