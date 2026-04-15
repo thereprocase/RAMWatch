@@ -173,7 +173,7 @@ public sealed class StateAggregator
             ? driftSnapshot
             : null;
 
-        List<ValidationResult>? recentValidations = validationLogger?.GetRecentResults(5);
+        List<ValidationResult>? recentValidations = validationLogger?.GetResults();
 
         TimingSnapshot? lkg = lkgTracker?.CurrentLkg;
 

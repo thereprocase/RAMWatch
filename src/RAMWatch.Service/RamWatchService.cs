@@ -1087,15 +1087,11 @@ public sealed class RamWatchService : BackgroundService
             return;
         }
 
-        var snap = _snapshotJournal.GetById(msg.SnapshotId);
-        if (snap is null)
+        if (!_snapshotJournal.SetEraById(msg.SnapshotId, msg.EraId))
         {
             await SendErrorAsync(client, msg.RequestId, "not_found", "Snapshot not found");
             return;
         }
-
-        snap.EraId = msg.EraId;
-        _snapshotJournal.Save(snap);
 
         await SendOkAsync(client, msg.RequestId);
         if (_aggregator is not null)

@@ -101,6 +101,24 @@ public sealed class SnapshotJournal
     }
 
     /// <summary>
+    /// Atomically set the EraId on the snapshot with the given SnapshotId and persist.
+    /// Returns true when found and updated; false when not found.
+    /// </summary>
+    public bool SetEraById(string snapshotId, string? eraId)
+    {
+        lock (_lock)
+        {
+            int idx = _snapshots.FindIndex(s => s.SnapshotId == snapshotId);
+            if (idx < 0)
+                return false;
+
+            _snapshots[idx].EraId = eraId;
+            Persist();
+            return true;
+        }
+    }
+
+    /// <summary>
     /// Remove the snapshot with the given SnapshotId and persist.
     /// Returns true when an entry was found and removed; false when not found.
     /// </summary>
