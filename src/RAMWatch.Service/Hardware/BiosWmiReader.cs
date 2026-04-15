@@ -86,7 +86,7 @@ public static class BiosWmiReader
                 $enum     = $results.GetEnumerator()
                 if (-not $enum.MoveNext()) { Write-Output "0,0,0,0,0,0,0,0,0,0,0,0,0,0"; exit }
                 $obj = $enum.Current
-                $instanceName = $obj.GetPropertyValue("InstanceName")
+                $instanceName = $obj.GetPropertyValue("InstanceName") -replace "'","''"
                 $classInst = [wmi]"root\WMI:AMD_ACPI.InstanceName='$instanceName'"
 
                 $idDict = @{}

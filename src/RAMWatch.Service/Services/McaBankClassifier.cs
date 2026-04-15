@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO;
 using System.Xml;
 using RAMWatch.Core.Models;
 
@@ -35,7 +36,13 @@ public static class McaBankClassifier
         try
         {
             var doc = new XmlDocument();
-            doc.LoadXml(rawXml);
+            var xmlSettings = new XmlReaderSettings
+            {
+                DtdProcessing = DtdProcessing.Prohibit,
+                XmlResolver = null
+            };
+            using var reader = XmlReader.Create(new StringReader(rawXml), xmlSettings);
+            doc.Load(reader);
 
             var nsMgr = new XmlNamespaceManager(doc.NameTable);
             nsMgr.AddNamespace("e", "http://schemas.microsoft.com/win/2004/08/events/event");
