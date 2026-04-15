@@ -261,8 +261,11 @@ public partial class TimelineViewModel : ObservableObject
             foreach (var result in state.RecentValidations)
             {
                 var passText = result.Passed ? "PASSED" : "FAILED";
+                var metricStr = Math.Abs(result.MetricValue % 1) < 0.001
+                    ? ((long)result.MetricValue).ToString()
+                    : result.MetricValue.ToString("F1");
                 var summary = $"{result.TestTool} {passText}: " +
-                              $"{result.MetricName} = {result.MetricValue:G6} {result.MetricUnit}";
+                              $"{result.MetricName} = {metricStr} {result.MetricUnit}";
                 if (result.ErrorCount > 0)
                     summary += $" ({result.ErrorCount} errors)";
                 if (result.DurationMinutes > 0)

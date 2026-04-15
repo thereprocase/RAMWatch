@@ -70,7 +70,7 @@ public sealed class BootFailJournal
     {
         lock (_lock)
         {
-            int take = Math.Min(count, _entries.Count);
+            int take = Math.Min(Math.Max(0, count), _entries.Count);
             int start = _entries.Count - take;
             return _entries.GetRange(start, take);
         }

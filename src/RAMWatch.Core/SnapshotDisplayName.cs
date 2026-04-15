@@ -95,9 +95,9 @@ public static class SnapshotDisplayName
             && lookup.TryGetValue(lkg.SnapshotId, out var validation)
             && validation.Passed)
         {
-            var metricStr = validation.MetricValue % 1 == 0
+            var metricStr = Math.Abs(validation.MetricValue % 1) < 0.001
                 ? ((long)validation.MetricValue).ToString()
-                : validation.MetricValue.ToString("G6");
+                : validation.MetricValue.ToString("F1");
 
             return $"LKG ({validation.TestTool} {metricStr}{validation.MetricUnit} PASS)";
         }

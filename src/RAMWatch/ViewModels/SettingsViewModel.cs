@@ -59,7 +59,7 @@ public partial class SettingsViewModel : ObservableObject
 
         // Skip non-setting properties and internal state.
         if (_suppressAutoSave || e.PropertyName is "SaveStatus" or "BiosLayoutDetectedLabel"
-            or "SaveDesignationsStatus" or "HasDesignations")
+            or "DesignationSaveStatus")
             return;
 
         ScheduleAutoSave();
@@ -68,6 +68,7 @@ public partial class SettingsViewModel : ObservableObject
     private void ScheduleAutoSave()
     {
         _debounceCts?.Cancel();
+        _debounceCts?.Dispose();
         _debounceCts = new CancellationTokenSource();
         var token = _debounceCts.Token;
 
@@ -244,15 +245,21 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private void SetAllManual()
     {
+        _designationSaving = true;
         foreach (var item in Designations)
             item.Designation = "Manual";
+        _designationSaving = false;
+        _ = SaveDesignationsAsync();
     }
 
     [RelayCommand]
     private void SetAllAuto()
     {
+        _designationSaving = true;
         foreach (var item in Designations)
             item.Designation = "Auto";
+        _designationSaving = false;
+        _ = SaveDesignationsAsync();
     }
 
     [RelayCommand]

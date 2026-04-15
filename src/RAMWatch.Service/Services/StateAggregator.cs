@@ -144,6 +144,8 @@ public sealed class StateAggregator
         LkgTracker? lkgTracker;
         SnapshotJournal? snapshotJournal;
         BootBaselineJournal? baselineJournal;
+        EraJournal? eraJournal;
+        BootFailJournal? bootFailJournal;
 
         lock (_lock)
         {
@@ -158,6 +160,8 @@ public sealed class StateAggregator
             lkgTracker           = _lkgTracker;
             snapshotJournal      = _snapshotJournal;
             baselineJournal      = _baselineJournal;
+            eraJournal           = _eraJournal;
+            bootFailJournal      = _bootFailJournal;
         }
 
         // Step 2: call methods that acquire their own locks OUTSIDE _lock.
@@ -220,9 +224,9 @@ public sealed class StateAggregator
             SourceBaselines = baselines,
             CurrentSettings = _settings.Current,
             // Eras and boot fails
-            Eras = _eraJournal?.GetAll(),
-            ActiveEra = _eraJournal?.GetActive(),
-            BootFails = _bootFailJournal?.GetRecent(20),
+            Eras = eraJournal?.GetAll(),
+            ActiveEra = eraJournal?.GetActive(),
+            BootFails = bootFailJournal?.GetRecent(20),
             // Minimums — computed across all snapshots (era filtering done GUI-side)
             Minimums = ComputeMinimums(snapshots, recentValidations)
         };

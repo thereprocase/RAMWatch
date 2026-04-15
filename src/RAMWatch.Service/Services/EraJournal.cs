@@ -50,7 +50,8 @@ public sealed class EraJournal
     {
         lock (_lock)
         {
-            return _eras.Find(e => e.EndTimestamp is null);
+            var active = _eras.Find(e => e.EndTimestamp is null);
+            return active is not null ? CloneEra(active) : null;
         }
     }
 
@@ -58,9 +59,18 @@ public sealed class EraJournal
     {
         lock (_lock)
         {
-            return new List<TuningEra>(_eras);
+            return _eras.Select(CloneEra).ToList();
         }
     }
+
+    private static TuningEra CloneEra(TuningEra e) => new()
+    {
+        EraId = e.EraId,
+        Name = e.Name,
+        StartTimestamp = e.StartTimestamp,
+        EndTimestamp = e.EndTimestamp,
+        Notes = e.Notes,
+    };
 
     /// <summary>
     /// Create a new era. If another era is active, close it first.
