@@ -87,6 +87,9 @@ public sealed class TimingSnapshot
     public string Label { get; set; } = "";
     public string Notes { get; set; } = "";
 
+    // --- Era tagging ---
+    public string? EraId { get; set; }
+
     /// <summary>
     /// Returns a shallow copy with the supplied SnapshotId and Label.
     /// All timing values are shared (they are value types or immutable strings).
@@ -145,6 +148,7 @@ public sealed class TimingSnapshot
             BiosVersion   = BiosVersion,
             Label         = label,
             Notes         = Notes,
+            EraId         = EraId,
         };
 }
 
@@ -160,6 +164,7 @@ public sealed record ConfigChange
     public string? SnapshotBeforeId { get; init; }
     public string? SnapshotAfterId { get; init; }
     public string? UserNotes { get; init; }
+    public string? EraId { get; init; }
 }
 
 public sealed record TimingDelta(string Before, string After);
@@ -203,6 +208,72 @@ public sealed record ValidationResult
     public int DurationMinutes { get; init; }
     public string? ActiveSnapshotId { get; init; }
     public string? Notes { get; init; }
+    public string? EraId { get; init; }
+}
+
+// ---------------------------------------------------------------------------
+// Tuning Eras — named campaigns for organizing tuning sessions
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// A named tuning campaign. Active era (EndTimestamp == null) automatically
+/// tags all new snapshots, validations, and boot-fail entries with its EraId.
+/// Only one era may be active at a time.
+/// </summary>
+public sealed class TuningEra
+{
+    public required string EraId { get; init; }
+    public required string Name { get; set; }
+    public required DateTime StartTimestamp { get; init; }
+    public DateTime? EndTimestamp { get; set; }
+    public string Notes { get; set; } = "";
+}
+
+// ---------------------------------------------------------------------------
+// Boot Fail Entries — manually logged failed boot attempts
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// A failed boot attempt that RAMWatch could not observe because the service
+/// wasn't running. Logged manually by the user after recovering.
+/// AttemptedChanges records what the user was trying relative to BaseSnapshotId.
+/// </summary>
+public sealed class BootFailEntry
+{
+    public required string BootFailId { get; init; }
+    public required DateTime Timestamp { get; init; }
+    public required BootFailKind Kind { get; init; }
+    public string? BaseSnapshotId { get; init; }
+    public Dictionary<string, string>? AttemptedChanges { get; init; }
+    public string Notes { get; set; } = "";
+    public string? EraId { get; init; }
+}
+
+public enum BootFailKind
+{
+    NoPost,
+    BootLoop,
+    Unstable,
+    Other
+}
+
+// ---------------------------------------------------------------------------
+// Frequency Minimums — aggregated tightest values per frequency
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// Per-frequency minimum observed values for each timing across snapshots.
+/// Computed service-side and sent in the state push.
+/// </summary>
+public sealed class FrequencyMinimums
+{
+    public required int MemClockMhz { get; init; }
+    public required int PostedBootCount { get; init; }
+    public required int ValidatedBootCount { get; init; }
+    /// <summary>Tightest value seen across all posted snapshots at this frequency.</summary>
+    public required Dictionary<string, int> BestPosted { get; init; }
+    /// <summary>Tightest value seen across snapshots linked to a passing validation.</summary>
+    public required Dictionary<string, int> BestValidated { get; init; }
 }
 
 public enum TimingDesignation

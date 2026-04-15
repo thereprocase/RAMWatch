@@ -65,6 +65,21 @@ namespace RAMWatch.Core;
 [JsonSerializable(typeof(List<BootCountEntry>))]
 [JsonSerializable(typeof(BaselineStat))]
 [JsonSerializable(typeof(Dictionary<string, BaselineStat>))]
+// Eras
+[JsonSerializable(typeof(TuningEra))]
+[JsonSerializable(typeof(List<TuningEra>))]
+[JsonSerializable(typeof(CreateEraMessage))]
+[JsonSerializable(typeof(CloseEraMessage))]
+[JsonSerializable(typeof(MoveToEraMessage))]
+// Boot fails
+[JsonSerializable(typeof(BootFailEntry))]
+[JsonSerializable(typeof(BootFailKind))]
+[JsonSerializable(typeof(List<BootFailEntry>))]
+[JsonSerializable(typeof(LogBootFailMessage))]
+[JsonSerializable(typeof(DeleteBootFailMessage))]
+// Minimums
+[JsonSerializable(typeof(FrequencyMinimums))]
+[JsonSerializable(typeof(List<FrequencyMinimums>))]
 public partial class RamWatchJsonContext : JsonSerializerContext
 {
 }

@@ -41,6 +41,16 @@ public sealed class ServiceState
     /// </summary>
     public AppSettings? CurrentSettings { get; init; }
 
+    // Eras
+    public List<TuningEra>? Eras { get; init; }
+    public TuningEra? ActiveEra { get; init; }
+
+    // Boot fails
+    public List<BootFailEntry>? BootFails { get; init; }
+
+    // Minimums — per-frequency tightest values (active era)
+    public List<FrequencyMinimums>? Minimums { get; init; }
+
     /// <summary>
     /// Per-source baseline statistics from past boots (IQR-filtered).
     /// Null when fewer than 3 boots of history exist.

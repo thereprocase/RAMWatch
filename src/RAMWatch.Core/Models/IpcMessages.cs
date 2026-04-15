@@ -202,3 +202,43 @@ public sealed class RenameSnapshotMessage : IpcMessage
     public required string SnapshotId { get; init; }
     public required string NewLabel { get; init; }
 }
+
+// ── Era management (Client → Service) ───────────────────────────
+
+public sealed class CreateEraMessage : IpcMessage
+{
+    public required string RequestId { get; init; }
+    public required string Name { get; init; }
+}
+
+public sealed class CloseEraMessage : IpcMessage
+{
+    public required string RequestId { get; init; }
+    public required string EraId { get; init; }
+}
+
+public sealed class MoveToEraMessage : IpcMessage
+{
+    public required string RequestId { get; init; }
+    public required string SnapshotId { get; init; }
+    /// <summary>Target era ID, or null to remove from any era.</summary>
+    public string? EraId { get; init; }
+}
+
+// ── Boot fail logging (Client → Service) ────────────────────────
+
+public sealed class LogBootFailMessage : IpcMessage
+{
+    public required string RequestId { get; init; }
+    public required DateTime AttemptTimestamp { get; init; }
+    public required BootFailKind Kind { get; init; }
+    public string? BaseSnapshotId { get; init; }
+    public Dictionary<string, string>? AttemptedChanges { get; init; }
+    public string? Notes { get; init; }
+}
+
+public sealed class DeleteBootFailMessage : IpcMessage
+{
+    public required string RequestId { get; init; }
+    public required string BootFailId { get; init; }
+}

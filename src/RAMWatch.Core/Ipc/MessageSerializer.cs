@@ -67,6 +67,13 @@ public static class MessageSerializer
                 "getDigest" => JsonSerializer.Deserialize(line, typeof(GetDigestMessage), Options) as IpcMessage,
                 "deleteSnapshot" => JsonSerializer.Deserialize(line, typeof(DeleteSnapshotMessage), Options) as IpcMessage,
                 "renameSnapshot" => JsonSerializer.Deserialize(line, typeof(RenameSnapshotMessage), Options) as IpcMessage,
+                // Eras
+                "createEra" => JsonSerializer.Deserialize(line, typeof(CreateEraMessage), Options) as IpcMessage,
+                "closeEra" => JsonSerializer.Deserialize(line, typeof(CloseEraMessage), Options) as IpcMessage,
+                "moveToEra" => JsonSerializer.Deserialize(line, typeof(MoveToEraMessage), Options) as IpcMessage,
+                // Boot fails
+                "logBootFail" => JsonSerializer.Deserialize(line, typeof(LogBootFailMessage), Options) as IpcMessage,
+                "deleteBootFail" => JsonSerializer.Deserialize(line, typeof(DeleteBootFailMessage), Options) as IpcMessage,
                 // Phase 3 — service → client
                 "designationsResponse" => JsonSerializer.Deserialize(line, typeof(DesignationsResponseMessage), Options) as IpcMessage,
                 "snapshotsResponse" => JsonSerializer.Deserialize(line, typeof(SnapshotsResponseMessage), Options) as IpcMessage,
