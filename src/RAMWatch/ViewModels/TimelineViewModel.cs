@@ -114,9 +114,52 @@ public partial class TimelineEntry : ObservableObject
 public partial class TimelineViewModel : ObservableObject
 {
     public ObservableCollection<TimelineEntry> Entries { get; } = [];
+    private readonly List<TimelineEntry> _allEntries = [];
 
     [ObservableProperty]
     private bool _hasEntries;
+
+    // ── Type filters ────────────────────────────────────────
+
+    [ObservableProperty]
+    private bool _showPass = true;
+
+    [ObservableProperty]
+    private bool _showFail = true;
+
+    [ObservableProperty]
+    private bool _showChange = true;
+
+    [ObservableProperty]
+    private bool _showDrift = true;
+
+    partial void OnShowPassChanged(bool value) => ApplyFilters();
+    partial void OnShowFailChanged(bool value) => ApplyFilters();
+    partial void OnShowChangeChanged(bool value) => ApplyFilters();
+    partial void OnShowDriftChanged(bool value) => ApplyFilters();
+
+    private void ApplyFilters()
+    {
+        Entries.Clear();
+        foreach (var entry in _allEntries)
+        {
+            if (IsVisible(entry))
+            {
+                entry.AttachOwner(Entries);
+                Entries.Add(entry);
+            }
+        }
+        HasEntries = Entries.Count > 0;
+    }
+
+    private bool IsVisible(TimelineEntry entry) => entry.EntryType switch
+    {
+        TimelineEntryType.ValidationPass => ShowPass,
+        TimelineEntryType.ValidationFail => ShowFail,
+        TimelineEntryType.ConfigChange => ShowChange,
+        TimelineEntryType.Drift => ShowDrift,
+        _ => true
+    };
 
     // Injected by MainViewModel so each validation entry can send DeleteValidationMessage.
     private Func<string, Task>? _deleteValidationHandler;
@@ -252,17 +295,12 @@ public partial class TimelineViewModel : ObservableObject
             }
         }
 
-        // Sort newest first
+        // Sort newest first and store the full unfiltered list.
         entries.Sort((a, b) => b.Timestamp.CompareTo(a.Timestamp));
+        _allEntries.Clear();
+        _allEntries.AddRange(entries);
 
-        Entries.Clear();
-        foreach (var entry in entries)
-        {
-            entry.AttachOwner(Entries);
-            Entries.Add(entry);
-        }
-
-        HasEntries = Entries.Count > 0;
+        ApplyFilters();
     }
 
     private static string FormatTimestamp(DateTime dt)

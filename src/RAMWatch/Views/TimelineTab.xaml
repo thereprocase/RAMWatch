@@ -3,16 +3,31 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:RAMWatch.ViewModels">
 
-    <Grid Margin="16">
+    <Grid Margin="8,8,8,0">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />   <!-- Section header -->
+            <RowDefinition Height="Auto" />   <!-- Section header + filters -->
             <RowDefinition Height="*" />      <!-- Timeline entries -->
         </Grid.RowDefinitions>
 
-        <!-- Section header -->
-        <TextBlock Grid.Row="0"
-                   Text="TIMELINE"
-                   Style="{StaticResource SectionHeader}" />
+        <!-- Section header + type filters -->
+        <DockPanel Grid.Row="0">
+            <TextBlock Text="TIMELINE"
+                       Style="{StaticResource SectionHeader}"
+                       DockPanel.Dock="Left" />
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Margin="0,0,0,2">
+                <CheckBox Content="Pass" IsChecked="{Binding ShowPass}"
+                          Foreground="{StaticResource StatusGreen}" FontSize="10" Margin="0,0,6,0" />
+                <CheckBox Content="Fail" IsChecked="{Binding ShowFail}"
+                          Foreground="{StaticResource StatusRed}" FontSize="10" Margin="0,0,6,0" />
+                <CheckBox Content="Change" IsChecked="{Binding ShowChange}"
+                          Foreground="{StaticResource StatusAmber}" FontSize="10" Margin="0,0,6,0" />
+                <CheckBox Content="Drift" IsChecked="{Binding ShowDrift}"
+                          Foreground="{StaticResource StatusRed}" FontSize="10" />
+            </StackPanel>
+        </DockPanel>
 
         <!-- Empty state -->
         <TextBlock Grid.Row="1"
