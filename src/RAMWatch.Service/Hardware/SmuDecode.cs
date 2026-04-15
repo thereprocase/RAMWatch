@@ -67,7 +67,10 @@ public sealed class SmuDecode : IDisposable
         ReadSvi2Voltages(snapshot);
 
         if (_ptReader is not null)
+        {
             _ptReader.ReadFclkUclk(snapshot);
+            _ptReader.ReadVoltages(snapshot);
+        }
     }
 
     public void Dispose()
@@ -78,7 +81,7 @@ public sealed class SmuDecode : IDisposable
     // ── SVI2 voltage telemetry ───────────────────────────────────────────
 
     /// <summary>
-    /// Read VSoc from the SVI2 telemetry register for the active CPU family.
+    /// Read VSoc and VCore from SVI2 telemetry registers for the active CPU family.
     ///
     /// Register layout (32-bit):
     ///   [31:24] — unused
@@ -94,10 +97,14 @@ public sealed class SmuDecode : IDisposable
     /// </summary>
     private void ReadSvi2Voltages(TimingSnapshot snapshot)
     {
-        uint socAddress = GetSocPlaneAddress(_cpuFamily);
-        if (socAddress == 0) return;
+        ReadSvi2Plane(GetSocPlaneAddress(_cpuFamily), v => snapshot.VSoc = v);
+        ReadSvi2Plane(GetCorePlaneAddress(_cpuFamily), v => snapshot.VCore = v);
+    }
 
-        if (!_hw.TryReadSmn(socAddress, out uint raw)) return;
+    private void ReadSvi2Plane(uint address, Action<double> setter)
+    {
+        if (address == 0) return;
+        if (!_hw.TryReadSmn(address, out uint raw)) return;
 
         // bits [15:8] are status/lock bits — if non-zero, the SMU is updating
         // the register mid-read. Discard rather than report garbage.
@@ -106,10 +113,10 @@ public sealed class SmuDecode : IDisposable
         uint vid = (raw >> 16) & 0xFF;
         double voltage = VidToVoltage(vid);
 
-        // Plausibility: SoC voltage on desktop Zen 2/3 is typically 0.9–1.3 V.
+        // Plausibility: desktop Zen 2/3 voltages are typically 0.9–1.3 V.
         // Anything outside 0.5–2.0 V is a bad read (or unsupported platform).
         if (voltage is >= 0.5 and <= 2.0)
-            snapshot.VSoc = Math.Round(voltage, 4);
+            setter(Math.Round(voltage, 4));
     }
 
     /// <summary>
@@ -145,7 +152,7 @@ public sealed class SmuDecode : IDisposable
             CpuDetect.CpuFamily.Zen or
             CpuDetect.CpuFamily.ZenPlus => Svi2Base + Svi2Plane1Offset,
 
-            // Zen2 desktop (Matisse): SOC is on Plane 1 (= F17H_M70H_PLANE1 = 0x5A00C)
+            // Zen2 desktop (Matisse): SOC is on Plane 0 (= F17H_M70H_PLANE1 = 0x5A00C)
             // Note: Zen2 swaps CORE and SOC compared to Zen/Zen+
             CpuDetect.CpuFamily.Zen2 => Svi2Base + Svi2Plane0Offset,
 
@@ -156,6 +163,27 @@ public sealed class SmuDecode : IDisposable
             CpuDetect.CpuFamily.Zen4 => Svi2Base + Svi2Plane0Offset,
 
             // Zen5: unknown at time of writing — skip
+            _ => 0
+        };
+    }
+
+    /// <summary>
+    /// Map CPU family to the SMN address of the Core voltage telemetry plane.
+    /// Returns 0 for unsupported families. Core is always the opposite plane from SOC.
+    /// </summary>
+    internal static uint GetCorePlaneAddress(CpuDetect.CpuFamily family)
+    {
+        return family switch
+        {
+            // Zen and Zen+: Core is on Plane 0 (0x5A00C)
+            CpuDetect.CpuFamily.Zen or
+            CpuDetect.CpuFamily.ZenPlus => Svi2Base + Svi2Plane0Offset,
+
+            // Zen2+: Core is on Plane 1 (0x5A010) — opposite of SOC
+            CpuDetect.CpuFamily.Zen2 or
+            CpuDetect.CpuFamily.Zen3 or
+            CpuDetect.CpuFamily.Zen4 => Svi2Base + Svi2Plane1Offset,
+
             _ => 0
         };
     }

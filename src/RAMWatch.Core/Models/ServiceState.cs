@@ -63,4 +63,10 @@ public sealed class ServiceState
     /// Null when no reports directory exists or no dumps found.
     /// </summary>
     public LiveKernelReportSummary? LiveKernelReports { get; init; }
+
+    /// <summary>
+    /// Installed DIMM information from Win32_PhysicalMemory.
+    /// Read once at service startup. Null when WMI query fails.
+    /// </summary>
+    public List<DimmInfo>? Dimms { get; init; }
 }

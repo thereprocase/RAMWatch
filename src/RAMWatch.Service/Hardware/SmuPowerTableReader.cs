@@ -150,6 +150,41 @@ public sealed class SmuPowerTableReader : IDisposable
         }
     }
 
+    /// <summary>
+    /// Populate VDDP, VDDG_IOD, and VDDG_CCD from the SMU power table.
+    /// Each is a float at a version-specific byte offset. Returns immediately
+    /// if not available. Fields stay at 0.0 when their offset is 0 (not
+    /// available for this PM table version) or when the value is implausible.
+    /// </summary>
+    public void ReadVoltages(TimingSnapshot snapshot)
+    {
+        if (_driver is null || !_available) return;
+
+        try
+        {
+            float[]? table = ReadPmTable();
+            if (table is null) return;
+
+            TryReadVoltage(table, _layout.CldoVddpByteOffset, 0.5, 1.2, v => snapshot.VDDP = v);
+            TryReadVoltage(table, _layout.CldoVddgIodByteOffset, 0.7, 1.3, v => snapshot.VDDG_IOD = v);
+            TryReadVoltage(table, _layout.CldoVddgCcdByteOffset, 0.7, 1.3, v => snapshot.VDDG_CCD = v);
+        }
+        catch
+        {
+            // Non-fatal — snapshot retains 0 for voltages
+        }
+    }
+
+    private static void TryReadVoltage(float[] table, uint byteOffset, double min, double max, Action<double> setter)
+    {
+        if (byteOffset == 0) return;
+        int index = (int)(byteOffset / 4);
+        if (index >= table.Length) return;
+        double v = table[index];
+        if (v >= min && v <= max)
+            setter(Math.Round(v, 4));
+    }
+
     public void Dispose()
     {
         _driver?.Dispose();
@@ -283,6 +318,12 @@ public sealed class SmuPowerTableReader : IDisposable
         public uint TableSizeBytes { get; init; }
         public uint FclkByteOffset { get; init; }
         public uint UclkByteOffset { get; init; }
+        // Voltage byte offsets — 0 means not available for this PM table version.
+        // Each points to a float in the PM table array.
+        public uint VddcrSocByteOffset { get; init; }
+        public uint CldoVddpByteOffset { get; init; }
+        public uint CldoVddgIodByteOffset { get; init; }
+        public uint CldoVddgCcdByteOffset { get; init; }
         public bool IsValid => TableSizeBytes > 0 && FclkByteOffset > 0 && UclkByteOffset > 0;
     }
 
@@ -293,60 +334,103 @@ public sealed class SmuPowerTableReader : IDisposable
     internal static PmTableLayout GetLayout(uint version)
     {
         // Exact version matches first, then family-generic fallbacks.
+        // Voltage offset key:
+        //   VddcrSoc  = VDDCR_SOC (cross-check with SVI2, not written to snapshot)
+        //   CldoVddp  = CLDO_VDDP (PLL supply)
+        //   CldoVddgIod = CLDO_VDDG_IOD (I/O die)
+        //   CldoVddgCcd = CLDO_VDDG_CCD (core complex die, Zen3 0x38* only)
+        //   0 = not available for this version
         return version switch
         {
             // ── Zen2 CPU ────────────────────────────────────────────────
-            // Generic v1 — offsetFclk 0xB0, offsetUclk 0xB8 (ZenStates 0x000200)
-            0x000200 => new PmTableLayout { TableSizeBytes = 0x7E4, FclkByteOffset = 0xB0, UclkByteOffset = 0xB8 },
-            0x240003 => new PmTableLayout { TableSizeBytes = 0x18AC, FclkByteOffset = 0xB0, UclkByteOffset = 0xB8 },
+            // Generic v1 — SOC 0xA4, VDDP 0x1E4, VDDG_IOD 0x1E8
+            0x000200 => new PmTableLayout { TableSizeBytes = 0x7E4, FclkByteOffset = 0xB0, UclkByteOffset = 0xB8,
+                VddcrSocByteOffset = 0xA4, CldoVddpByteOffset = 0x1E4, CldoVddgIodByteOffset = 0x1E8 },
+            0x240003 => new PmTableLayout { TableSizeBytes = 0x18AC, FclkByteOffset = 0xB0, UclkByteOffset = 0xB8,
+                VddcrSocByteOffset = 0xA4, CldoVddpByteOffset = 0x1E4, CldoVddgIodByteOffset = 0x1E8 },
 
-            // v2 revisions — offsetFclk 0xBC, offsetUclk 0xC4
-            0x240802 => new PmTableLayout { TableSizeBytes = 0x7E0, FclkByteOffset = 0xBC, UclkByteOffset = 0xC4 },
-            0x240902 => new PmTableLayout { TableSizeBytes = 0x514, FclkByteOffset = 0xBC, UclkByteOffset = 0xC4 },
-            0x000202 => new PmTableLayout { TableSizeBytes = 0x7E4, FclkByteOffset = 0xBC, UclkByteOffset = 0xC4 },
+            // v2 revisions — SOC 0xB0, VDDP 0x1F0, VDDG_IOD 0x1F4
+            0x240802 => new PmTableLayout { TableSizeBytes = 0x7E0, FclkByteOffset = 0xBC, UclkByteOffset = 0xC4,
+                VddcrSocByteOffset = 0xB0, CldoVddpByteOffset = 0x1F0, CldoVddgIodByteOffset = 0x1F4 },
+            0x240902 => new PmTableLayout { TableSizeBytes = 0x514, FclkByteOffset = 0xBC, UclkByteOffset = 0xC4,
+                VddcrSocByteOffset = 0xB0, CldoVddpByteOffset = 0x1F0, CldoVddgIodByteOffset = 0x1F4 },
+            0x000202 => new PmTableLayout { TableSizeBytes = 0x7E4, FclkByteOffset = 0xBC, UclkByteOffset = 0xC4,
+                VddcrSocByteOffset = 0xB0, CldoVddpByteOffset = 0x1F0, CldoVddgIodByteOffset = 0x1F4 },
 
-            // v3 revisions — offsetFclk 0xC0, offsetUclk 0xC8
-            0x240503 => new PmTableLayout { TableSizeBytes = 0xD7C, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
-            0x240603 => new PmTableLayout { TableSizeBytes = 0xAB0, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
-            0x240703 => new PmTableLayout { TableSizeBytes = 0x7E4, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
-            0x240803 => new PmTableLayout { TableSizeBytes = 0x7E4, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
-            0x240903 => new PmTableLayout { TableSizeBytes = 0x518, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
-            0x000203 => new PmTableLayout { TableSizeBytes = 0x7E4, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
+            // v3 revisions — SOC 0xB4, VDDP 0x1F4, VDDG_IOD 0x1F8
+            0x240503 => new PmTableLayout { TableSizeBytes = 0xD7C, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x1F4, CldoVddgIodByteOffset = 0x1F8 },
+            0x240603 => new PmTableLayout { TableSizeBytes = 0xAB0, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x1F4, CldoVddgIodByteOffset = 0x1F8 },
+            0x240703 => new PmTableLayout { TableSizeBytes = 0x7E4, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x1F4, CldoVddgIodByteOffset = 0x1F8 },
+            0x240803 => new PmTableLayout { TableSizeBytes = 0x7E4, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x1F4, CldoVddgIodByteOffset = 0x1F8 },
+            0x240903 => new PmTableLayout { TableSizeBytes = 0x518, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x1F4, CldoVddgIodByteOffset = 0x1F8 },
+            0x000203 => new PmTableLayout { TableSizeBytes = 0x7E4, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x1F4, CldoVddgIodByteOffset = 0x1F8 },
 
             // ── Zen3 CPU ────────────────────────────────────────────────
-            // offsetFclk 0xBC, offsetUclk 0xC4
-            0x2D0008 => new PmTableLayout { TableSizeBytes = 0x1AB0, FclkByteOffset = 0xBC, UclkByteOffset = 0xC4 },
-            0x2D0803 => new PmTableLayout { TableSizeBytes = 0x894, FclkByteOffset = 0xBC, UclkByteOffset = 0xC4 },
-            0x2D0903 => new PmTableLayout { TableSizeBytes = 0x7E4, FclkByteOffset = 0xBC, UclkByteOffset = 0xC4 },
+            // 0x2D* family — SOC 0xB0, VDDP 0x220, VDDG_IOD 0x224, no VDDG_CCD
+            0x2D0008 => new PmTableLayout { TableSizeBytes = 0x1AB0, FclkByteOffset = 0xBC, UclkByteOffset = 0xC4,
+                VddcrSocByteOffset = 0xB0, CldoVddpByteOffset = 0x220, CldoVddgIodByteOffset = 0x224 },
+            0x2D0803 => new PmTableLayout { TableSizeBytes = 0x894, FclkByteOffset = 0xBC, UclkByteOffset = 0xC4,
+                VddcrSocByteOffset = 0xB0, CldoVddpByteOffset = 0x220, CldoVddgIodByteOffset = 0x224 },
+            0x2D0903 => new PmTableLayout { TableSizeBytes = 0x7E4, FclkByteOffset = 0xBC, UclkByteOffset = 0xC4,
+                VddcrSocByteOffset = 0xB0, CldoVddpByteOffset = 0x220, CldoVddgIodByteOffset = 0x224 },
 
-            // offsetFclk 0xC0, offsetUclk 0xC8
-            0x380005 => new PmTableLayout { TableSizeBytes = 0x1BB0, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
-            0x380505 => new PmTableLayout { TableSizeBytes = 0xF30, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
-            0x380605 => new PmTableLayout { TableSizeBytes = 0xC10, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
-            0x380705 => new PmTableLayout { TableSizeBytes = 0x8F0, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
-            0x380804 => new PmTableLayout { TableSizeBytes = 0x8A4, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
-            0x380805 => new PmTableLayout { TableSizeBytes = 0x8F0, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
-            0x380904 => new PmTableLayout { TableSizeBytes = 0x5A4, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
-            0x380905 => new PmTableLayout { TableSizeBytes = 0x5D0, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
+            // 0x38* family — SOC 0xB4, VDDP 0x224, VDDG_IOD 0x228, VDDG_CCD 0x22C
+            0x380005 => new PmTableLayout { TableSizeBytes = 0x1BB0, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C },
+            0x380505 => new PmTableLayout { TableSizeBytes = 0xF30, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C },
+            0x380605 => new PmTableLayout { TableSizeBytes = 0xC10, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C },
+            0x380705 => new PmTableLayout { TableSizeBytes = 0x8F0, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C },
+            0x380804 => new PmTableLayout { TableSizeBytes = 0x8A4, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C },
+            0x380805 => new PmTableLayout { TableSizeBytes = 0x8F0, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C },
+            0x380904 => new PmTableLayout { TableSizeBytes = 0x5A4, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C },
+            0x380905 => new PmTableLayout { TableSizeBytes = 0x5D0, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C },
             // Generic Zen3 CPU
-            0x000300 => new PmTableLayout { TableSizeBytes = 0x948, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8 },
+            0x000300 => new PmTableLayout { TableSizeBytes = 0x948, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C },
 
             // ── Zen4 CPU (Raphael / Granite Ridge) ─────────────────────
-            // offsetFclk 0x118, offsetUclk 0x128
-            0x540100 => new PmTableLayout { TableSizeBytes = 0x618, FclkByteOffset = 0x118, UclkByteOffset = 0x128 },
-            0x540101 => new PmTableLayout { TableSizeBytes = 0x61C, FclkByteOffset = 0x118, UclkByteOffset = 0x128 },
-            0x540102 => new PmTableLayout { TableSizeBytes = 0x66C, FclkByteOffset = 0x118, UclkByteOffset = 0x128 },
-            0x540103 => new PmTableLayout { TableSizeBytes = 0x68C, FclkByteOffset = 0x118, UclkByteOffset = 0x128 },
-            0x540104 => new PmTableLayout { TableSizeBytes = 0x6A8, FclkByteOffset = 0x118, UclkByteOffset = 0x128 },
-            0x540105 => new PmTableLayout { TableSizeBytes = 0x6B4, FclkByteOffset = 0x118, UclkByteOffset = 0x128 },
-            0x540108 => new PmTableLayout { TableSizeBytes = 0x6BC, FclkByteOffset = 0x118, UclkByteOffset = 0x128 },
-            0x540000 => new PmTableLayout { TableSizeBytes = 0x828, FclkByteOffset = 0x118, UclkByteOffset = 0x128 },
-            0x540001 => new PmTableLayout { TableSizeBytes = 0x82C, FclkByteOffset = 0x118, UclkByteOffset = 0x128 },
-            0x540002 => new PmTableLayout { TableSizeBytes = 0x87C, FclkByteOffset = 0x118, UclkByteOffset = 0x128 },
-            0x540003 => new PmTableLayout { TableSizeBytes = 0x89C, FclkByteOffset = 0x118, UclkByteOffset = 0x128 },
-            0x540004 => new PmTableLayout { TableSizeBytes = 0x8BC, FclkByteOffset = 0x118, UclkByteOffset = 0x128 },
-            0x540005 => new PmTableLayout { TableSizeBytes = 0x8C8, FclkByteOffset = 0x118, UclkByteOffset = 0x128 },
-            0x540208 => new PmTableLayout { TableSizeBytes = 0x8D0, FclkByteOffset = 0x11C, UclkByteOffset = 0x12C },
+            // SOC 0xD0, VDDP 0x430, no VDDG_IOD/CCD in Zen4
+            0x540100 => new PmTableLayout { TableSizeBytes = 0x618, FclkByteOffset = 0x118, UclkByteOffset = 0x128,
+                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430 },
+            0x540101 => new PmTableLayout { TableSizeBytes = 0x61C, FclkByteOffset = 0x118, UclkByteOffset = 0x128,
+                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430 },
+            0x540102 => new PmTableLayout { TableSizeBytes = 0x66C, FclkByteOffset = 0x118, UclkByteOffset = 0x128,
+                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430 },
+            0x540103 => new PmTableLayout { TableSizeBytes = 0x68C, FclkByteOffset = 0x118, UclkByteOffset = 0x128,
+                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430 },
+            0x540104 => new PmTableLayout { TableSizeBytes = 0x6A8, FclkByteOffset = 0x118, UclkByteOffset = 0x128,
+                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430 },
+            0x540105 => new PmTableLayout { TableSizeBytes = 0x6B4, FclkByteOffset = 0x118, UclkByteOffset = 0x128,
+                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430 },
+            0x540108 => new PmTableLayout { TableSizeBytes = 0x6BC, FclkByteOffset = 0x118, UclkByteOffset = 0x128,
+                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430 },
+            0x540000 => new PmTableLayout { TableSizeBytes = 0x828, FclkByteOffset = 0x118, UclkByteOffset = 0x128,
+                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430 },
+            0x540001 => new PmTableLayout { TableSizeBytes = 0x82C, FclkByteOffset = 0x118, UclkByteOffset = 0x128,
+                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430 },
+            0x540002 => new PmTableLayout { TableSizeBytes = 0x87C, FclkByteOffset = 0x118, UclkByteOffset = 0x128,
+                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430 },
+            0x540003 => new PmTableLayout { TableSizeBytes = 0x89C, FclkByteOffset = 0x118, UclkByteOffset = 0x128,
+                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430 },
+            0x540004 => new PmTableLayout { TableSizeBytes = 0x8BC, FclkByteOffset = 0x118, UclkByteOffset = 0x128,
+                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430 },
+            0x540005 => new PmTableLayout { TableSizeBytes = 0x8C8, FclkByteOffset = 0x118, UclkByteOffset = 0x128,
+                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430 },
+            0x540208 => new PmTableLayout { TableSizeBytes = 0x8D0, FclkByteOffset = 0x11C, UclkByteOffset = 0x12C,
+                VddcrSocByteOffset = 0xD4, CldoVddpByteOffset = 0x434 },
 
             _ => default  // IsValid == false
         };

@@ -78,7 +78,50 @@ public partial class TimingsViewModel : ObservableObject
     private string _vsocDisplay = "—";
 
     [ObservableProperty]
+    private string _vcoreDisplay = "—";
+
+    [ObservableProperty]
     private string _vdimmDisplay = "—";
+
+    [ObservableProperty]
+    private string _vddpDisplay = "—";
+
+    [ObservableProperty]
+    private string _vddgIodDisplay = "—";
+
+    [ObservableProperty]
+    private string _vddgCcdDisplay = "—";
+
+    [ObservableProperty]
+    private string _vttDisplay = "—";
+
+    [ObservableProperty]
+    private string _vppDisplay = "—";
+
+    // ── Signal integrity ─────────────────────────────────────
+    [ObservableProperty]
+    private string _procOdtDisplay = "—";
+
+    [ObservableProperty]
+    private string _rttNomDisplay = "—";
+
+    [ObservableProperty]
+    private string _rttWrDisplay = "—";
+
+    [ObservableProperty]
+    private string _rttParkDisplay = "—";
+
+    [ObservableProperty]
+    private string _clkDrvStrenDisplay = "—";
+
+    [ObservableProperty]
+    private string _addrCmdDrvStrenDisplay = "—";
+
+    [ObservableProperty]
+    private string _csOdtCmdDrvStrenDisplay = "—";
+
+    [ObservableProperty]
+    private string _ckeDrvStrenDisplay = "—";
 
     // ── System info ──────────────────────────────────────────
 
@@ -163,8 +206,24 @@ public partial class TimingsViewModel : ObservableObject
         // on some boards (e.g. MSI) provides it, but most will always return 0.
         // Display "N/A" rather than "—" so users know the field exists but is not available
         // (as opposed to "—" which reads as "no hardware reads at all").
-        VsocDisplay  = snapshot.VSoc  > 0 ? $"{snapshot.VSoc:F4}"  : "—";
-        VdimmDisplay = snapshot.VDimm > 0 ? $"{snapshot.VDimm:F4}" : "N/A";
+        VsocDisplay     = snapshot.VSoc     > 0 ? $"{snapshot.VSoc:F4}"     : "—";
+        VcoreDisplay    = snapshot.VCore    > 0 ? $"{snapshot.VCore:F4}"    : "N/A";
+        VdimmDisplay    = snapshot.VDimm    > 0 ? $"{snapshot.VDimm:F4}"    : "N/A";
+        VddpDisplay     = snapshot.VDDP     > 0 ? $"{snapshot.VDDP:F4}"     : "N/A";
+        VddgIodDisplay  = snapshot.VDDG_IOD > 0 ? $"{snapshot.VDDG_IOD:F4}" : "N/A";
+        VddgCcdDisplay  = snapshot.VDDG_CCD > 0 ? $"{snapshot.VDDG_CCD:F4}" : "N/A";
+        VttDisplay      = snapshot.Vtt      > 0 ? $"{snapshot.Vtt:F4}"      : "N/A";
+        VppDisplay      = snapshot.Vpp      > 0 ? $"{snapshot.Vpp:F4}"      : "N/A";
+
+        // Signal integrity
+        ProcOdtDisplay        = snapshot.ProcODT > 0 ? $"{snapshot.ProcODT:F1} Ω" : "N/A";
+        RttNomDisplay         = snapshot.RttNom.Length > 0 ? snapshot.RttNom : "N/A";
+        RttWrDisplay          = snapshot.RttWr.Length > 0 ? snapshot.RttWr : "N/A";
+        RttParkDisplay        = snapshot.RttPark.Length > 0 ? snapshot.RttPark : "N/A";
+        ClkDrvStrenDisplay    = snapshot.ClkDrvStren > 0 ? $"{snapshot.ClkDrvStren:F1} Ω" : "N/A";
+        AddrCmdDrvStrenDisplay = snapshot.AddrCmdDrvStren > 0 ? $"{snapshot.AddrCmdDrvStren:F1} Ω" : "N/A";
+        CsOdtCmdDrvStrenDisplay = snapshot.CsOdtCmdDrvStren > 0 ? $"{snapshot.CsOdtCmdDrvStren:F1} Ω" : "N/A";
+        CkeDrvStrenDisplay    = snapshot.CkeDrvStren > 0 ? $"{snapshot.CkeDrvStren:F1} Ω" : "N/A";
 
         // System info
         CpuCodename = snapshot.CpuCodename;

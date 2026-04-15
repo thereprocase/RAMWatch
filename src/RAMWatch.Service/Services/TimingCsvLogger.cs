@@ -22,7 +22,9 @@ public sealed class TimingCsvLogger : IDisposable
         "rfc,rfc2,rfc4," +
         "rrds,rrdl,faw,wtrs,wtrl,wr," +
         "rdrdscl,wrwrscl,gdm,cmd2t," +
-        "vsoc,vdimm";
+        "vsoc,vdimm," +
+        "vcore,vddp,vddg_iod,vddg_ccd,vtt,vpp," +
+        "procodt,rttnom,rttwr,rttpark";
 
     /// <summary>
     /// The absolute path of the currently open CSV file, or empty string if no
@@ -111,7 +113,17 @@ public sealed class TimingCsvLogger : IDisposable
             s.GDM ? 1 : 0,
             s.Cmd2T ? 1 : 0,
             s.VSoc.ToString("F4"),
-            s.VDimm.ToString("F4")
+            s.VDimm.ToString("F4"),
+            s.VCore.ToString("F4"),
+            s.VDDP.ToString("F4"),
+            s.VDDG_IOD.ToString("F4"),
+            s.VDDG_CCD.ToString("F4"),
+            s.Vtt.ToString("F4"),
+            s.Vpp.ToString("F4"),
+            s.ProcODT.ToString("F1"),
+            s.RttNom,
+            s.RttWr,
+            s.RttPark
         );
     }
 

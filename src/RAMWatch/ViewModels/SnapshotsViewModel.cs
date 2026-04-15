@@ -555,8 +555,24 @@ public partial class SnapshotsViewModel : ObservableObject
         AddBoolRow("PowerDown", left.PowerDown, right.PowerDown);
 
         // Voltages
-        AddVoltageRow("VSOC",  left.VSoc,  right.VSoc);
-        AddVoltageRow("VDIMM", left.VDimm, right.VDimm);
+        AddVoltageRow("VSOC",     left.VSoc,     right.VSoc);
+        AddVoltageRow("VCORE",    left.VCore,    right.VCore);
+        AddVoltageRow("VDIMM",    left.VDimm,    right.VDimm);
+        AddVoltageRow("VDDP",     left.VDDP,     right.VDDP);
+        AddVoltageRow("VDDG IOD", left.VDDG_IOD, right.VDDG_IOD);
+        AddVoltageRow("VDDG CCD", left.VDDG_CCD, right.VDDG_CCD);
+        AddVoltageRow("VTT",      left.Vtt,      right.Vtt);
+        AddVoltageRow("VPP",      left.Vpp,      right.Vpp);
+
+        // Signal integrity
+        AddResistanceRow("ProcODT", left.ProcODT, right.ProcODT);
+        AddStringRow("RttNom",  left.RttNom,  right.RttNom);
+        AddStringRow("RttWr",   left.RttWr,   right.RttWr);
+        AddStringRow("RttPark", left.RttPark, right.RttPark);
+        AddResistanceRow("ClkDrvStren",    left.ClkDrvStren,       right.ClkDrvStren);
+        AddResistanceRow("AddrCmdDrv",     left.AddrCmdDrvStren,   right.AddrCmdDrvStren);
+        AddResistanceRow("CsOdtCmdDrv",   left.CsOdtCmdDrvStren,  right.CsOdtCmdDrvStren);
+        AddResistanceRow("CkeDrv",         left.CkeDrvStren,       right.CkeDrvStren);
 
         HasComparison = ComparisonRows.Count > 0;
     }
@@ -619,6 +635,43 @@ public partial class SnapshotsViewModel : ObservableObject
             RightValue = rightStr,
             Delta      = leftVal == rightVal ? "" : "*",
             Direction  = leftVal == rightVal ? ComparisonDirection.Unchanged : ComparisonDirection.Neutral
+        });
+    }
+
+    private void AddStringRow(string name, string leftVal, string rightVal)
+    {
+        var leftStr  = leftVal.Length  > 0 ? leftVal  : "-";
+        var rightStr = rightVal.Length > 0 ? rightVal : "-";
+
+        ComparisonRows.Add(new ComparisonRow
+        {
+            TimingName = name,
+            LeftValue  = leftStr,
+            RightValue = rightStr,
+            Delta      = leftStr == rightStr ? "" : "*",
+            Direction  = leftStr == rightStr ? ComparisonDirection.Unchanged : ComparisonDirection.Neutral
+        });
+    }
+
+    private void AddResistanceRow(string name, double leftVal, double rightVal)
+    {
+        var leftStr  = leftVal  > 0 ? $"{leftVal:F1} Ω"  : "-";
+        var rightStr = rightVal > 0 ? $"{rightVal:F1} Ω" : "-";
+
+        string delta = "";
+        if (leftVal > 0 && rightVal > 0 && Math.Abs(leftVal - rightVal) > 0.05)
+        {
+            var diff = rightVal - leftVal;
+            delta = diff > 0 ? $"+{diff:F1}" : $"{diff:F1}";
+        }
+
+        ComparisonRows.Add(new ComparisonRow
+        {
+            TimingName = name,
+            LeftValue  = leftStr,
+            RightValue = rightStr,
+            Delta      = delta,
+            Direction  = ComparisonDirection.Neutral
         });
     }
 

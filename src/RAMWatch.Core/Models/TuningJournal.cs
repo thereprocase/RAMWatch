@@ -75,8 +75,27 @@ public sealed class TimingSnapshot
     public bool PowerDown { get; set; }
 
     // --- Voltages ---
-    public double VSoc { get; set; }        // SVI2 telemetry
-    public double VDimm { get; set; }       // BIOS WMI on some boards
+    public double VSoc { get; set; }        // SVI2 telemetry (volts)
+    public double VCore { get; set; }       // SVI2 telemetry (volts)
+    public double VDimm { get; set; }       // BIOS WMI — DRAM voltage (volts)
+    public double VDDP { get; set; }        // SMU power table — PLL supply (volts)
+    public double VDDG_IOD { get; set; }    // SMU power table — I/O die (volts)
+    public double VDDG_CCD { get; set; }    // SMU power table — core complex die (volts)
+    public double Vtt { get; set; }         // BIOS WMI — termination rail (volts)
+    public double Vpp { get; set; }         // BIOS WMI — pump charge rail (volts)
+
+    // --- Signal integrity (BIOS WMI, APCB buffer) ---
+    public double ProcODT { get; set; }              // Ohms (0 = unavailable)
+    public string RttNom { get; set; } = "";          // "RZQ/4", "Disabled", etc.
+    public string RttWr { get; set; } = "";           // "RZQ/2", "Off", etc.
+    public string RttPark { get; set; } = "";         // "RZQ/4", etc.
+    public double ClkDrvStren { get; set; }           // Ohms (0 = unavailable)
+    public double AddrCmdDrvStren { get; set; }       // Ohms
+    public double CsOdtCmdDrvStren { get; set; }     // Ohms
+    public double CkeDrvStren { get; set; }           // Ohms
+    public string AddrCmdSetup { get; set; } = "";    // "N/M" format
+    public string CsOdtSetup { get; set; } = "";
+    public string CkeSetup { get; set; } = "";
 
     // --- System info ---
     public string CpuCodename { get; set; } = "";
@@ -142,7 +161,24 @@ public sealed class TimingSnapshot
             Cmd2T         = Cmd2T,
             PowerDown     = PowerDown,
             VSoc          = VSoc,
+            VCore         = VCore,
             VDimm         = VDimm,
+            VDDP          = VDDP,
+            VDDG_IOD      = VDDG_IOD,
+            VDDG_CCD      = VDDG_CCD,
+            Vtt           = Vtt,
+            Vpp           = Vpp,
+            ProcODT       = ProcODT,
+            RttNom        = RttNom,
+            RttWr         = RttWr,
+            RttPark       = RttPark,
+            ClkDrvStren       = ClkDrvStren,
+            AddrCmdDrvStren   = AddrCmdDrvStren,
+            CsOdtCmdDrvStren  = CsOdtCmdDrvStren,
+            CkeDrvStren       = CkeDrvStren,
+            AddrCmdSetup      = AddrCmdSetup,
+            CsOdtSetup        = CsOdtSetup,
+            CkeSetup          = CkeSetup,
             CpuCodename   = CpuCodename,
             AgesaVersion  = AgesaVersion,
             BiosVersion   = BiosVersion,

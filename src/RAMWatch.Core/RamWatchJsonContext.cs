@@ -83,6 +83,9 @@ namespace RAMWatch.Core;
 // Minimums
 [JsonSerializable(typeof(FrequencyMinimums))]
 [JsonSerializable(typeof(List<FrequencyMinimums>))]
+// DIMM enumeration
+[JsonSerializable(typeof(DimmInfo))]
+[JsonSerializable(typeof(List<DimmInfo>))]
 public partial class RamWatchJsonContext : JsonSerializerContext
 {
 }

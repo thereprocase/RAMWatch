@@ -62,6 +62,9 @@ public static class CurrentMdBuilder
                 designations: designations);
         }
 
+        sb.AppendLine();
+        AppendVoltageSection(sb, snapshot);
+
         if (lastValidation is not null)
         {
             sb.AppendLine();
@@ -115,6 +118,23 @@ public static class CurrentMdBuilder
                 }
             }
         }
+    }
+
+    private static void AppendVoltageSection(StringBuilder sb, TimingSnapshot snap)
+    {
+        sb.AppendLine("## Voltages");
+        if (snap.VSoc > 0) sb.AppendLine($"VSOC = {snap.VSoc:F4}V");
+        if (snap.VCore > 0) sb.AppendLine($"VCORE = {snap.VCore:F4}V");
+        if (snap.VDimm > 0) sb.AppendLine($"VDIMM = {snap.VDimm:F4}V");
+        if (snap.VDDP > 0) sb.AppendLine($"VDDP = {snap.VDDP:F4}V");
+        if (snap.VDDG_IOD > 0) sb.AppendLine($"VDDG_IOD = {snap.VDDG_IOD:F4}V");
+        if (snap.VDDG_CCD > 0) sb.AppendLine($"VDDG_CCD = {snap.VDDG_CCD:F4}V");
+        if (snap.Vtt > 0) sb.AppendLine($"VTT = {snap.Vtt:F4}V");
+        if (snap.Vpp > 0) sb.AppendLine($"VPP = {snap.Vpp:F4}V");
+        if (snap.ProcODT > 0) sb.AppendLine($"ProcODT = {snap.ProcODT:F1}Ω");
+        if (snap.RttNom.Length > 0) sb.AppendLine($"RttNom = {snap.RttNom}");
+        if (snap.RttWr.Length > 0) sb.AppendLine($"RttWr = {snap.RttWr}");
+        if (snap.RttPark.Length > 0) sb.AppendLine($"RttPark = {snap.RttPark}");
     }
 
     private static void AppendLastValidation(StringBuilder sb, ValidationResult v)

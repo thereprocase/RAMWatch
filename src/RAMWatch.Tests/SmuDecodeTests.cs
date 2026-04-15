@@ -140,6 +140,89 @@ public class SmuDecodeTests
         Assert.Equal(0.0, snap.VSoc);
     }
 
+    // ── Core plane address mapping ─────────────────────────────────────
+
+    [Theory]
+    [InlineData(CpuDetect.CpuFamily.Zen, 0x5A00Cu)]        // Plane 0 (opposite of SOC)
+    [InlineData(CpuDetect.CpuFamily.ZenPlus, 0x5A00Cu)]    // Plane 0
+    [InlineData(CpuDetect.CpuFamily.Zen2, 0x5A010u)]       // Plane 1 (swapped)
+    [InlineData(CpuDetect.CpuFamily.Zen3, 0x5A010u)]       // Plane 1
+    [InlineData(CpuDetect.CpuFamily.Zen4, 0x5A010u)]       // Plane 1
+    [InlineData(CpuDetect.CpuFamily.Unknown, 0u)]           // Unsupported
+    [InlineData(CpuDetect.CpuFamily.Zen5, 0u)]              // Not yet mapped
+    public void GetCorePlaneAddress_ReturnsExpected(CpuDetect.CpuFamily family, uint expected)
+    {
+        uint addr = SmuDecode.GetCorePlaneAddress(family);
+        Assert.Equal(expected, addr);
+    }
+
+    [Theory]
+    [InlineData(CpuDetect.CpuFamily.Zen)]
+    [InlineData(CpuDetect.CpuFamily.ZenPlus)]
+    [InlineData(CpuDetect.CpuFamily.Zen2)]
+    [InlineData(CpuDetect.CpuFamily.Zen3)]
+    [InlineData(CpuDetect.CpuFamily.Zen4)]
+    public void CoreAndSocPlanes_AreOpposite(CpuDetect.CpuFamily family)
+    {
+        uint soc = SmuDecode.GetSocPlaneAddress(family);
+        uint core = SmuDecode.GetCorePlaneAddress(family);
+        Assert.NotEqual(soc, core);
+        Assert.NotEqual(0u, soc);
+        Assert.NotEqual(0u, core);
+    }
+
+    // ── PopulateClockVoltage — VCore path ────────────────────────────────
+
+    [Fact]
+    public void PopulateClockVoltage_ReadsVCore_WhenBitsClean()
+    {
+        uint socVid = 72u;   // 1.1 V
+        uint coreVid = 56u;  // 1.55 - 56*0.00625 = 1.2 V
+        uint socRaw = socVid << 16;
+        uint coreRaw = coreVid << 16;
+
+        uint socAddr = SmuDecode.GetSocPlaneAddress(CpuDetect.CpuFamily.Zen3);
+        uint coreAddr = SmuDecode.GetCorePlaneAddress(CpuDetect.CpuFamily.Zen3);
+        var regs = new Dictionary<uint, uint>
+        {
+            [socAddr] = socRaw,
+            [coreAddr] = coreRaw,
+        };
+
+        using var hw = new FakeHardwareAccess(regs);
+        using var smu = new SmuDecode(hw, CpuDetect.CpuFamily.Zen3);
+
+        var snap = MakeSnapshot();
+        smu.PopulateClockVoltage(snap);
+
+        Assert.Equal(1.1, snap.VSoc, precision: 4);
+        Assert.Equal(1.2, snap.VCore, precision: 4);
+    }
+
+    [Fact]
+    public void PopulateClockVoltage_DiscardsVCore_WhenStatusBitsSet()
+    {
+        uint coreVid = 56u;
+        uint coreRaw = (coreVid << 16) | 0x0100u;  // status bit set
+
+        uint socAddr = SmuDecode.GetSocPlaneAddress(CpuDetect.CpuFamily.Zen3);
+        uint coreAddr = SmuDecode.GetCorePlaneAddress(CpuDetect.CpuFamily.Zen3);
+        var regs = new Dictionary<uint, uint>
+        {
+            [socAddr] = 72u << 16,  // clean SOC read
+            [coreAddr] = coreRaw,
+        };
+
+        using var hw = new FakeHardwareAccess(regs);
+        using var smu = new SmuDecode(hw, CpuDetect.CpuFamily.Zen3);
+
+        var snap = MakeSnapshot();
+        smu.PopulateClockVoltage(snap);
+
+        Assert.Equal(1.1, snap.VSoc, precision: 4);  // SOC read succeeds
+        Assert.Equal(0.0, snap.VCore);                // Core discarded
+    }
+
     // ── PM table layout lookup ───────────────────────────────────────────
 
     [Theory]
@@ -190,6 +273,64 @@ public class SmuDecodeTests
             Assert.True(layout.TableSizeBytes > 0, $"Version 0x{v:X8} has zero table size");
             Assert.True(layout.FclkByteOffset > 0, $"Version 0x{v:X8} has zero FCLK offset");
             Assert.True(layout.UclkByteOffset > 0, $"Version 0x{v:X8} has zero UCLK offset");
+        }
+    }
+
+    [Theory]
+    // Zen2 generic v1 — VDDP 0x1E4, VDDG_IOD 0x1E8, no CCD
+    [InlineData(0x000200u, 0xA4u, 0x1E4u, 0x1E8u, 0u)]
+    // Zen2 v2 — VDDP 0x1F0, VDDG_IOD 0x1F4
+    [InlineData(0x240802u, 0xB0u, 0x1F0u, 0x1F4u, 0u)]
+    // Zen2 v3 — VDDP 0x1F4, VDDG_IOD 0x1F8
+    [InlineData(0x000203u, 0xB4u, 0x1F4u, 0x1F8u, 0u)]
+    // Zen3 0x2D — VDDP 0x220, VDDG_IOD 0x224, no CCD
+    [InlineData(0x2D0008u, 0xB0u, 0x220u, 0x224u, 0u)]
+    // Zen3 0x38 — VDDP 0x224, VDDG_IOD 0x228, VDDG_CCD 0x22C
+    [InlineData(0x380805u, 0xB4u, 0x224u, 0x228u, 0x22Cu)]
+    [InlineData(0x000300u, 0xB4u, 0x224u, 0x228u, 0x22Cu)]
+    // Zen4 — VDDP 0x430, no IOD/CCD
+    [InlineData(0x540004u, 0xD0u, 0x430u, 0u, 0u)]
+    [InlineData(0x540208u, 0xD4u, 0x434u, 0u, 0u)]
+    // Unknown — all zero
+    [InlineData(0xDEADBEEFu, 0u, 0u, 0u, 0u)]
+    public void GetLayout_VoltageOffsets_ReturnsExpected(uint version, uint soc, uint vddp, uint iod, uint ccd)
+    {
+        var layout = SmuPowerTableReader.GetLayout(version);
+        Assert.Equal(soc, layout.VddcrSocByteOffset);
+        Assert.Equal(vddp, layout.CldoVddpByteOffset);
+        Assert.Equal(iod, layout.CldoVddgIodByteOffset);
+        Assert.Equal(ccd, layout.CldoVddgCcdByteOffset);
+    }
+
+    [Fact]
+    public void GetLayout_AllKnownVersions_VoltageOffsetsWithinTableSize()
+    {
+        uint[] knownVersions =
+        [
+            0x000200, 0x240003, 0x240802, 0x240902, 0x000202,
+            0x240503, 0x240603, 0x240703, 0x240803, 0x240903, 0x000203,
+            0x2D0008, 0x2D0803, 0x2D0903,
+            0x380005, 0x380505, 0x380605, 0x380705, 0x380804, 0x380805, 0x380904, 0x380905, 0x000300,
+            0x540100, 0x540101, 0x540102, 0x540103, 0x540104, 0x540105, 0x540108,
+            0x540000, 0x540001, 0x540002, 0x540003, 0x540004, 0x540005, 0x540208,
+        ];
+
+        foreach (uint v in knownVersions)
+        {
+            var layout = SmuPowerTableReader.GetLayout(v);
+            // Non-zero voltage offsets must fit within the table
+            if (layout.VddcrSocByteOffset > 0)
+                Assert.True(layout.VddcrSocByteOffset + 4 <= layout.TableSizeBytes,
+                    $"Version 0x{v:X8}: SOC offset 0x{layout.VddcrSocByteOffset:X} past end");
+            if (layout.CldoVddpByteOffset > 0)
+                Assert.True(layout.CldoVddpByteOffset + 4 <= layout.TableSizeBytes,
+                    $"Version 0x{v:X8}: VDDP offset 0x{layout.CldoVddpByteOffset:X} past end");
+            if (layout.CldoVddgIodByteOffset > 0)
+                Assert.True(layout.CldoVddgIodByteOffset + 4 <= layout.TableSizeBytes,
+                    $"Version 0x{v:X8}: VDDG_IOD offset 0x{layout.CldoVddgIodByteOffset:X} past end");
+            if (layout.CldoVddgCcdByteOffset > 0)
+                Assert.True(layout.CldoVddgCcdByteOffset + 4 <= layout.TableSizeBytes,
+                    $"Version 0x{v:X8}: VDDG_CCD offset 0x{layout.CldoVddgCcdByteOffset:X} past end");
         }
     }
 
