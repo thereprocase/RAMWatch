@@ -54,7 +54,6 @@ public sealed class TimingCsvLogger : IDisposable
             }
 
             _writer?.WriteLine(FormatRow(snapshot));
-            _writer?.Flush();
         }
     }
 
@@ -72,12 +71,11 @@ public sealed class TimingCsvLogger : IDisposable
             FileAccess.Write,
             FileShare.Read); // B7: allow concurrent reads
 
-        _writer = new StreamWriter(stream) { AutoFlush = false };
+        _writer = new StreamWriter(stream) { AutoFlush = true };
 
         if (isNew)
         {
             _writer.WriteLine(Header);
-            _writer.Flush();
         }
     }
 

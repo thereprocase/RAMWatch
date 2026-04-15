@@ -99,7 +99,6 @@ public sealed class CsvLogger : IDisposable
             }
 
             _writer?.WriteLine(FormatRow(evt, bootId));
-            _writer?.Flush();
         }
     }
 
@@ -117,12 +116,11 @@ public sealed class CsvLogger : IDisposable
             FileAccess.Write,
             FileShare.Read); // B7: allow concurrent reads
 
-        _writer = new StreamWriter(stream) { AutoFlush = false };
+        _writer = new StreamWriter(stream) { AutoFlush = true };
 
         if (isNew)
         {
             _writer.WriteLine(Header);
-            _writer.Flush();
         }
     }
 

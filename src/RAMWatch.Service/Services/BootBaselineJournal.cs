@@ -14,6 +14,7 @@ public sealed class BootBaselineJournal
     private readonly string _journalPath;
     private readonly Lock _lock = new();
     private List<BootCountEntry> _entries = [];
+    private Dictionary<string, BaselineStat>? _cachedBaselines;
     private const int MaxBoots = 50;
 
     public BootBaselineJournal(string dataDirectory)
@@ -28,6 +29,7 @@ public sealed class BootBaselineJournal
     {
         lock (_lock)
         {
+            _cachedBaselines = null;
             if (!File.Exists(_journalPath))
             {
                 _entries = [];
@@ -74,6 +76,7 @@ public sealed class BootBaselineJournal
             if (_entries.Count > MaxBoots)
                 _entries.RemoveRange(0, _entries.Count - MaxBoots);
 
+            _cachedBaselines = null; // Invalidate cache
             Save();
         }
     }
@@ -87,6 +90,9 @@ public sealed class BootBaselineJournal
     {
         lock (_lock)
         {
+            if (_cachedBaselines is not null)
+                return _cachedBaselines;
+
             if (_entries.Count < 3)
                 return new Dictionary<string, BaselineStat>();
 
@@ -126,6 +132,7 @@ public sealed class BootBaselineJournal
                 };
             }
 
+            _cachedBaselines = baselines;
             return baselines;
         }
     }
