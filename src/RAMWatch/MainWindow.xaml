@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:RAMWatch.ViewModels"
         xmlns:views="clr-namespace:RAMWatch.Views"
-        Title="RAMWatch"
+        Title="RAMWatch v0.1.0"
         Icon="app.ico"
         Width="520" Height="720"
         MinWidth="440" MinHeight="500"
