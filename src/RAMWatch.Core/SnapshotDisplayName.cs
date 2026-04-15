@@ -54,9 +54,9 @@ public static class SnapshotDisplayName
             if (validation.Passed)
             {
                 // Format metric value: strip trailing zeros for whole numbers.
-                var metricStr = validation.MetricValue % 1 == 0
+                var metricStr = Math.Abs(validation.MetricValue % 1) < 0.001
                     ? ((long)validation.MetricValue).ToString()
-                    : validation.MetricValue.ToString("G6");
+                    : validation.MetricValue.ToString("F1");
 
                 baseName = $"{date} {validation.TestTool} {metricStr}{validation.MetricUnit} PASS";
             }
