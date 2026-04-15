@@ -157,6 +157,27 @@ AMD Ryzen 7 5800X3D, MSI B550 TOMAHAWK MAX WIFI, DDR4-3600 CL16-20-20-42, PawnIO
 | `src/RAMWatch/TrayIconManager.cs` | Tray icon with Lucide circuit-board |
 | `src/RAMWatch/MainWindow.xaml.cs` | Window sizing, start-minimized, tray behavior |
 
+## Log Boot Fail Feature (Frodo+Gandalf Design)
+
+Record failed boot attempts (no POST, no boot, unstable) that RAMWatch can't observe because the service wasn't running. Critical tuning data.
+
+**Entry point:** "Log Boot Fail" button in action bar next to "Log Test Result". Also in tray menu. Ctrl+F shortcut.
+
+**Dialog (420x520, modal):**
+- When: preset dropdown ("~5 min ago", "~15 min ago" default, "~30 min ago", "~1 hour", custom)
+- What happened: radio buttons (No POST / No Boot / Unstable)
+- Base snapshot: dropdown to pre-fill timing values
+- What changed: sparse editor — user adds 1-3 rows with [timing name dropdown] [new value] [was: old value from base]
+- Notes: free text
+
+**Data model:** New `BootFailEntry` record with `FailureMode` enum, `BaseSnapshotId`, `AttemptedChanges` (Dictionary<string, TimingDelta>), and `Notes`. NOT a ValidationResult — different shape, different semantics.
+
+**Timeline:** Red border, type label "NO POST" / "NO BOOT" / "UNSTABLE". New filter checkbox. Deletable.
+
+**Snapshot comparison:** Boot fail creates a phantom snapshot by cloning base + overwriting attempted changes. Shows in Compare dropdown as "Attempted (No POST)" in red.
+
+**Files to create/modify:** BootFailEntry model, LogBootFailMessage IPC, LogBootFailDialog.xaml, BootFailStore service, timeline integration, compare dropdown integration.
+
 ## Window Sizing & Layout Density (User Feedback)
 
 The Timings tab is the widest content — it drives the minimum window width. The Monitor tab has wasted vertical space below the error table. Two linked changes:
