@@ -283,6 +283,40 @@ public partial class SettingsViewModel : ObservableObject
     {
         SaveStatus = "Saving...";
         await _main.SendUpdateSettingsAsync(ToSettings());
+        ApplyLaunchAtLogon(LaunchAtLogon);
         SaveStatus = $"Saved {DateTime.Now:HH:mm:ss}";
+    }
+
+    /// <summary>
+    /// Write or remove the HKCU Run entry that launches RAMWatch at logon.
+    /// This is a user-level registry key (no admin required).
+    /// </summary>
+    private static void ApplyLaunchAtLogon(bool enable)
+    {
+        const string keyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
+        const string valueName = "RAMWatch";
+
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(keyPath, writable: true);
+            if (key is null) return;
+
+            if (enable)
+            {
+                // Find the running exe path. Use the installed location if available,
+                // fall back to the current process path.
+                var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+                if (!string.IsNullOrEmpty(exePath))
+                    key.SetValue(valueName, $"\"{exePath}\" --minimized");
+            }
+            else
+            {
+                key.DeleteValue(valueName, throwOnMissingValue: false);
+            }
+        }
+        catch
+        {
+            // Non-fatal — registry write can fail under unusual security policies.
+        }
     }
 }
