@@ -1,4 +1,3 @@
-using System.Globalization;
 using RAMWatch.Core.Models;
 
 namespace RAMWatch.Service.Hardware;

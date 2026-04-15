@@ -233,8 +233,8 @@ public static class McaBankClassifier
     /// </summary>
     private static bool IsCacheErrorCode(ushort code)
     {
-        // Cache errors: upper byte clear, bits [7:4] indicate TT
-        return (code & 0xFFF0) == 0x0010 || (code & 0xFF00) == 0x0000 && (code & 0x00F0) != 0;
+        // Cache errors: upper byte clear, transaction type (bits [7:4]) non-zero.
+        return (code & 0xFF00) == 0x0000 && (code & 0x00F0) != 0;
     }
 
     private static bool GetBit(ulong value, int bit)

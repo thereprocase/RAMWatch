@@ -58,7 +58,8 @@ public sealed class SmuDecode : IDisposable
 
     /// <summary>
     /// Populate FclkMhz, UclkMhz, and VSoc fields in the provided snapshot.
-    /// VDimm is populated by HardwareReader via VdimmReader (WMI), not here.
+    /// VDimm and other BIOS config values are populated by HardwareReader
+    /// via BiosWmiReader (WMI), not here.
     /// </summary>
     public void PopulateClockVoltage(TimingSnapshot snapshot)
     {
