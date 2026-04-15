@@ -6,11 +6,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 RAMWatch is a Windows-only DRAM tuning monitor: a system health tracker + tuning journal + shareable history for enthusiasts who tune RAM timings. It reads hardware registers, watches event logs, tracks timing drift across boots, and maintains a git-backed tuning diary. Read-only — it never modifies hardware.
 
-**Status:** Architecture complete (see reference docs below). Directory skeleton only — no `.sln`, no `.csproj`, no source files yet. The first implementation task is scaffolding the four projects and solution file. Build commands below will not work until then.
+**Status:** Phase 1 (Service + IPC + Minimal GUI) substantially complete and running. Solution, all four projects, and tests build. Service installed at `C:\Program Files\RAMWatch\` running as LocalSystem; GUI launches from Start Menu. Runtime data accumulating in `C:\ProgramData\RAMWatch\`. Active monitoring: event log watching, UMC register reads, timing CSV logging, boot baselines, drift detection, snapshot journal. Phase 2 (Hardware Reads + Timings) partially complete — UMC decode and SVI2 voltage reads are working.
 
-## Before Writing Any Code
+## Architecture Blockers (Resolved)
 
-`SPRINT-PLAN.md` lists seven blockers (B1–B7) that must be resolved before Phase 1 implementation starts. Do not skip them:
+`SPRINT-PLAN.md` lists seven blockers (B1–B7) that were resolved before Phase 1 implementation. Keep these constraints in mind when modifying code:
 
 - **B1** — License decision (ZenTimings/ZenStates-Core are GPL-3.0, not MIT; either GPL this project or clean-room the UMC decode from AMD PPRs)
 - **B2** — WPF Native AOT is blocked by the SDK; service uses AOT, GUI uses self-contained single-file (resolved, documented below)
@@ -20,7 +20,7 @@ RAMWatch is a Windows-only DRAM tuning monitor: a system health tracker + tuning
 - **B6** — IPC protocol version field on every message; service rejects unknown types with a structured error
 - **B7** — File concurrency: single-writer per file, write-to-temp-then-rename for JSON, `FileShare.Read` on CSV appends
 
-B4–B7 are Phase 1 blocking. Get them right from the first line of code.
+B4–B7 were Phase 1 blocking and are implemented. Verify these constraints are maintained when modifying IPC, settings, or file I/O code.
 
 ## Architecture — Two-Process Model
 

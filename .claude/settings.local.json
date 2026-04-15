@@ -14,7 +14,10 @@
       "Bash(tmux source-file:*)",
       "Bash(mkdir -p /mnt/f/Claude/projects/tmux)",
       "Bash(cp /home/repro/.claude/skills/tmux/SKILL.md /mnt/f/Claude/projects/tmux/tmux-skill-reference.md)",
-      "Bash(cp /home/repro/.tmux.conf /mnt/f/Claude/projects/tmux/tmux.conf)"
+      "Bash(cp /home/repro/.tmux.conf /mnt/f/Claude/projects/tmux/tmux.conf)",
+      "Bash(gh repo:*)",
+      "Bash(gh auth:*)"
     ]
-  }
+  },
+  "prefersReducedMotion": false
 }
