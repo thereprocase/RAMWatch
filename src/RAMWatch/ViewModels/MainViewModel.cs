@@ -525,6 +525,11 @@ public partial class MainViewModel : ObservableObject
         Application.Current?.Dispatcher.Invoke(() =>
             Timings.LoadFromSnapshot(state.Timings, resolvedVendor, designationsSnapshot));
 
+        // DIMMs — read once at service startup, rarely changes. Load every state push
+        // (idempotent, LoadDimms short-circuits if data is unchanged).
+        Application.Current?.Dispatcher.Invoke(() =>
+            Timings.LoadDimms(state.Dimms));
+
         // Timeline — interleave config changes, drift events, validation results
         Application.Current?.Dispatcher.Invoke(() =>
             Timeline.LoadFromState(state));

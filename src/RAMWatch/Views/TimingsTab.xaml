@@ -41,6 +41,61 @@
 
             <StackPanel>
 
+                <!-- ── INSTALLED DIMMs (collapsible) ───────────────────── -->
+                <Expander IsExpanded="False"
+                          Margin="0,0,0,4">
+                    <Expander.Style>
+                        <Style TargetType="Expander" BasedOn="{StaticResource DarkExpander}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasDimms}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Expander.Style>
+                    <Expander.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="DIMMs"
+                                       Foreground="{StaticResource TextPrimary}"
+                                       FontFamily="{StaticResource UIFont}"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       Typography.Capitals="AllSmallCaps"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding DimmSummary}"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       FontFamily="{StaticResource MonoFont}"
+                                       FontSize="12"
+                                       Margin="8,0,0,0"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Expander.Header>
+                    <Border Background="{StaticResource BgPanel}"
+                            CornerRadius="0,0,2,2"
+                            Padding="8,4">
+                        <ItemsControl ItemsSource="{Binding DimmRows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" Height="20">
+                                        <TextBlock Text="{Binding Slot}"
+                                                   Foreground="{StaticResource TextSecondary}"
+                                                   FontFamily="{StaticResource UIFont}"
+                                                   FontSize="12"
+                                                   Width="80"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Detail}"
+                                                   Foreground="{StaticResource TextPrimary}"
+                                                   FontFamily="{StaticResource MonoFont}"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Border>
+                </Expander>
+
                 <!-- ── CLOCKS ──────────────────────────────────────────── -->
                 <TextBlock Text="CLOCKS" Style="{StaticResource SectionHeader}" />
                 <Border Background="{StaticResource BgPanel}"

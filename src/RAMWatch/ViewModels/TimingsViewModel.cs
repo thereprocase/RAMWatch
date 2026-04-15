@@ -123,6 +123,19 @@ public partial class TimingsViewModel : ObservableObject
     [ObservableProperty]
     private string _ckeDrvStrenDisplay = "—";
 
+    // ── DIMM info ─────────────────────────────────────────────
+    // Read once from Win32_PhysicalMemory at service startup.
+    // Collapsed summary line (e.g., "2x 8GB DDR4-3200 (Micron)")
+    // plus detail rows for the expanded view.
+
+    [ObservableProperty]
+    private string _dimmSummary = "";
+
+    [ObservableProperty]
+    private bool _hasDimms;
+
+    public ObservableCollection<DimmDisplayRow> DimmRows { get; } = [];
+
     // ── System info ──────────────────────────────────────────
 
     [ObservableProperty]
@@ -330,6 +343,72 @@ public partial class TimingsViewModel : ObservableObject
     };
 
     /// <summary>
+    /// Updates the DIMM information display. Called once when the first state
+    /// message arrives with non-null Dimms. Idempotent — subsequent calls with
+    /// the same data are harmless.
+    /// </summary>
+    public void LoadDimms(List<DimmInfo>? dimms)
+    {
+        DimmRows.Clear();
+
+        if (dimms is null || dimms.Count == 0)
+        {
+            HasDimms = false;
+            DimmSummary = "";
+            return;
+        }
+
+        // Build detail rows
+        foreach (var d in dimms)
+        {
+            long gb = d.CapacityBytes / (1024 * 1024 * 1024);
+            string capacity = gb > 0 ? $"{gb} GB" : $"{d.CapacityBytes / (1024 * 1024)} MB";
+            string speed = d.SpeedMTs > 0 ? $"DDR4-{d.SpeedMTs}" : "";
+            string detail = string.Join("  ", new[] { capacity, speed, d.Manufacturer.Trim(), d.PartNumber.Trim() }
+                .Where(s => s.Length > 0));
+
+            DimmRows.Add(new DimmDisplayRow(d.Slot, detail));
+        }
+
+        // Build summary line: "2x 8GB DDR4-3200 (Micron)" or similar
+        var distinctCapacities = dimms
+            .Where(d => d.CapacityBytes > 0)
+            .Select(d => d.CapacityBytes / (1024 * 1024 * 1024))
+            .Distinct()
+            .ToList();
+
+        var distinctSpeeds = dimms
+            .Where(d => d.SpeedMTs > 0)
+            .Select(d => d.SpeedMTs)
+            .Distinct()
+            .ToList();
+
+        var distinctMfrs = dimms
+            .Select(d => d.Manufacturer.Trim())
+            .Where(m => m.Length > 0)
+            .Distinct()
+            .ToList();
+
+        var parts = new List<string>();
+        parts.Add($"{dimms.Count}x");
+        if (distinctCapacities.Count == 1)
+            parts.Add($"{distinctCapacities[0]} GB");
+        else if (distinctCapacities.Count > 1)
+            parts.Add($"{distinctCapacities.Sum()} GB total");
+
+        if (distinctSpeeds.Count == 1)
+            parts.Add($"DDR4-{distinctSpeeds[0]}");
+
+        if (distinctMfrs.Count == 1)
+            parts.Add($"({distinctMfrs[0]})");
+        else if (distinctMfrs.Count > 1)
+            parts.Add($"({string.Join(", ", distinctMfrs)})");
+
+        DimmSummary = string.Join(" ", parts);
+        HasDimms = true;
+    }
+
+    /// <summary>
     /// Formats an RFC clock value as "NNN (NNNns)".
     /// The ns conversion is: clocks / (2 * MCLK_MHz) * 1000.
     /// Returns just the clock count when MCLK is zero (unknown).
@@ -343,5 +422,20 @@ public partial class TimingsViewModel : ObservableObject
         // (DDR is double data rate but timing registers count MCLK, not DDR clocks.)
         double ns = clocks * 1000.0 / mclkMhz;
         return $"{clocks} ({ns:F0}ns)";
+    }
+}
+
+/// <summary>
+/// One row in the DIMM detail display — slot name and formatted info.
+/// </summary>
+public sealed class DimmDisplayRow
+{
+    public string Slot { get; }
+    public string Detail { get; }
+
+    public DimmDisplayRow(string slot, string detail)
+    {
+        Slot = slot;
+        Detail = detail;
     }
 }

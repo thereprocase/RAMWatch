@@ -366,9 +366,9 @@ public partial class SettingsViewModel : ObservableObject
 
             if (enable)
             {
-                // Find the running exe path. Use the installed location if available,
-                // fall back to the current process path.
-                var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+                // Environment.ProcessPath is reliable for single-file deployments.
+                // Process.MainModule?.FileName can return null for self-contained apps.
+                var exePath = Environment.ProcessPath;
                 if (!string.IsNullOrEmpty(exePath))
                     key.SetValue(valueName, $"\"{exePath}\" --minimized");
             }

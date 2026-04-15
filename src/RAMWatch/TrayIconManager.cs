@@ -45,6 +45,12 @@ public sealed partial class TrayIconManager : IDisposable
             ContextMenu = BuildContextMenu(),
         };
 
+        // ForceCreate is required when TaskbarIcon is created in code (not XAML).
+        // Without it, the icon object exists but never registers with the Windows
+        // shell notification area. Pass false to skip Efficiency Mode — we're an
+        // active monitor, not a background utility.
+        _trayIcon.ForceCreate(false);
+
         _trayIcon.TrayLeftMouseDown += (_, _) => ShowWindow();
 
         SetState(TrayState.Gray);
