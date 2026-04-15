@@ -242,6 +242,20 @@ public partial class SettingsViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void SetAllManual()
+    {
+        foreach (var item in Designations)
+            item.Designation = "Manual";
+    }
+
+    [RelayCommand]
+    private void SetAllAuto()
+    {
+        foreach (var item in Designations)
+            item.Designation = "Auto";
+    }
+
+    [RelayCommand]
     private async Task SaveDesignationsAsync()
     {
         DesignationSaveStatus = "Saving...";

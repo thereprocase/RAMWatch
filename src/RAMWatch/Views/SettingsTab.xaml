@@ -72,6 +72,7 @@
                                    Margin="0,0,8,0" />
                         <TextBox Width="60"
                                  Text="{Binding RefreshIntervalSeconds, UpdateSourceTrigger=PropertyChanged}"
+                                 PreviewTextInput="NumericOnly_PreviewTextInput"
                                  Background="{StaticResource BgAccent}"
                                  Foreground="{StaticResource TextPrimary}"
                                  BorderThickness="0"
@@ -122,6 +123,7 @@
                                        Margin="0,0,8,0" />
                             <TextBox Grid.Column="1"
                                      Text="{Binding LogRetentionDays, UpdateSourceTrigger=PropertyChanged}"
+                                     PreviewTextInput="NumericOnly_PreviewTextInput"
                                      Background="{StaticResource BgAccent}"
                                      Foreground="{StaticResource TextPrimary}"
                                      BorderThickness="0"
@@ -141,6 +143,7 @@
                                        Margin="0,0,8,0" />
                             <TextBox Grid.Column="4"
                                      Text="{Binding MaxLogSizeMb, UpdateSourceTrigger=PropertyChanged}"
+                                     PreviewTextInput="NumericOnly_PreviewTextInput"
                                      Background="{StaticResource BgAccent}"
                                      Foreground="{StaticResource TextPrimary}"
                                      BorderThickness="0"
@@ -255,6 +258,7 @@
                                        Margin="0,0,8,0" />
                             <TextBox Width="60"
                                      Text="{Binding NotifyCooldownSeconds, UpdateSourceTrigger=PropertyChanged}"
+                                     PreviewTextInput="NumericOnly_PreviewTextInput"
                                      Background="{StaticResource BgAccent}"
                                      Foreground="{StaticResource TextPrimary}"
                                      BorderThickness="0"
@@ -355,7 +359,20 @@
                                    Foreground="{StaticResource TextDisabled}"
                                    FontSize="10"
                                    TextWrapping="Wrap"
-                                   Margin="0,0,0,8" />
+                                   Margin="0,0,0,4" />
+
+                        <!-- Bulk actions -->
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                            <Button Content="All Manual"
+                                    Command="{Binding SetAllManualCommand}"
+                                    Style="{StaticResource DarkButton}"
+                                    Height="22" Padding="8,2" FontSize="11"
+                                    Margin="0,0,6,0" />
+                            <Button Content="All Auto"
+                                    Command="{Binding SetAllAutoCommand}"
+                                    Style="{StaticResource DarkButton}"
+                                    Height="22" Padding="8,2" FontSize="11" />
+                        </StackPanel>
 
                         <!-- Column headers -->
                         <Grid Margin="0,0,0,4">

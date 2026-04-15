@@ -1,5 +1,7 @@
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using Microsoft.Win32;
 using RAMWatch.ViewModels;
 
@@ -7,6 +9,7 @@ namespace RAMWatch.Views;
 
 public partial class SettingsTab : UserControl
 {
+    private static readonly Regex NonDigit = new("[^0-9]", RegexOptions.Compiled);
     // Valid BIOS layout choices presented in the dropdown.
     // Order matches the vendor enum: Auto first, then alphabetical, Default last.
     private static readonly string[] BiosLayoutChoices =
@@ -23,6 +26,14 @@ public partial class SettingsTab : UserControl
     {
         InitializeComponent();
         BiosLayoutComboBox.ItemsSource = BiosLayoutChoices;
+    }
+
+    /// <summary>
+    /// Reject non-digit characters in numeric TextBox fields.
+    /// </summary>
+    private void NumericOnly_PreviewTextInput(object sender, TextCompositionEventArgs e)
+    {
+        e.Handled = NonDigit.IsMatch(e.Text);
     }
 
     private void OnBrowseMirrorDirectory(object sender, RoutedEventArgs e)
