@@ -66,8 +66,17 @@ dotnet test src/RAMWatch.Tests
 # Run a single test or test class by name (xUnit filter)
 dotnet test src/RAMWatch.Tests --filter "FullyQualifiedName~UmcDecode"
 
-# Install service (admin required, one-time)
-scripts/Install-RAMWatch.bat
+# Dev: build + run GUI from source (no admin)
+scripts/Dev.ps1
+
+# Install: publish + service + shortcuts (admin)
+scripts/Install.ps1
+
+# Update: rebuild + hot-swap installed binaries (admin)
+scripts/Update.ps1
+
+# Uninstall: remove service + binaries (admin)
+scripts/Uninstall.ps1
 ```
 
 **WSL / Linux caveat:** this repo lives on WSL but the target is `net10.0-windows` with WPF — you cannot produce a runnable artifact from the Linux side (no WPF, no win-x64 host on Linux). Real builds, test runs, and the service install happen on Windows (PowerShell or cmd). From WSL you can still compile-check the Core + Service projects with an installed .NET 10 SDK, but the GUI project and anything touching WPF will not build on Linux. Treat Linux-side `dotnet` as a syntax/unit-test aid for the non-WPF code, not a full build.

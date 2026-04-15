@@ -1,6 +1,6 @@
 #Requires -RunAsAdministrator
-# Quick dev iteration: publish, stop service, copy new binaries, restart.
-# One command to go from code change to running service+GUI.
+# Update installed RAMWatch: publish, hot-swap binaries in Program Files, restart.
+# Requires a prior Install.ps1 run.
 param(
     [string]$Configuration = "Release",
     [switch]$SkipPublish,
@@ -9,11 +9,15 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$repoRoot   = Split-Path $PSScriptRoot -Parent
-$dotnet     = Join-Path $env:USERPROFILE '.dotnet\dotnet.exe'
-$distRoot   = Join-Path $repoRoot 'dist\RAMWatch'
-$installDir = Join-Path $env:ProgramFiles 'RAMWatch'
+$repoRoot    = Split-Path $PSScriptRoot -Parent
+$dotnet      = Join-Path $env:USERPROFILE '.dotnet\dotnet.exe'
+$distRoot    = Join-Path $repoRoot 'dist\RAMWatch'
+$installDir  = Join-Path $env:ProgramFiles 'RAMWatch'
 $serviceName = 'RAMWatch'
+
+$serviceInstall = Join-Path $installDir 'service'
+$guiInstall     = Join-Path $installDir 'gui'
+$guiExe         = Join-Path $guiInstall 'RAMWatch.exe'
 
 # Ensure vswhere.exe is discoverable (VS Installer doesn't add it to PATH)
 $vsInstallerDir = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer"
@@ -21,34 +25,27 @@ if ((Test-Path $vsInstallerDir) -and ($env:PATH -notlike "*$vsInstallerDir*")) {
     $env:PATH += ";$vsInstallerDir"
 }
 
-$serviceInstall = Join-Path $installDir 'service'
-$guiInstall     = Join-Path $installDir 'gui'
-$guiExe         = Join-Path $guiInstall 'RAMWatch.exe'
-
-# Check install exists
 if (-not (Test-Path $installDir)) {
     Write-Host "ERROR: RAMWatch not installed at $installDir" -ForegroundColor Red
-    Write-Host "Run Install-RAMWatch.ps1 first." -ForegroundColor Yellow
+    Write-Host "Run Install.ps1 first." -ForegroundColor Yellow
     exit 1
 }
 
 Write-Host "=== RAMWatch Update ===" -ForegroundColor Cyan
 
-# Track whether GUI was running so we can relaunch it
+# Track whether GUI was running so we can relaunch
 $guiWasRunning = $false
 $guiProcess = Get-Process -Name "RAMWatch" -ErrorAction SilentlyContinue |
     Where-Object { $_.Path -and $_.Path -like "*gui*" }
-if ($guiProcess) {
-    $guiWasRunning = $true
-}
+if ($guiProcess) { $guiWasRunning = $true }
 
-# 1. Publish (unless skipped)
+# ── Publish ──────────────────────────────────────────────────────────────────
+
 if (-not $SkipPublish) {
     if (-not $GuiOnly) {
         Write-Host "Publishing service..." -ForegroundColor Cyan
         $serviceOut = Join-Path $distRoot 'service'
 
-        # Try Native AOT first — suppress errors, check exit code
         $ErrorActionPreference = 'Continue'
         & $dotnet publish (Join-Path $repoRoot 'src\RAMWatch.Service') `
             -c $Configuration -r win-x64 -o $serviceOut 2>&1 | Out-Null
@@ -82,13 +79,13 @@ if (-not $SkipPublish) {
     }
 }
 
-# 2. Stop service
+# ── Stop ─────────────────────────────────────────────────────────────────────
+
 if (-not $GuiOnly) {
     $svc = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
     if ($svc -and $svc.Status -eq 'Running') {
         Write-Host "Stopping service..." -ForegroundColor Cyan
         sc.exe stop $serviceName 2>$null | Out-Null
-        # Wait for service to actually stop (file locks)
         $waited = 0
         while ($waited -lt 10) {
             $svc = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
@@ -99,33 +96,32 @@ if (-not $GuiOnly) {
     }
 }
 
-# 3. Close GUI if running
 if (-not $ServiceOnly -and $guiProcess) {
     Write-Host "Closing GUI..." -ForegroundColor Cyan
     $guiProcess | Stop-Process -Force -ErrorAction SilentlyContinue
     Start-Sleep -Milliseconds 500
 }
 
-# 4. Copy new files
+# ── Swap binaries ────────────────────────────────────────────────────────────
+
 if (-not $GuiOnly) {
-    Write-Host "Updating service binaries..." -ForegroundColor Cyan
     $serviceSrc = Join-Path $distRoot 'service'
     if (Test-Path $serviceSrc) {
         Copy-Item "$serviceSrc\*" $serviceInstall -Recurse -Force
-        Write-Host "  Service updated" -ForegroundColor Green
+        Write-Host "  Service binaries updated" -ForegroundColor Green
     }
 }
 
 if (-not $ServiceOnly) {
-    Write-Host "Updating GUI binaries..." -ForegroundColor Cyan
     $guiSrc = Join-Path $distRoot 'gui'
     if (Test-Path $guiSrc) {
         Copy-Item "$guiSrc\*" $guiInstall -Recurse -Force
-        Write-Host "  GUI updated" -ForegroundColor Green
+        Write-Host "  GUI binaries updated" -ForegroundColor Green
     }
 }
 
-# 5. Restart service
+# ── Restart ──────────────────────────────────────────────────────────────────
+
 if (-not $GuiOnly) {
     Write-Host "Starting service..." -ForegroundColor Cyan
     sc.exe start $serviceName 2>$null | Out-Null
@@ -139,10 +135,9 @@ if (-not $GuiOnly) {
     }
 }
 
-# 6. Always relaunch GUI after update (unless --ServiceOnly)
+# Relaunch GUI (de-elevated via scheduled task)
 if (-not $ServiceOnly -and (Test-Path $guiExe)) {
-    Write-Host "Relaunching GUI (as current user, not admin)..." -ForegroundColor Cyan
-    # Use scheduled task trick to launch de-elevated as the interactive user
+    Write-Host "Launching GUI..." -ForegroundColor Cyan
     $action = New-ScheduledTaskAction -Execute $guiExe
     $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
     $task = New-ScheduledTask -Action $action -Principal $principal

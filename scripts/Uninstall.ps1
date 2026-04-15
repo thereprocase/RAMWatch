@@ -1,5 +1,5 @@
 #Requires -RunAsAdministrator
-# Uninstall RAMWatch: stop service, remove binaries, remove shortcuts.
+# Remove RAMWatch: stop service, delete binaries, remove shortcuts.
 # Preserves data in %ProgramData%\RAMWatch by default.
 param(
     [switch]$RemoveData
@@ -57,17 +57,17 @@ if (Test-Path $desktop) {
 
 # Remove install directory
 if (Test-Path $installDir) {
-    Write-Host "Removing install directory..." -ForegroundColor Cyan
+    Write-Host "Removing $installDir ..." -ForegroundColor Cyan
     Remove-Item $installDir -Recurse -Force
-    Write-Host "  $installDir removed" -ForegroundColor Green
+    Write-Host "  Install directory removed" -ForegroundColor Green
 }
 
 # Data directory
 if ($RemoveData) {
     if (Test-Path $dataDir) {
-        Write-Host "Removing data directory..." -ForegroundColor Red
+        Write-Host "Removing $dataDir ..." -ForegroundColor Red
         Remove-Item $dataDir -Recurse -Force
-        Write-Host "  $dataDir removed" -ForegroundColor Green
+        Write-Host "  Data directory removed" -ForegroundColor Green
     }
 } else {
     if (Test-Path $dataDir) {
