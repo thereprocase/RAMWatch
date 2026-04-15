@@ -92,6 +92,8 @@ public partial class MainViewModel : ObservableObject
 
     // Raw snapshot from the most recent state push — used for clipboard export.
     private TimingSnapshot? _currentTimings;
+    // Cached DIMM list for clipboard export.
+    private List<DimmInfo>? _currentDimms;
 
     // ── Timeline + Snapshots (Phase 3) ──────────────────────
 
@@ -518,6 +520,7 @@ public partial class MainViewModel : ObservableObject
         // BiosLayoutVendor is the resolved vendor string from the service ("MSI", "ASUS", etc.).
         // Parse it back to the enum; fall back to Default when absent or unrecognised.
         _currentTimings = state.Timings;
+        _currentDimms = state.Dimms;
         var vendor = BiosLayouts.ParseSetting(state.BiosLayoutVendor);
         var resolvedVendor = vendor == BoardVendor.Auto ? BoardVendor.Default : vendor;
         // Capture the designation map for use inside the Dispatcher lambda.
@@ -673,27 +676,88 @@ public partial class MainViewModel : ObservableObject
         lines.Add($"CBS: {CbsStatus}  |  SFC: {SfcStatus}  |  DISM: {DismStatus}");
         lines.Add($"Driver: {DriverStatus}");
 
-        // Primary timings — only included when available (Phase 2+ service).
         var t = _currentTimings;
         if (t is not null && t.MemClockMhz > 0)
         {
+            // System info (populated by SystemInfoReader when available)
+            var sysInfo = new List<string>();
+            if (!string.IsNullOrWhiteSpace(t.CpuCodename)) sysInfo.Add(t.CpuCodename);
+            if (!string.IsNullOrWhiteSpace(t.BiosVersion)) sysInfo.Add(t.BiosVersion);
+            if (!string.IsNullOrWhiteSpace(t.AgesaVersion)) sysInfo.Add($"AGESA {t.AgesaVersion}");
+            if (sysInfo.Count > 0)
+            {
+                lines.Add("");
+                lines.Add($"SYSTEM: {string.Join(" | ", sysInfo)}");
+            }
+
+            // DIMMs
+            var dimms = _currentDimms;
+            if (dimms is { Count: > 0 })
+            {
+                var dimmParts = dimms.Select(d =>
+                {
+                    long gb = d.CapacityBytes / (1024 * 1024 * 1024);
+                    string cap = gb > 0 ? $"{gb}GB" : "";
+                    string spd = d.SpeedMTs > 0 ? $"DDR4-{d.SpeedMTs}" : "";
+                    return string.Join(" ", new[] { d.Slot, cap, spd, d.Manufacturer.Trim(), d.PartNumber.Trim() }
+                        .Where(s => s.Length > 0));
+                });
+                lines.Add($"DIMMs: {string.Join(", ", dimmParts)}");
+            }
+
+            // Clocks
             lines.Add("");
             lines.Add("TIMINGS");
-            lines.Add($"  DDR{t.MemClockMhz * 2} / FCLK {t.FclkMhz} / UCLK {t.UclkMhz}");
-            lines.Add($"  CL-RCDRD-RP-RAS: {t.CL}-{t.RCDRD}-{t.RP}-{t.RAS}");
-            lines.Add($"  CWL {t.CWL}  RFC {t.RFC}  REFI {t.REFI}");
-            lines.Add($"  GDM {(t.GDM ? "on" : "off")}  {(t.Cmd2T ? "2T" : "1T")}");
+            string syncNote = (t.FclkMhz > 0 && t.UclkMhz > 0 && t.FclkMhz != t.UclkMhz)
+                ? " ** ASYNC **" : "";
+            double clNs = t.CL * 1000.0 / t.MemClockMhz;
+            lines.Add($"  DDR{t.MemClockMhz * 2} / FCLK {t.FclkMhz} / UCLK {t.UclkMhz}{syncNote}  (CL ~{clNs:F1}ns)");
+
+            // Primary
+            lines.Add($"  CL {t.CL}  RCDRD {t.RCDRD}  RCDWR {t.RCDWR}  RP {t.RP}  RAS {t.RAS}  RC {t.RC}  CWL {t.CWL}");
+
+            // tRFC with ns
+            static string fmtRfc(int clk, int mclk) =>
+                clk > 0 && mclk > 0 ? $"{clk}({clk * 1000.0 / mclk:F0}ns)" : clk.ToString();
+            lines.Add($"  RFC {fmtRfc(t.RFC, t.MemClockMhz)}  RFC2 {fmtRfc(t.RFC2, t.MemClockMhz)}  RFC4 {fmtRfc(t.RFC4, t.MemClockMhz)}");
+
+            // Secondary
+            lines.Add($"  RRDS {t.RRDS}  RRDL {t.RRDL}  FAW {t.FAW}  WTRS {t.WTRS}  WTRL {t.WTRL}  WR {t.WR}  RTP {t.RTP}");
+
+            // Turn-around
+            lines.Add($"  RDRDSCL {t.RDRDSCL}  WRWRSCL {t.WRWRSCL}  RDWR {t.RDWR}  WRRD {t.WRRD}");
+            lines.Add($"  RDRDSC {t.RDRDSC}  RDRDSD {t.RDRDSD}  RDRDDD {t.RDRDDD}  WRWRSC {t.WRWRSC}  WRWRSD {t.WRWRSD}  WRWRDD {t.WRWRDD}");
+
+            // Misc + Controller
+            lines.Add($"  REFI {t.REFI}  CKE {t.CKE}  STAG {t.STAG}  MOD {t.MOD}  MRD {t.MRD}");
+            lines.Add($"  GDM {(t.GDM ? "on" : "off")}  {(t.Cmd2T ? "2T" : "1T")}  PowerDown {(t.PowerDown ? "on" : "off")}  PHYRDL {t.PHYRDL_A}/{t.PHYRDL_B}");
+
+            // Voltages
             var volts = new List<string>();
             if (t.VCore > 0) volts.Add($"VCore {t.VCore:F3}V");
-            if (t.VSoc > 0) volts.Add($"VSOC {t.VSoc:F3}V");
-            if (t.VDimm > 0) volts.Add($"VDIMM {t.VDimm:F3}V");
+            if (t.VSoc > 0) volts.Add($"VSoC {t.VSoc:F3}V");
             if (t.VDDP > 0) volts.Add($"VDDP {t.VDDP:F3}V");
+            if (t.VDimm > 0) volts.Add($"VDIMM {t.VDimm:F3}V");
             if (t.VDDG_IOD > 0) volts.Add($"VDDG_IOD {t.VDDG_IOD:F3}V");
             if (t.VDDG_CCD > 0) volts.Add($"VDDG_CCD {t.VDDG_CCD:F3}V");
             if (t.Vtt > 0) volts.Add($"Vtt {t.Vtt:F3}V");
             if (t.Vpp > 0) volts.Add($"Vpp {t.Vpp:F3}V");
             if (volts.Count > 0) lines.Add($"  {string.Join("  ", volts)}");
-            if (t.ProcODT > 0) lines.Add($"  ProcODT {t.ProcODT:F1}Ω  RttNom {t.RttNom}  RttWr {t.RttWr}  RttPark {t.RttPark}");
+
+            // Signal integrity
+            var si = new List<string>();
+            if (t.ProcODT > 0) si.Add($"ProcODT {t.ProcODT:F1}Ω");
+            if (t.RttNom.Length > 0) si.Add($"RttNom {t.RttNom}");
+            if (t.RttWr.Length > 0) si.Add($"RttWr {t.RttWr}");
+            if (t.RttPark.Length > 0) si.Add($"RttPark {t.RttPark}");
+            if (si.Count > 0) lines.Add($"  {string.Join("  ", si)}");
+
+            var drv = new List<string>();
+            if (t.ClkDrvStren > 0) drv.Add($"ClkDrv {t.ClkDrvStren:F1}Ω");
+            if (t.AddrCmdDrvStren > 0) drv.Add($"AddrCmd {t.AddrCmdDrvStren:F1}Ω");
+            if (t.CsOdtCmdDrvStren > 0) drv.Add($"CsOdt {t.CsOdtCmdDrvStren:F1}Ω");
+            if (t.CkeDrvStren > 0) drv.Add($"CkeDrv {t.CkeDrvStren:F1}Ω");
+            if (drv.Count > 0) lines.Add($"  {string.Join("  ", drv)}");
         }
 
         return string.Join(Environment.NewLine, lines);

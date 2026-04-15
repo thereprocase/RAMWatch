@@ -29,6 +29,8 @@ public sealed class RamWatchService : BackgroundService
     private HardwareReader? _hardwareReader;
     private TimingCsvLogger? _timingCsvLogger;
     private TimingSnapshot? _currentTimings;
+    // Static system info — read once at startup, stamped onto every snapshot.
+    private SystemInfoReader.SystemInfo? _systemInfo;
     private DesignationMap _designations = new();
 
     // Phase 3 — tuning journal services
@@ -139,6 +141,12 @@ public sealed class RamWatchService : BackgroundService
         _hardwareReader = new HardwareReader();
         _logger.LogInformation("Hardware driver: {Name} — {Status}",
             _hardwareReader.DriverName, _hardwareReader.DriverDescription);
+
+        // System info — BIOS version, AGESA, board model (registry, read once)
+        _systemInfo = SystemInfoReader.Read();
+        _logger.LogInformation("Board: {Vendor} {Model}, BIOS: {Bios}, AGESA: {Agesa}",
+            _systemInfo.BoardVendor, _systemInfo.BoardModel,
+            _systemInfo.BiosVersion, _systemInfo.AgesaVersion);
 
         // Load designation map (manual/auto timing labels for drift detection)
         _designations = LoadDesignations();
@@ -266,6 +274,14 @@ public sealed class RamWatchService : BackgroundService
 
         if (snapshot is null)
             return;
+
+        // Stamp static system info onto the snapshot
+        if (_systemInfo is not null)
+        {
+            snapshot.CpuCodename = _systemInfo.CpuName;
+            snapshot.BiosVersion = _systemInfo.BiosVersion;
+            snapshot.AgesaVersion = _systemInfo.AgesaVersion;
+        }
 
         _currentTimings = snapshot;
         _aggregator.SetTimings(snapshot, _hardwareReader.DriverStatus);
