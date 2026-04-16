@@ -79,6 +79,8 @@ namespace RAMWatch.Core;
 [JsonSerializable(typeof(BootFailEntry))]
 [JsonSerializable(typeof(BootFailKind))]
 [JsonSerializable(typeof(List<BootFailEntry>))]
+[JsonSerializable(typeof(AddressMapConfig))]
+[JsonSerializable(typeof(List<AddressMapConfig>))]
 [JsonSerializable(typeof(RequestTimingRefreshMessage))]
 [JsonSerializable(typeof(LogBootFailMessage))]
 [JsonSerializable(typeof(DeleteBootFailMessage))]

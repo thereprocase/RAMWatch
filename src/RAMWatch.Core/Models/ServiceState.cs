@@ -76,4 +76,11 @@ public sealed class ServiceState
     /// Read once at service startup. Null when WMI query fails.
     /// </summary>
     public List<DimmInfo>? Dimms { get; init; }
+
+    /// <summary>
+    /// UMC DRAM address mapping configuration per channel.
+    /// Read once at service startup from UMC SMN registers.
+    /// Null when hardware driver is unavailable.
+    /// </summary>
+    public List<AddressMapConfig>? AddressMap { get; init; }
 }

@@ -48,6 +48,9 @@ public sealed class StateAggregator
     // DIMM info — read once at startup, cached.
     private List<DimmInfo>? _dimms;
 
+    // UMC address map — read once at startup, cached.
+    private List<AddressMapConfig>? _addressMap;
+
     // Phase 3 — current-boot drift events, accumulated here so they survive
     // until the next periodic state push.
     private readonly List<DriftEvent> _currentBootDrift = new();
@@ -167,6 +170,14 @@ public sealed class StateAggregator
         lock (_lock) { _dimms = dimms; }
     }
 
+    /// <summary>
+    /// Store the UMC address map configuration. Called once at service startup.
+    /// </summary>
+    public void SetAddressMap(List<AddressMapConfig>? addressMap)
+    {
+        lock (_lock) { _addressMap = addressMap; }
+    }
+
     public void MarkReady()
     {
         lock (_lock) { _ready = true; }
@@ -193,6 +204,7 @@ public sealed class StateAggregator
         BootFailJournal? bootFailJournal;
         LiveKernelReportSummary? liveKernelReports;
         List<DimmInfo>? dimms;
+        List<AddressMapConfig>? addressMap;
 
         lock (_lock)
         {
@@ -212,6 +224,7 @@ public sealed class StateAggregator
             bootFailJournal      = _bootFailJournal;
             liveKernelReports    = _liveKernelReports;
             dimms                = _dimms;
+            addressMap           = _addressMap;
         }
 
         // Step 2: call methods that acquire their own locks OUTSIDE _lock.
@@ -279,7 +292,8 @@ public sealed class StateAggregator
             // Minimums — computed across all snapshots (era filtering done GUI-side)
             Minimums = ComputeMinimums(snapshots, recentValidations),
             LiveKernelReports = liveKernelReports,
-            Dimms = dimms
+            Dimms = dimms,
+            AddressMap = addressMap
         };
     }
 

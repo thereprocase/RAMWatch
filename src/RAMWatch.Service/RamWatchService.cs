@@ -196,6 +196,7 @@ public sealed class RamWatchService : BackgroundService
 
         _aggregator.ScanLiveKernelReports();
         _aggregator.ReadDimmInfo();
+        _aggregator.SetAddressMap(_hardwareReader.ReadAddressMap());
         _aggregator.MarkReady();
         _logger.LogInformation("Monitoring active. Boot ID: {BootId}, Driver: {Driver}",
             _bootId, _hardwareReader.DriverStatus);

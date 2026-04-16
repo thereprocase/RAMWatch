@@ -152,6 +152,17 @@ public sealed class HardwareReader : IDisposable
         }
     }
 
+    /// <summary>
+    /// Read the UMC address mapping configuration. Called once at startup.
+    /// Returns null if driver or UMC unavailable.
+    /// </summary>
+    public List<AddressMapConfig>? ReadAddressMap()
+    {
+        if (_umcDecode is null) return null;
+        lock (_driverLock)
+            return _umcDecode.ReadAddressMap();
+    }
+
     public void Dispose()
     {
         _smuDecode?.Dispose();

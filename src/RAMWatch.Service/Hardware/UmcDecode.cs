@@ -227,4 +227,52 @@ public sealed class UmcDecode
         else
             s.PHYRDL_B = phyRdl;
     }
+
+    /// <summary>
+    /// Read the UMC DRAM address mapping configuration for all channels.
+    /// These registers are set by BIOS at boot and never change at runtime.
+    /// Called once at service startup.
+    /// </summary>
+    public List<AddressMapConfig>? ReadAddressMap()
+    {
+        try
+        {
+            var result = new List<AddressMapConfig>();
+            uint[] channelOffsets = [0x0, 0x100000];
+
+            for (int ch = 0; ch < channelOffsets.Length; ch++)
+            {
+                uint off = channelOffsets[ch];
+
+                uint addrHashBank = ReadSmn(off | 0x50040);
+                uint addrHashPC = ReadSmn(off | 0x50044);
+                uint addrCfg = ReadSmn(off | 0x500C8);
+                uint bgs0 = ReadSmn(off | 0x50050);
+                uint bgs1 = ReadSmn(off | 0x50058);
+                uint bgsAlt0 = ReadSmn(off | 0x500D0);
+                uint bgsAlt1 = ReadSmn(off | 0x500D4);
+
+                result.Add(new AddressMapConfig
+                {
+                    Channel = ch,
+                    AddrHashBank = addrHashBank,
+                    AddrHashPC = addrHashPC,
+                    AddrCfg = addrCfg,
+                    BankGroupSwap0 = bgs0,
+                    BankGroupSwap1 = bgs1,
+                    BankGroupSwapAlt0 = bgsAlt0,
+                    BankGroupSwapAlt1 = bgsAlt1,
+                    BankHashEnabled = (addrHashBank & 1) != 0,
+                    BgsEnabled = bgs0 != 0x87654321 || bgs1 != 0x87654321,
+                    BgsAltEnabled = (bgsAlt0 >> 4 & 0x7F) > 0 || (bgsAlt1 >> 4 & 0x7F) > 0,
+                });
+            }
+
+            return result;
+        }
+        catch
+        {
+            return null;
+        }
+    }
 }
