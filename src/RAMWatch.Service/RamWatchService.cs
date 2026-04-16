@@ -200,19 +200,19 @@ public sealed class RamWatchService : BackgroundService
         _logger.LogInformation("Monitoring active. Boot ID: {BootId}, Driver: {Driver}",
             _bootId, _hardwareReader.DriverStatus);
 
-        // Periodic refresh loop
+        // Three-tier polling:
+        // HOT  (3s): thermal + SVI2 voltages → ThermalUpdateMessage
+        // WARM (30-60s): full timing read + state broadcast + CBS scan
+        // COLD (boot + trigger): UMC timings, WMI (already done above)
         try
         {
-            while (!stoppingToken.IsCancellationRequested)
-            {
-                await ReadTimingsAsync();
-                await _aggregator.BroadcastStateAsync();
-                _integrity.ScanCbsLog();
+            var hotTimer = new PeriodicTimer(TimeSpan.FromSeconds(3));
+            var warmInterval = TimeSpan.FromSeconds(_settings.Current.RefreshIntervalSeconds);
+            var warmTimer = new PeriodicTimer(warmInterval);
 
-                await Task.Delay(
-                    TimeSpan.FromSeconds(_settings.Current.RefreshIntervalSeconds),
-                    stoppingToken);
-            }
+            var hotTask = RunHotLoopAsync(hotTimer, stoppingToken);
+            var warmTask = RunWarmLoopAsync(warmTimer, stoppingToken);
+            await Task.WhenAll(hotTask, warmTask);
         }
         catch (OperationCanceledException)
         {
@@ -255,9 +255,70 @@ public sealed class RamWatchService : BackgroundService
         }
     }
 
+    // ── Three-tier polling loops ───────────────────────────────────
+
+    /// <summary>
+    /// HOT tier: thermal telemetry + SVI2 voltages every 3s.
+    /// Direct SMN reads (~5μs each) + PM table (~100-200μs) — total &lt;1ms.
+    /// Broadcasts a lightweight ThermalUpdateMessage, not a full state push.
+    /// </summary>
+    private async Task RunHotLoopAsync(PeriodicTimer timer, CancellationToken ct)
+    {
+        if (_hardwareReader is null || !_hardwareReader.IsAvailable || _aggregator is null)
+            return;
+
+        int consecutiveFailures = 0;
+        const int maxFailures = 5;
+
+        while (await timer.WaitForNextTickAsync(ct))
+        {
+            try
+            {
+                var (thermal, vcore, vsoc) = _hardwareReader.ReadHotTier();
+                if (thermal is not null)
+                {
+                    _aggregator.SetThermalPower(thermal);
+                    await _aggregator.BroadcastThermalAsync(thermal, vcore, vsoc);
+                    consecutiveFailures = 0;
+                }
+                else
+                {
+                    consecutiveFailures++;
+                }
+            }
+            catch
+            {
+                consecutiveFailures++;
+            }
+
+            // After 5 consecutive failures, stop the hot timer and degrade
+            // to warm-tier thermal data (updated every 30-60s via full state push).
+            if (consecutiveFailures >= maxFailures)
+            {
+                _logger.LogWarning("Hot tier: {Max} consecutive failures, degrading to warm tier", maxFailures);
+                return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// WARM tier: full timing read + state broadcast + CBS scan every 30-60s.
+    /// This is the original monolithic loop, now separated from thermal polling.
+    /// </summary>
+    private async Task RunWarmLoopAsync(PeriodicTimer timer, CancellationToken ct)
+    {
+        while (await timer.WaitForNextTickAsync(ct))
+        {
+            await ReadTimingsAsync();
+            await _aggregator!.BroadcastStateAsync();
+            _integrity?.ScanCbsLog();
+        }
+    }
+
     /// <summary>
     /// Read hardware timings, update aggregator, log to CSV, and run Phase 3 detection.
-    /// Called once on startup and on each refresh cycle. Safe to call when driver is unavailable.
+    /// Called once on startup (cold tier) and on each warm-tier refresh cycle.
+    /// Safe to call when driver is unavailable.
     /// </summary>
     private async Task ReadTimingsAsync()
     {
@@ -289,17 +350,9 @@ public sealed class RamWatchService : BackgroundService
         _currentTimings = snapshot;
         _aggregator.SetTimings(snapshot, _hardwareReader.DriverStatus);
 
-        // Thermal/power telemetry — independent read path, non-fatal.
-        // Uses the same PawnIO driver but reads different registers.
-        try
-        {
-            var thermalPower = _hardwareReader.ReadThermalPower();
-            _aggregator.SetThermalPower(thermalPower);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Thermal/power read failed");
-        }
+        // Thermal telemetry is now handled by the hot tier (3s loop).
+        // The warm tier no longer reads thermals — avoids the double PM table
+        // read that Legolas flagged in the War Council.
 
         // Auto-save the first complete timing read of this boot into the snapshot journal.
         // Defer until clocks are populated (FCLK/UCLK > 0) to avoid saving incomplete data.

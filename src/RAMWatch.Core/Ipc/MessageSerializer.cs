@@ -52,6 +52,7 @@ public static class MessageSerializer
             {
                 "state" => JsonSerializer.Deserialize(line, typeof(StateMessage), Options) as IpcMessage,
                 "event" => JsonSerializer.Deserialize(line, typeof(EventMessage), Options) as IpcMessage,
+                "thermalUpdate" => JsonSerializer.Deserialize(line, typeof(ThermalUpdateMessage), Options) as IpcMessage,
                 "response" => JsonSerializer.Deserialize(line, typeof(ResponseMessage), Options) as IpcMessage,
                 "getState" => JsonSerializer.Deserialize(line, typeof(GetStateMessage), Options) as IpcMessage,
                 "runIntegrity" => JsonSerializer.Deserialize(line, typeof(RunIntegrityMessage), Options) as IpcMessage,

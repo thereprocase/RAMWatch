@@ -310,6 +310,23 @@ public sealed class StateAggregator
         await _pipeServer.BroadcastAsync(json);
     }
 
+    /// <summary>
+    /// Push a lightweight thermal/power update to all connected clients.
+    /// Called by the hot tier (every 2-5s) — much faster than a full state push.
+    /// </summary>
+    public async Task BroadcastThermalAsync(ThermalPowerSnapshot tp, double vcore, double vsoc)
+    {
+        var message = new ThermalUpdateMessage
+        {
+            Type = "thermalUpdate",
+            ThermalPower = tp,
+            VCore = vcore,
+            VSoc = vsoc
+        };
+        string json = MessageSerializer.Serialize(message);
+        await _pipeServer.BroadcastAsync(json);
+    }
+
     public async Task BroadcastEventAsync(MonitoredEvent evt)
     {
         var message = new EventMessage

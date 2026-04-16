@@ -6,7 +6,7 @@ namespace RAMWatch.Core.Models;
 /// </summary>
 public abstract class IpcMessage
 {
-    public const int CurrentProtocolVersion = 1;
+    public const int CurrentProtocolVersion = 2;
 
     public required string Type { get; init; }
     public int ProtocolVersion { get; init; } = CurrentProtocolVersion;
@@ -22,6 +22,21 @@ public sealed class StateMessage : IpcMessage
 public sealed class EventMessage : IpcMessage
 {
     public required MonitoredEvent Event { get; init; }
+}
+
+/// <summary>
+/// Lightweight thermal/power update pushed on the hot tier (every 2-5s).
+/// Much smaller than a full StateMessage — only volatile telemetry that
+/// changes between state pushes. GUI patches its thermal display without
+/// waiting for the next full state broadcast.
+/// </summary>
+public sealed class ThermalUpdateMessage : IpcMessage
+{
+    public required ThermalPowerSnapshot ThermalPower { get; init; }
+    /// <summary>SVI2 VCore — changes with P-state transitions.</summary>
+    public double VCore { get; init; }
+    /// <summary>SVI2 VSoC — shifts with fabric load.</summary>
+    public double VSoc { get; init; }
 }
 
 public sealed class ResponseMessage : IpcMessage

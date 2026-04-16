@@ -424,6 +424,9 @@ public partial class MainViewModel : ObservableObject
             case EventMessage evt:
                 ApplyEvent(evt.Event);
                 break;
+            case ThermalUpdateMessage thermal:
+                ApplyThermalUpdate(thermal);
+                break;
             case DigestResponseMessage digest:
                 // CopyDigestAsync polls _lastDigestText; set it here on the I/O thread.
                 if (_pendingDigestRequestId is not null &&
@@ -611,6 +614,17 @@ public partial class MainViewModel : ObservableObject
 
         // Send toast notification if enabled and not rate-limited.
         MaybeSendNotification(evt);
+    }
+
+    /// <summary>
+    /// Apply a hot-tier thermal update — patches the thermal display without waiting
+    /// for a full state push. Fires every 3s when the hot loop is running.
+    /// </summary>
+    private void ApplyThermalUpdate(ThermalUpdateMessage msg)
+    {
+        _currentThermalPower = msg.ThermalPower;
+        Application.Current?.Dispatcher.Invoke(() =>
+            Timings.LoadThermalPower(msg.ThermalPower));
     }
 
     /// <summary>

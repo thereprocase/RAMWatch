@@ -233,6 +233,18 @@ public sealed class SmuDecode : IDisposable
         ReadSvi2Plane(GetCorePlaneAddress(_cpuFamily), v => snapshot.VCore = v);
     }
 
+    /// <summary>
+    /// Read SVI2 VCore and VSoC. Used by the hot tier to capture voltages
+    /// without a TimingSnapshot. Returns (vcore, vsoc), both 0 if unavailable.
+    /// </summary>
+    public (double VCore, double VSoc) ReadSvi2()
+    {
+        double vc = 0, vs = 0;
+        ReadSvi2Plane(GetCorePlaneAddress(_cpuFamily), v => vc = v);
+        ReadSvi2Plane(GetSocPlaneAddress(_cpuFamily), v => vs = v);
+        return (vc, vs);
+    }
+
     private void ReadSvi2Plane(uint address, Action<double> setter)
     {
         if (address == 0) return;

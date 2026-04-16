@@ -97,6 +97,36 @@ public sealed class HardwareReader : IDisposable
     }
 
     /// <summary>
+    /// Hot-tier read: thermal telemetry + SVI2 voltages in a single lock acquisition.
+    /// Returns (thermal, vcore, vsoc). Thermal is null if no data sources succeed.
+    /// Used by the 2-5s hot polling loop.
+    /// </summary>
+    public (ThermalPowerSnapshot? Thermal, double VCore, double VSoc) ReadHotTier()
+    {
+        if (_smuDecode is null) return (null, 0, 0);
+
+        lock (_driverLock)
+        try
+        {
+            var tp = new ThermalPowerSnapshot();
+            _smuDecode.PopulateThermalPower(tp);
+
+            // SVI2 voltages — same registers as in ReadTimings, but read here
+            // so the hot tier captures VCore/VSoC at the same instant as thermals.
+            var (vcore, vsoc) = _smuDecode.ReadSvi2();
+
+            if (tp.Sources == ThermalDataSource.None)
+                return (null, vcore, vsoc);
+
+            return (tp, vcore, vsoc);
+        }
+        catch
+        {
+            return (null, 0, 0);
+        }
+    }
+
+    /// <summary>
     /// Read real-time thermal and power telemetry. Returns null if driver or CPU unsupported.
     /// Independent from ReadTimings — this can be called on a faster cadence if needed.
     /// </summary>
