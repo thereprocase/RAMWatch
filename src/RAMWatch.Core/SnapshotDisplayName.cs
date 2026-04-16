@@ -142,7 +142,18 @@ public static class SnapshotDisplayName
     {
         string primaries = $"CL{snap.CL}-{snap.RCDRD}-{snap.RP}-{snap.RAS}";
         if (snap.MemClockMhz > 0)
-            return $"DDR4-{snap.MemClockMhz * 2} {primaries}";
+            return $"{DdrLabel(snap.MemClockMhz)} {primaries}";
         return primaries;
+    }
+
+    /// <summary>
+    /// Returns "DDR4-{speed}" or "DDR5-{speed}" based on MCLK frequency.
+    /// DDR5 minimum is DDR5-4800 (MCLK 2400). Every DDR4 kit runs below
+    /// MCLK 2667 (DDR4-5333). Threshold at MCLK 2400 covers all real hardware.
+    /// </summary>
+    public static string DdrLabel(int mclkMhz)
+    {
+        string gen = mclkMhz >= 2400 ? "DDR5" : "DDR4";
+        return $"{gen}-{mclkMhz * 2}";
     }
 }

@@ -1,4 +1,5 @@
 using System.Text;
+using RAMWatch.Core;
 using RAMWatch.Core.Models;
 
 namespace RAMWatch.Service.Services;
@@ -73,7 +74,7 @@ public static class LkgMdBuilder
     {
         int ddr = snap.MemClockMhz * 2;
         sb.AppendLine("## Clock");
-        sb.AppendLine($"DDR4-{ddr} | MCLK {snap.MemClockMhz} | FCLK {snap.FclkMhz} | UCLK {snap.UclkMhz}");
+        sb.AppendLine($"{SnapshotDisplayName.DdrLabel(snap.MemClockMhz)} | MCLK {snap.MemClockMhz} | FCLK {snap.FclkMhz} | UCLK {snap.UclkMhz}");
     }
 
     private static void AppendGroupedTimings(

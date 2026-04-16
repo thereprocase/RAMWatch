@@ -20,11 +20,15 @@ public sealed class TimingCsvLogger : IDisposable
         "timestamp,boot_id,mclk,fclk,uclk," +
         "cl,rcdrd,rcdwr,rp,ras,rc,cwl," +
         "rfc,rfc2,rfc4," +
-        "rrds,rrdl,faw,wtrs,wtrl,wr," +
-        "rdrdscl,wrwrscl,gdm,cmd2t," +
+        "rrds,rrdl,faw,wtrs,wtrl,wr,rtp," +
+        "rdrdscl,wrwrscl," +
+        "rdrdsc,rdrdsd,rdrddd,wrwrsc,wrwrsd,wrwrdd,rdwr,wrrd," +
+        "refi,cke,stag,mod,mrd," +
+        "phyrdl_a,phyrdl_b,powerdown,gdm,cmd2t," +
         "vsoc,vdimm," +
         "vcore,vddp,vddg_iod,vddg_ccd,vtt,vpp," +
-        "procodt,rttnom,rttwr,rttpark";
+        "procodt,rttnom,rttwr,rttpark," +
+        "clkdrv,addrcmddrv,csodtdrv,ckedrv";
 
     /// <summary>
     /// The absolute path of the currently open CSV file, or empty string if no
@@ -108,8 +112,25 @@ public sealed class TimingCsvLogger : IDisposable
             s.WTRS,
             s.WTRL,
             s.WR,
+            s.RTP,
             s.RDRDSCL,
             s.WRWRSCL,
+            s.RDRDSC,
+            s.RDRDSD,
+            s.RDRDDD,
+            s.WRWRSC,
+            s.WRWRSD,
+            s.WRWRDD,
+            s.RDWR,
+            s.WRRD,
+            s.REFI,
+            s.CKE,
+            s.STAG,
+            s.MOD,
+            s.MRD,
+            s.PHYRDL_A,
+            s.PHYRDL_B,
+            s.PowerDown ? 1 : 0,
             s.GDM ? 1 : 0,
             s.Cmd2T ? 1 : 0,
             s.VSoc.ToString("F4"),
@@ -123,7 +144,11 @@ public sealed class TimingCsvLogger : IDisposable
             s.ProcODT.ToString("F1"),
             s.RttNom,
             s.RttWr,
-            s.RttPark
+            s.RttPark,
+            s.ClkDrvStren.ToString("F1"),
+            s.AddrCmdDrvStren.ToString("F1"),
+            s.CsOdtCmdDrvStren.ToString("F1"),
+            s.CkeDrvStren.ToString("F1")
         );
     }
 

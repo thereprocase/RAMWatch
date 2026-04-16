@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using RAMWatch.Core;
 using RAMWatch.Core.Models;
 
 namespace RAMWatch.ViewModels;
@@ -76,12 +77,12 @@ public partial class MinimumsViewModel : ObservableObject
         if (minimums is { Count: > 0 })
         {
             foreach (var m in minimums)
-                AvailableFrequencies.Add($"DDR4-{m.MemClockMhz * 2}");
+                AvailableFrequencies.Add(SnapshotDisplayName.DdrLabel(m.MemClockMhz));
 
             // Default to current frequency if available
             if (currentTimings is not null && currentTimings.MemClockMhz > 0)
             {
-                var currentLabel = $"DDR4-{currentTimings.MemClockMhz * 2}";
+                var currentLabel = SnapshotDisplayName.DdrLabel(currentTimings.MemClockMhz);
                 SelectedFrequency = AvailableFrequencies.Contains(currentLabel)
                     ? currentLabel
                     : AvailableFrequencies.FirstOrDefault();
@@ -110,8 +111,10 @@ public partial class MinimumsViewModel : ObservableObject
             return;
         }
 
-        // Parse frequency from label "DDR4-3600" → 1800
-        var freqStr = SelectedFrequency.Replace("DDR4-", "");
+        // Parse frequency from label "DDR4-3600" or "DDR5-6000" → MCLK
+        var freqStr = SelectedFrequency;
+        int dashIdx = freqStr.IndexOf('-');
+        if (dashIdx >= 0) freqStr = freqStr[(dashIdx + 1)..];
         if (!int.TryParse(freqStr, out int ddrRate))
         {
             HasData = false;

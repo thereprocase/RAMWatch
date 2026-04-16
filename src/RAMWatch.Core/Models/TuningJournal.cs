@@ -86,7 +86,7 @@ public enum ThermalDataSource
 /// </summary>
 public sealed class TimingSnapshot
 {
-    public required string SnapshotId { get; init; }
+    public required string SnapshotId { get; set; }
     public required DateTime Timestamp { get; init; }
     public required string BootId { get; init; }
     public int SchemaVersion { get; init; } = 1;
@@ -184,81 +184,18 @@ public sealed class TimingSnapshot
 
     /// <summary>
     /// Returns a shallow copy with the supplied SnapshotId and Label.
-    /// All timing values are shared (they are value types or immutable strings).
+    /// MemberwiseClone is correct here because all fields are value types
+    /// or immutable strings — no mutable reference types to worry about.
+    /// This eliminates the 72-line hand-enumerated copy that silently
+    /// dropped any field not explicitly listed (Gandalf's top concern).
     /// </summary>
-    public TimingSnapshot WithIdAndLabel(string snapshotId, string label) =>
-        new()
-        {
-            SnapshotId    = snapshotId,
-            Timestamp     = Timestamp,
-            BootId        = BootId,
-            SchemaVersion = SchemaVersion,
-            MemClockMhz   = MemClockMhz,
-            FclkMhz       = FclkMhz,
-            UclkMhz       = UclkMhz,
-            CL            = CL,
-            RCDRD         = RCDRD,
-            RCDWR         = RCDWR,
-            RP            = RP,
-            RAS           = RAS,
-            RC            = RC,
-            CWL           = CWL,
-            RFC           = RFC,
-            RFC2          = RFC2,
-            RFC4          = RFC4,
-            RRDS          = RRDS,
-            RRDL          = RRDL,
-            FAW           = FAW,
-            WTRS          = WTRS,
-            WTRL          = WTRL,
-            WR            = WR,
-            RTP           = RTP,
-            RDRDSCL       = RDRDSCL,
-            WRWRSCL       = WRWRSCL,
-            RDRDSC        = RDRDSC,
-            RDRDSD        = RDRDSD,
-            RDRDDD        = RDRDDD,
-            WRWRSC        = WRWRSC,
-            WRWRSD        = WRWRSD,
-            WRWRDD        = WRWRDD,
-            RDWR          = RDWR,
-            WRRD          = WRRD,
-            REFI          = REFI,
-            CKE           = CKE,
-            STAG          = STAG,
-            MOD           = MOD,
-            MRD           = MRD,
-            PHYRDL_A      = PHYRDL_A,
-            PHYRDL_B      = PHYRDL_B,
-            GDM           = GDM,
-            Cmd2T         = Cmd2T,
-            PowerDown     = PowerDown,
-            VSoc          = VSoc,
-            VCore         = VCore,
-            VDimm         = VDimm,
-            VDDP          = VDDP,
-            VDDG_IOD      = VDDG_IOD,
-            VDDG_CCD      = VDDG_CCD,
-            Vtt           = Vtt,
-            Vpp           = Vpp,
-            ProcODT       = ProcODT,
-            RttNom        = RttNom,
-            RttWr         = RttWr,
-            RttPark       = RttPark,
-            ClkDrvStren       = ClkDrvStren,
-            AddrCmdDrvStren   = AddrCmdDrvStren,
-            CsOdtCmdDrvStren  = CsOdtCmdDrvStren,
-            CkeDrvStren       = CkeDrvStren,
-            AddrCmdSetup      = AddrCmdSetup,
-            CsOdtSetup        = CsOdtSetup,
-            CkeSetup          = CkeSetup,
-            CpuCodename   = CpuCodename,
-            AgesaVersion  = AgesaVersion,
-            BiosVersion   = BiosVersion,
-            Label         = label,
-            Notes         = Notes,
-            EraId         = EraId,
-        };
+    public TimingSnapshot WithIdAndLabel(string snapshotId, string label)
+    {
+        var copy = (TimingSnapshot)MemberwiseClone();
+        copy.SnapshotId = snapshotId;
+        copy.Label = label;
+        return copy;
+    }
 }
 
 /// <summary>

@@ -1,4 +1,5 @@
 using System.Text;
+using RAMWatch.Core;
 using RAMWatch.Core.Models;
 
 namespace RAMWatch.Service.Services;
@@ -130,7 +131,7 @@ public static class DigestBuilder
         int ddr = snap.MemClockMhz * 2;
         string ratio = DeriveRatio(snap);
         string vdimmLabel = snap.VDimm > 0 ? $" | VDIMM {snap.VDimm:F3}V" : "";
-        sb.AppendLine($"Current: DDR4-{ddr} | FCLK {snap.FclkMhz}{vdimmLabel} | {ratio}");
+        sb.AppendLine($"Current: {SnapshotDisplayName.DdrLabel(snap.MemClockMhz)} | FCLK {snap.FclkMhz}{vdimmLabel} | {ratio}");
     }
 
     private static string DeriveRatio(TimingSnapshot snap)

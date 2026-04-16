@@ -183,6 +183,9 @@ public sealed class RamWatchService : BackgroundService
         // Set initial driver status (even if no timings yet)
         _aggregator.SetTimings(null, _hardwareReader.DriverStatus);
 
+        // Pass CPU family to event monitor for MCA bank classification
+        _eventLog.CpuFamily = _hardwareReader.CpuFamily;
+
         // Historical scan (blocks briefly, populates error counts from boot)
         _eventLog.Start();
         _integrity.ScanCbsLog();

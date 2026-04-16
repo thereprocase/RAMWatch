@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using RAMWatch.Core;
 using RAMWatch.Core.Models;
 
 namespace RAMWatch.ViewModels;
@@ -324,7 +325,7 @@ public partial class TimelineViewModel : ObservableObject
         if (snap is null) return null;
         string primaries = $"CL{snap.CL}-{snap.RCDRD}-{snap.RP}-{snap.RAS}";
         if (snap.MemClockMhz > 0)
-            return $"DDR4-{snap.MemClockMhz * 2} {primaries}";
+            return $"{SnapshotDisplayName.DdrLabel(snap.MemClockMhz)} {primaries}";
         return primaries;
     }
 }

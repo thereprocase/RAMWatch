@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using RAMWatch.Core;
 using RAMWatch.Core.Ipc;
 using RAMWatch.Core.Models;
 using RAMWatch.Services;
@@ -709,7 +710,7 @@ public partial class MainViewModel : ObservableObject
                 {
                     long gb = d.CapacityBytes / (1024 * 1024 * 1024);
                     string cap = gb > 0 ? $"{gb}GB" : "";
-                    string spd = d.SpeedMTs > 0 ? $"DDR4-{d.SpeedMTs}" : "";
+                    string spd = d.SpeedMTs > 0 ? SnapshotDisplayName.DdrLabel(d.SpeedMTs / 2) : "";
                     return string.Join(" ", new[] { d.Slot, cap, spd, d.Manufacturer.Trim(), d.PartNumber.Trim() }
                         .Where(s => s.Length > 0));
                 });

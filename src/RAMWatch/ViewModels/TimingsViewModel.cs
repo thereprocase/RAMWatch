@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using RAMWatch.Core;
 using RAMWatch.Core.Models;
 
 namespace RAMWatch.ViewModels;
@@ -392,7 +393,7 @@ public partial class TimingsViewModel : ObservableObject
         {
             long gb = d.CapacityBytes / (1024 * 1024 * 1024);
             string capacity = gb > 0 ? $"{gb} GB" : $"{d.CapacityBytes / (1024 * 1024)} MB";
-            string speed = d.SpeedMTs > 0 ? $"DDR4-{d.SpeedMTs}" : "";
+            string speed = d.SpeedMTs > 0 ? SnapshotDisplayName.DdrLabel(d.SpeedMTs / 2) : "";
             string detail = string.Join("  ", new[] { capacity, speed, d.Manufacturer.Trim(), d.PartNumber.Trim() }
                 .Where(s => s.Length > 0));
 
@@ -426,7 +427,7 @@ public partial class TimingsViewModel : ObservableObject
             parts.Add($"{distinctCapacities.Sum()} GB total");
 
         if (distinctSpeeds.Count == 1)
-            parts.Add($"DDR4-{distinctSpeeds[0]}");
+            parts.Add(SnapshotDisplayName.DdrLabel(distinctSpeeds[0] / 2));
 
         if (distinctMfrs.Count == 1)
             parts.Add($"({distinctMfrs[0]})");

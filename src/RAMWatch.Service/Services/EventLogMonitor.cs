@@ -1,5 +1,6 @@
 using System.Diagnostics.Eventing.Reader;
 using RAMWatch.Core.Models;
+using RAMWatch.Service.Hardware;
 
 namespace RAMWatch.Service.Services;
 
@@ -19,6 +20,12 @@ public sealed class EventLogMonitor : IDisposable
     private const int MinEventIntervalMs = 1000;
     private DateTime _bootTime;
     private bool _historicalScanComplete;
+
+    /// <summary>
+    /// CPU family for MCA bank classification. Set before Start() by the service.
+    /// When Unknown, the classifier uses the default Zen 2/3 bank ranges.
+    /// </summary>
+    public CpuDetect.CpuFamily CpuFamily { get; set; }
 
     /// <summary>
     /// Fired when a new event is detected (live, not historical scan).
@@ -199,7 +206,7 @@ public sealed class EventLogMonitor : IDisposable
         McaDetails? mca = null;
         if (source.ProviderName is "Microsoft-Windows-WHEA-Logger" or "Microsoft-Windows-Kernel-WHEA")
         {
-            mca = McaBankClassifier.TryParse(rawXml);
+            mca = McaBankClassifier.TryParse(rawXml, CpuFamily);
         }
 
         var evt = new MonitoredEvent(

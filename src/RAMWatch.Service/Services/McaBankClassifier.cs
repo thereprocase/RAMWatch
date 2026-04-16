@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO;
 using System.Xml;
 using RAMWatch.Core.Models;
+using RAMWatch.Service.Hardware;
 
 namespace RAMWatch.Service.Services;
 
@@ -28,7 +29,8 @@ public static class McaBankClassifier
     /// Attempt to parse MCA details from a WHEA event record's XML.
     /// Returns null if the XML doesn't contain MCA bank data (not all WHEA events do).
     /// </summary>
-    public static McaDetails? TryParse(string? rawXml)
+    public static McaDetails? TryParse(string? rawXml,
+        CpuDetect.CpuFamily cpuFamily = CpuDetect.CpuFamily.Unknown)
     {
         if (string.IsNullOrEmpty(rawXml))
             return null;
@@ -101,7 +103,7 @@ public static class McaBankClassifier
             bool isPcc = GetBit(mciStatus, BitPcc);
 
             // Classify the bank
-            var (component, classification) = ClassifyBank(bankNumber, mciStatus, errorType);
+            var (component, classification) = ClassifyBank(bankNumber, mciStatus, errorType, cpuFamily);
 
             return new McaDetails
             {
@@ -141,7 +143,8 @@ public static class McaBankClassifier
     /// - Error code patterns in MCI_STATUS lower bits
     /// </summary>
     private static (string Component, McaClassification Classification) ClassifyBank(
-        int bankNumber, ulong mciStatus, int errorType)
+        int bankNumber, ulong mciStatus, int errorType,
+        CpuDetect.CpuFamily cpuFamily)
     {
         // Extract the MCA error code from the lower 16 bits of MCI_STATUS
         ushort errorCode = (ushort)(mciStatus & 0xFFFF);
