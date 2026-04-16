@@ -95,6 +95,8 @@ public partial class MainViewModel : ObservableObject
     // Cached DIMM list for clipboard export.
     private List<DimmInfo>? _currentDimms;
     private bool _dimmsLoaded;
+    // Cached thermal snapshot for clipboard export.
+    private ThermalPowerSnapshot? _currentThermalPower;
 
     // ── Timeline + Snapshots (Phase 3) ──────────────────────
 
@@ -529,6 +531,11 @@ public partial class MainViewModel : ObservableObject
         Application.Current?.Dispatcher.Invoke(() =>
             Timings.LoadFromSnapshot(state.Timings, resolvedVendor, designationsSnapshot));
 
+        // Thermal/power telemetry — update display properties on each push.
+        _currentThermalPower = state.ThermalPower;
+        Application.Current?.Dispatcher.Invoke(() =>
+            Timings.LoadThermalPower(state.ThermalPower));
+
         // DIMMs — read once at service startup, never changes at runtime.
         if (!_dimmsLoaded && state.Dimms is { Count: > 0 })
         {
@@ -762,6 +769,34 @@ public partial class MainViewModel : ObservableObject
             if (t.CsOdtCmdDrvStren > 0) drv.Add($"CsOdt {t.CsOdtCmdDrvStren:F1}Ω");
             if (t.CkeDrvStren > 0) drv.Add($"CkeDrv {t.CkeDrvStren:F1}Ω");
             if (drv.Count > 0) lines.Add($"  {string.Join("  ", drv)}");
+        }
+
+        // Thermal/power telemetry
+        var tp = _currentThermalPower;
+        if (tp is not null && tp.Sources != ThermalDataSource.None)
+        {
+            var thermal = new List<string>();
+            if (tp.CpuTempC > 0) thermal.Add($"Tctl {tp.CpuTempC:F1}°C");
+            if (tp.CcdTempsC is { Length: > 0 })
+            {
+                for (int i = 0; i < tp.CcdTempsC.Length; i++)
+                    thermal.Add($"CCD{i} {tp.CcdTempsC[i]:F1}°C");
+            }
+            if (tp.SocTempC > 0) thermal.Add($"SoC {tp.SocTempC:F1}°C");
+            if (thermal.Count > 0)
+            {
+                lines.Add("");
+                lines.Add($"THERMAL  {string.Join("  ", thermal)}");
+            }
+
+            var power = new List<string>();
+            if (tp.SocketPowerW > 0) power.Add($"Socket {tp.SocketPowerW:F1}W");
+            if (tp.CorePowerW > 0) power.Add($"Core {tp.CorePowerW:F1}W");
+            if (tp.SocPowerW > 0) power.Add($"SoC {tp.SocPowerW:F1}W");
+            if (tp.PptLimitW > 0) power.Add($"PPT {tp.PptActualW:F0}/{tp.PptLimitW:F0}W");
+            if (tp.TdcLimitA > 0) power.Add($"TDC {tp.TdcActualA:F0}/{tp.TdcLimitA:F0}A");
+            if (tp.EdcLimitA > 0) power.Add($"EDC {tp.EdcActualA:F0}/{tp.EdcLimitA:F0}A");
+            if (power.Count > 0) lines.Add($"  {string.Join("  ", power)}");
         }
 
         return string.Join(Environment.NewLine, lines);

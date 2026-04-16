@@ -141,6 +141,60 @@
                     </Grid>
                 </Border>
 
+                <!-- ── THERMAL (visible only when telemetry is available) ─ -->
+                <Border Background="{StaticResource BgPanel}"
+                        CornerRadius="2"
+                        Padding="8,4"
+                        Margin="0,0,0,4">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasThermal}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                            <TextBlock Text="Tctl"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       FontFamily="{StaticResource UIFont}"
+                                       FontSize="12"
+                                       Width="40" />
+                            <TextBlock Text="{Binding CpuTempDisplay}"
+                                       Style="{StaticResource MonoText}" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <TextBlock Text="Power"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       FontFamily="{StaticResource UIFont}"
+                                       FontSize="12"
+                                       Width="40" />
+                            <TextBlock Text="{Binding SocketPowerDisplay}"
+                                       Style="{StaticResource MonoText}" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2" Orientation="Horizontal">
+                            <TextBlock Text="PPT"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       FontFamily="{StaticResource UIFont}"
+                                       FontSize="12"
+                                       Width="40" />
+                            <TextBlock Text="{Binding PptDisplay}"
+                                       Style="{StaticResource MonoText}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
                 <!-- ── TIMING GROUPS (vendor-ordered, dynamic) ───────── -->
                 <!-- BiosLayoutLabel is non-empty only when a specific vendor was detected. -->
                 <TextBlock Text="{Binding BiosLayoutLabel}"

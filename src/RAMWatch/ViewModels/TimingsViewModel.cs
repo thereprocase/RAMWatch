@@ -136,6 +136,21 @@ public partial class TimingsViewModel : ObservableObject
 
     public ObservableCollection<DimmDisplayRow> DimmRows { get; } = [];
 
+    // ── Thermal/power telemetry ─────────────────────────────
+    // Updated on each 30s state push. Ephemeral, not saved to snapshots.
+
+    [ObservableProperty]
+    private string _cpuTempDisplay = "—";
+
+    [ObservableProperty]
+    private string _socketPowerDisplay = "—";
+
+    [ObservableProperty]
+    private string _pptDisplay = "—";
+
+    [ObservableProperty]
+    private bool _hasThermal;
+
     // ── System info ──────────────────────────────────────────
 
     [ObservableProperty]
@@ -420,6 +435,35 @@ public partial class TimingsViewModel : ObservableObject
 
         DimmSummary = string.Join(" ", parts);
         HasDimms = true;
+    }
+
+    /// <summary>
+    /// Updates thermal/power telemetry display properties.
+    /// Called on each state push (every 30s). Null clears the display.
+    /// </summary>
+    public void LoadThermalPower(ThermalPowerSnapshot? tp)
+    {
+        if (tp is null || tp.Sources == ThermalDataSource.None)
+        {
+            HasThermal = false;
+            CpuTempDisplay = "—";
+            SocketPowerDisplay = "—";
+            PptDisplay = "—";
+            return;
+        }
+
+        HasThermal = true;
+
+        CpuTempDisplay = tp.CpuTempC > 0 ? $"{tp.CpuTempC:F1}°C" : "—";
+
+        SocketPowerDisplay = tp.SocketPowerW > 0 ? $"{tp.SocketPowerW:F1}W" : "—";
+
+        if (tp.PptLimitW > 0 && tp.PptActualW > 0)
+            PptDisplay = $"{tp.PptActualW:F0}/{tp.PptLimitW:F0}W";
+        else if (tp.PptLimitW > 0)
+            PptDisplay = $"—/{tp.PptLimitW:F0}W";
+        else
+            PptDisplay = "—";
     }
 
     /// <summary>

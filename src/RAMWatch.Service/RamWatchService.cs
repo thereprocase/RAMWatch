@@ -415,6 +415,20 @@ public sealed class RamWatchService : BackgroundService
 
     private void OnEventDetected(MonitoredEvent evt)
     {
+        // For hardware events (WHEA, bugcheck, etc.), capture a thermal/power
+        // snapshot at the moment of the event. Direct SMN reads take ~5μs —
+        // fast enough for the EventLogWatcher callback thread.
+        if (evt.Category == EventCategory.Hardware && _hardwareReader is { IsAvailable: true })
+        {
+            try
+            {
+                var vitals = _hardwareReader.ReadThermalPower();
+                if (vitals is not null)
+                    evt = evt with { Vitals = vitals };
+            }
+            catch { /* Non-fatal — event continues without vitals */ }
+        }
+
         // Log to CSV
         if (_settings.Current.EnableCsvLogging && _csvLogger is not null)
         {

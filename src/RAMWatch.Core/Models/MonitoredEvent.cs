@@ -25,7 +25,8 @@ public sealed record MonitoredEvent(
     EventSeverity Severity,
     string Summary,
     string? RawXml = null,
-    McaDetails? Mca = null
+    McaDetails? Mca = null,
+    ThermalPowerSnapshot? Vitals = null
 );
 
 public sealed record ErrorSource(

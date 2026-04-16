@@ -110,8 +110,19 @@ public static class DigestBuilder
         else
             sb.AppendLine($"Hardware: {string.Join(" | ", hwParts)}");
 
-        // RAM line — not in the Phase 1/2 model; omit rather than show blank.
-        // Phase 3 will add MemPartNumber, DieType, DimmConfig when hardware reads land.
+        // Thermal/power telemetry — point-in-time at digest generation.
+        var tp = state.ThermalPower;
+        if (tp is not null && tp.Sources != ThermalDataSource.None)
+        {
+            var parts = new List<string>();
+            if (tp.CpuTempC > 0) parts.Add($"Tctl {tp.CpuTempC:F1}°C");
+            if (tp.SocketPowerW > 0) parts.Add($"{tp.SocketPowerW:F0}W");
+            if (tp.PptLimitW > 0) parts.Add($"PPT {tp.PptActualW:F0}/{tp.PptLimitW:F0}W");
+            if (tp.TdcLimitA > 0) parts.Add($"TDC {tp.TdcActualA:F0}/{tp.TdcLimitA:F0}A");
+            if (tp.EdcLimitA > 0) parts.Add($"EDC {tp.EdcActualA:F0}/{tp.EdcLimitA:F0}A");
+            if (parts.Count > 0)
+                sb.AppendLine($"Thermal: {string.Join(" | ", parts)}");
+        }
     }
 
     private static void AppendClockLine(StringBuilder sb, TimingSnapshot snap)
