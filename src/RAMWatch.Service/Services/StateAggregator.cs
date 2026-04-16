@@ -296,8 +296,17 @@ public sealed class StateAggregator
             Minimums = ComputeMinimums(snapshots, recentValidations),
             LiveKernelReports = liveKernelReports,
             Dimms = dimms,
-            AddressMap = addressMap
+            AddressMap = addressMap,
+            // Seed the GUI's per-source event buffer on connect. EventLogMonitor
+            // owns its own lock; called outside _lock to avoid nesting.
+            RecentEvents = GetRecentEventsForState()
         };
+    }
+
+    private List<MonitoredEvent>? GetRecentEventsForState()
+    {
+        var recent = _eventLog.GetRecentEvents(50);
+        return recent.Count > 0 ? recent : null;
     }
 
     private static List<FrequencyMinimums>? ComputeMinimums(

@@ -30,6 +30,14 @@ public partial class MainViewModel : ObservableObject
     // Timestamps for per-event-type notification cooldown.
     private readonly Dictionary<string, DateTime> _lastNotified = new();
 
+    // Per-source ring buffer of recent events. Seeded on initial state push from
+    // ServiceState.RecentEvents, then appended in ApplyEvent. Each source is
+    // capped so a noisy source can't grow without bound.
+    private readonly Dictionary<string, List<MonitoredEvent>> _eventsBySource = new();
+    private readonly Lock _eventsLock = new();
+    private const int EventsPerSourceCap = 50;
+    private bool _eventsSeeded;
+
     // ── Connection state ─────────────────────────────────────
 
     private bool _settingsLoaded;
@@ -446,9 +454,70 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Returns a snapshot of recent events for the given source name, newest-first.
+    /// Empty list when no events have been recorded for that source.
+    /// Thread-safe: returns a copy so the dialog can iterate without locking.
+    /// </summary>
+    public IReadOnlyList<MonitoredEvent> GetEventsForSource(string sourceName)
+    {
+        lock (_eventsLock)
+        {
+            if (_eventsBySource.TryGetValue(sourceName, out var list))
+                return list.ToList();
+        }
+        return Array.Empty<MonitoredEvent>();
+    }
+
+    private void StoreEvent(MonitoredEvent evt)
+    {
+        lock (_eventsLock)
+        {
+            if (!_eventsBySource.TryGetValue(evt.Source, out var list))
+            {
+                list = new List<MonitoredEvent>();
+                _eventsBySource[evt.Source] = list;
+            }
+            list.Add(evt);
+            if (list.Count > EventsPerSourceCap)
+                list.RemoveRange(0, list.Count - EventsPerSourceCap);
+        }
+    }
+
+    private void SeedEvents(IReadOnlyList<MonitoredEvent> events)
+    {
+        lock (_eventsLock)
+        {
+            // Replace any prior buffer — the service-side list is authoritative on
+            // initial connect. After this seed, ApplyEvent appends ongoing events.
+            _eventsBySource.Clear();
+            foreach (var evt in events)
+            {
+                if (!_eventsBySource.TryGetValue(evt.Source, out var list))
+                {
+                    list = new List<MonitoredEvent>();
+                    _eventsBySource[evt.Source] = list;
+                }
+                list.Add(evt);
+                if (list.Count > EventsPerSourceCap)
+                    list.RemoveRange(0, list.Count - EventsPerSourceCap);
+            }
+        }
+    }
+
     private void ApplyState(ServiceState state)
     {
         IsReady = state.Ready;
+
+        // Seed the per-source event buffer once on initial connect so the detail
+        // view has history for events that fired before the GUI started. Later
+        // state pushes are ignored to preserve in-memory ordering of newer events
+        // already received via EventMessage.
+        if (!_eventsSeeded && state.RecentEvents is { Count: > 0 })
+        {
+            _eventsSeeded = true;
+            SeedEvents(state.RecentEvents);
+        }
 
         // Error sources — split into stability (Hardware category) and system (everything else).
         Application.Current?.Dispatcher.Invoke(() =>
@@ -574,6 +643,10 @@ public partial class MainViewModel : ObservableObject
 
     private void ApplyEvent(MonitoredEvent evt)
     {
+        // Capture for the per-source detail dialog. Stored before the dispatcher
+        // hop so the data is ready even if the UI thread is busy.
+        StoreEvent(evt);
+
         // Update the matching error source count in-place, then recompute severity-tiered status.
         Application.Current?.Dispatcher.Invoke(() =>
         {

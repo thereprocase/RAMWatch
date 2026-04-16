@@ -83,4 +83,13 @@ public sealed class ServiceState
     /// Null when hardware driver is unavailable.
     /// </summary>
     public List<AddressMapConfig>? AddressMap { get; init; }
+
+    /// <summary>
+    /// Most recent monitored events (capped at 50, oldest-first).
+    /// Includes raw XML and decoded MCA details where applicable.
+    /// Lets the GUI seed its per-source event buffers on connect so the
+    /// detail view has history for events that fired before the GUI started.
+    /// Null when no events have been recorded yet.
+    /// </summary>
+    public List<MonitoredEvent>? RecentEvents { get; init; }
 }

@@ -40,14 +40,16 @@
         <!-- Error source table — grouped by severity tier (Stability / System).
              CanContentScroll=False forces pixel-based scrolling which measures columns
              correctly when GroupStyle is active (virtualized scrolling breaks column widths). -->
-        <DataGrid Grid.Row="1"
+        <DataGrid x:Name="ErrorGrid"
+                  Grid.Row="1"
                   Style="{StaticResource DarkDataGrid}"
                   ItemsSource="{Binding Source={StaticResource GroupedErrorSources}}"
                   ColumnHeaderStyle="{StaticResource DarkColumnHeader}"
                   AutomationProperties.Name="Error Monitor"
                   ScrollViewer.CanContentScroll="False"
                   VerticalAlignment="Top"
-                  Margin="0,2,0,8">
+                  Margin="0,2,0,8"
+                  MouseDoubleClick="OnErrorRowDoubleClick">
 
             <!-- Group header row: "STABILITY" or "SYSTEM" label separates the two tiers. -->
             <DataGrid.GroupStyle>
