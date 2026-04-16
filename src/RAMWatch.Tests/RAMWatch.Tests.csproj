@@ -13,6 +13,7 @@
   <ItemGroup>
     <ProjectReference Include="..\RAMWatch.Core\RAMWatch.Core.csproj" />
     <ProjectReference Include="..\RAMWatch.Service\RAMWatch.Service.csproj" />
+    <ProjectReference Include="..\RAMWatch\RAMWatch.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -24,18 +24,13 @@ public static class MinimumComputer
     };
 
     /// <summary>
-    /// All integer timing field names tracked for minimums.
+    /// All integer timing field names tracked for minimums. Sourced from
+    /// TimingSnapshotFields.Timings so the list automatically picks up new
+    /// fields added to the canonical helper. Clocks (frequencies) and PHY
+    /// (training artifacts) and booleans are deliberately excluded.
     /// </summary>
     private static readonly string[] TimingFields =
-    [
-        "CL", "RCDRD", "RCDWR", "RP", "RAS", "RC", "CWL",
-        "RFC", "RFC2", "RFC4",
-        "RRDS", "RRDL", "FAW", "WTRS", "WTRL", "WR", "RTP",
-        "RDRDSCL", "WRWRSCL",
-        "RDRDSC", "RDRDSD", "RDRDDD", "WRWRSC", "WRWRSD", "WRWRDD",
-        "RDWR", "WRRD",
-        "REFI", "CKE", "STAG", "MOD", "MRD"
-    ];
+        TimingSnapshotFields.Timings.Select(t => t.Name).ToArray();
 
     /// <summary>
     /// Compute minimums for each frequency bucket.

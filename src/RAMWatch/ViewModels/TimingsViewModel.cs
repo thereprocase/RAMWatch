@@ -333,7 +333,7 @@ public partial class TimingsViewModel : ObservableObject
     /// Integer dispatch delegates to TimingSnapshotFields; display formatting
     /// (ns conversion, On/Off, 2T/1T) stays at this call site per the memo.
     /// </summary>
-    private static string GetFieldValue(TimingSnapshot snap, string field)
+    internal static string GetFieldValue(TimingSnapshot snap, string field)
     {
         // RFC nanosecond conversion is display logic — handled before the generic
         // integer lookup so it wins over the plain .ToString() path.
@@ -341,18 +341,20 @@ public partial class TimingsViewModel : ObservableObject
         if (field is "RFC2") return FormatRfc(snap.RFC2, snap.MemClockMhz);
         if (field is "RFC4") return FormatRfc(snap.RFC4, snap.MemClockMhz);
 
+        // Boolean display formatting stays at this call site, and MUST run before
+        // GetIntField — booleans appear in the helper's int dispatch as 0/1, which
+        // would otherwise short-circuit the descriptive "On"/"Off" / "2T"/"1T"
+        // formatting below and leak raw 0/1 into the UI.
+        switch (field)
+        {
+            case "GDM":       return snap.GDM       ? "On" : "Off";
+            case "Cmd2T":     return snap.Cmd2T     ? "2T" : "1T";
+            case "PowerDown": return snap.PowerDown ? "On" : "Off";
+        }
+
         // Integer fields: Clocks, Timings, Phy all return raw int → ToString().
         int? intVal = TimingSnapshotFields.GetIntField(snap, field);
-        if (intVal.HasValue) return intVal.Value.ToString();
-
-        // Boolean display formatting stays at this call site.
-        return field switch
-        {
-            "GDM"       => snap.GDM       ? "On" : "Off",
-            "Cmd2T"     => snap.Cmd2T     ? "2T" : "1T",
-            "PowerDown" => snap.PowerDown ? "On" : "Off",
-            _           => "?",
-        };
+        return intVal.HasValue ? intVal.Value.ToString() : "?";
     }
 
     /// <summary>

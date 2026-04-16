@@ -162,22 +162,20 @@ public static class CurrentMdBuilder
     // ── AllTimingPairs — flat ordering (used by LkgMdBuilder and tests) ──────────
 
     // Returns all timing fields as (name, value) pairs in canonical display order.
-    // Integer fields yield raw value strings. Boolean fields (GDM, Cmd2T) yield
-    // the display-formatted strings ("On"/"Off", "2T"/"1T") — formatting stays here
-    // because these are only ever used for display, never for comparison or export.
-    // Internal so LkgMdBuilder can share the same ordered list without duplication.
-    internal static IEnumerable<(string name, string value)> AllTimingPairsPublic(TimingSnapshot snap)
-        => AllTimingPairs(snap);
-
+    // Integer fields yield raw value strings. Boolean fields yield display-formatted
+    // strings ("On"/"Off", "2T"/"1T") — formatting stays here because these are only
+    // ever used for display, never for comparison or export.
     private static IEnumerable<(string name, string value)> AllTimingPairs(TimingSnapshot snap)
     {
         foreach (var (name, get) in TimingSnapshotFields.Timings)
             yield return (name, get(snap).ToString());
 
         // Boolean display formatting stays here — raw bools are not meaningful
-        // in the CURRENT.md / LKG.md checklist context.
-        yield return ("GDM",   snap.GDM   ? "On" : "Off");
-        yield return ("Cmd2T", snap.Cmd2T ? "2T" : "1T");
+        // in the CURRENT.md / LKG.md checklist context. PowerDown joins GDM and
+        // Cmd2T because it is a real BIOS-controlled tuning toggle, not training.
+        yield return ("GDM",       snap.GDM       ? "On" : "Off");
+        yield return ("Cmd2T",     snap.Cmd2T     ? "2T" : "1T");
+        yield return ("PowerDown", snap.PowerDown ? "On" : "Off");
     }
 
     // ── GetTimingPair — maps a field name to its snapshot value ───────────────

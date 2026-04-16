@@ -231,60 +231,23 @@ public sealed class DriftDetector : IDisposable
     /// Extract every integer timing field from a snapshot into a name-value map.
     /// This is what gets stored in the rolling window; storing all fields means we
     /// don't need to re-examine the raw snapshot later when designations change.
+    /// Fields are sourced from TimingSnapshotFields so adding a new field to the
+    /// helper automatically propagates here without touching this method.
     /// </summary>
     private static Dictionary<string, int> ExtractAllIntTimings(TimingSnapshot s)
     {
-        return new Dictionary<string, int>
-        {
-            // Clocks
-            ["MemClockMhz"] = s.MemClockMhz,
-            ["FclkMhz"]     = s.FclkMhz,
-            ["UclkMhz"]     = s.UclkMhz,
-            // Primaries
-            ["CL"]    = s.CL,
-            ["RCDRD"] = s.RCDRD,
-            ["RCDWR"] = s.RCDWR,
-            ["RP"]    = s.RP,
-            ["RAS"]   = s.RAS,
-            ["RC"]    = s.RC,
-            ["CWL"]   = s.CWL,
-            // tRFC
-            ["RFC"]  = s.RFC,
-            ["RFC2"] = s.RFC2,
-            ["RFC4"] = s.RFC4,
-            // Secondaries
-            ["RRDS"]    = s.RRDS,
-            ["RRDL"]    = s.RRDL,
-            ["FAW"]     = s.FAW,
-            ["WTRS"]    = s.WTRS,
-            ["WTRL"]    = s.WTRL,
-            ["WR"]      = s.WR,
-            ["RTP"]     = s.RTP,
-            ["RDRDSCL"] = s.RDRDSCL,
-            ["WRWRSCL"] = s.WRWRSCL,
-            // Turn-around
-            ["RDRDSC"] = s.RDRDSC,
-            ["RDRDSD"] = s.RDRDSD,
-            ["RDRDDD"] = s.RDRDDD,
-            ["WRWRSC"] = s.WRWRSC,
-            ["WRWRSD"] = s.WRWRSD,
-            ["WRWRDD"] = s.WRWRDD,
-            ["RDWR"]   = s.RDWR,
-            ["WRRD"]   = s.WRRD,
-            // Misc
-            ["REFI"] = s.REFI,
-            ["CKE"]  = s.CKE,
-            ["STAG"] = s.STAG,
-            ["MOD"]  = s.MOD,
-            ["MRD"]  = s.MRD,
-            // PHY
-            ["PHYRDL_A"] = s.PHYRDL_A,
-            ["PHYRDL_B"] = s.PHYRDL_B,
-            // Boolean controller config stored as int (0/1)
-            ["GDM"]       = s.GDM       ? 1 : 0,
-            ["Cmd2T"]     = s.Cmd2T     ? 1 : 0,
-            ["PowerDown"] = s.PowerDown ? 1 : 0,
-        };
+        var dict = new Dictionary<string, int>(
+            TimingSnapshotFields.Clocks.Length +
+            TimingSnapshotFields.Timings.Length +
+            TimingSnapshotFields.Phy.Length +
+            TimingSnapshotFields.Booleans.Length);
+
+        foreach (var (name, get) in TimingSnapshotFields.Clocks)   dict[name] = get(s);
+        foreach (var (name, get) in TimingSnapshotFields.Timings)  dict[name] = get(s);
+        foreach (var (name, get) in TimingSnapshotFields.Phy)      dict[name] = get(s);
+        foreach (var (name, get) in TimingSnapshotFields.Booleans) dict[name] = get(s) ? 1 : 0;
+
+        return dict;
     }
 
     /// <summary>

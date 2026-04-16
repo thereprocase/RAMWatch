@@ -112,6 +112,20 @@ public class TimingSnapshotFieldsTests
         Assert.Equal(expectedColumns, actualColumns);
     }
 
+    // ─── 3b. CSV header lock — header column count must match row column count ──
+
+    [Fact]
+    public void FormatRow_HeaderColumnCount_MatchesRowColumnCount()
+    {
+        // Header is a frozen const string; FormatRow writes one value per column.
+        // If a future patch grows FormatRow but forgets the header (or vice versa),
+        // the on-disk CSV will start writing rows with a different column count
+        // than the header advertises and external parsers will misalign silently.
+        int headerColumns = TimingCsvLogger.Header.Count(c => c == ',') + 1;
+        int rowColumns    = TimingCsvLogger.FormatRow(MakeProbeSnapshot()).Count(c => c == ',') + 1;
+        Assert.Equal(headerColumns, rowColumns);
+    }
+
     // ─── 4. TuningEqual ──────────────────────────────────────────────────────
 
     [Fact]

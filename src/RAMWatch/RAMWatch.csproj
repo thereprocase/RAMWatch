@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\RAMWatch.Core\RAMWatch.Core.csproj" />
+    <InternalsVisibleTo Include="RAMWatch.Tests" />
   </ItemGroup>
 
   <ItemGroup>

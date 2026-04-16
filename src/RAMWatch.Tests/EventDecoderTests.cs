@@ -394,18 +394,22 @@ public class EventDecoderTests
     }
 
     [Fact]
-    public void AppHang_BasicFields()
+    public void AppHang_PositionalDataExtracted()
     {
+        // Real Application Hang 1002 EventData layout:
+        //   0 AppName, 1 AppVersion, 2 ProcessId, 3 StartTime,
+        //   4 TerminationTime, 5 ExeFileName, 6 ReportId
         const string xml = """
             <Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'>
               <System><EventID>1002</EventID></System>
               <EventData>
                 <Data>slack.exe</Data>
                 <Data>4.36.140</Data>
-                <Data>0x65f7ab12</Data>
                 <Data>1234</Data>
-                <Data>0x01da7c1e</Data>
-                <Data>abc123-hang-sig</Data>
+                <Data>132894751234567890</Data>
+                <Data>132894751234999999</Data>
+                <Data>C:\Program Files\Slack\slack.exe</Data>
+                <Data>abc123-report-guid</Data>
               </EventData>
             </Event>
             """;
@@ -414,7 +418,123 @@ public class EventDecoderTests
         var decoded = EventDecoder.Decode(evt);
 
         Assert.Contains("slack.exe", decoded.Title);
-        Assert.Contains(decoded.Facts, kv => kv.Key == "Hang signature" && kv.Value == "abc123-hang-sig");
+        Assert.Contains(decoded.Facts, kv => kv.Key == "Process ID" && kv.Value == "1234");
+        Assert.Contains(decoded.Facts, kv => kv.Key == "Executable" && kv.Value.Contains("slack.exe"));
+        Assert.Contains(decoded.Facts, kv => kv.Key == "Report ID" && kv.Value == "abc123-report-guid");
+        // The old fixture asserted "Hang signature" — that field does not exist in
+        // the actual 1002 schema and is intentionally absent from the new decoder.
+        Assert.DoesNotContain(decoded.Facts, kv => kv.Key == "Hang signature");
+    }
+
+    [Fact]
+    public void AppCrash_MissingEventData_FallsBackToPlainSummary()
+    {
+        // Truncated WER payload — no Data nodes at all.
+        const string xml = """
+            <Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'>
+              <System><EventID>1000</EventID></System>
+              <EventData />
+            </Event>
+            """;
+        var evt = MakeEvent("Application Crash", 1000, EventCategory.Application, rawXml: xml);
+
+        var decoded = EventDecoder.Decode(evt);
+
+        // No leading-space concatenation, no broken sentences.
+        Assert.DoesNotContain("  ", decoded.What);
+        Assert.DoesNotContain("Process ,", decoded.Where);
+        Assert.Contains("missing or truncated", decoded.What);
+    }
+
+    [Fact]
+    public void AppHang_MissingEventData_FallsBackToPlainSummary()
+    {
+        const string xml = """
+            <Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'>
+              <System><EventID>1002</EventID></System>
+              <EventData />
+            </Event>
+            """;
+        var evt = MakeEvent("Application Hang", 1002, EventCategory.Application, rawXml: xml);
+
+        var decoded = EventDecoder.Decode(evt);
+
+        Assert.DoesNotContain("  ", decoded.What);
+        Assert.Contains("missing or truncated", decoded.What);
+    }
+
+    [Fact]
+    public void UnexpectedShutdown_SleepInProgress_AcceptsBothStringForms()
+    {
+        // Different Windows builds emit "1" or "true" for the SleepInProgress field.
+        const string xmlNumeric = """
+            <Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'>
+              <System><EventID>41</EventID></System>
+              <EventData>
+                <Data Name='BugcheckCode'>0</Data>
+                <Data Name='SleepInProgress'>1</Data>
+                <Data Name='PowerButtonTimestamp'>0</Data>
+              </EventData>
+            </Event>
+            """;
+        const string xmlBoolean = """
+            <Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'>
+              <System><EventID>41</EventID></System>
+              <EventData>
+                <Data Name='BugcheckCode'>0</Data>
+                <Data Name='SleepInProgress'>true</Data>
+                <Data Name='PowerButtonTimestamp'>0</Data>
+              </EventData>
+            </Event>
+            """;
+        var evtNumeric = MakeEvent("Unexpected Shutdown", 41, EventCategory.Hardware, rawXml: xmlNumeric);
+        var evtBoolean = MakeEvent("Unexpected Shutdown", 41, EventCategory.Hardware, rawXml: xmlBoolean);
+
+        var decodedNumeric = EventDecoder.Decode(evtNumeric);
+        var decodedBoolean = EventDecoder.Decode(evtBoolean);
+
+        Assert.Contains("sleep", decodedNumeric.What.ToLowerInvariant());
+        Assert.Contains("sleep", decodedBoolean.What.ToLowerInvariant());
+    }
+
+    [Fact]
+    public void UnexpectedShutdown_BugcheckPath_ClassifiesStopCode()
+    {
+        const string xml = """
+            <Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'>
+              <System><EventID>41</EventID></System>
+              <EventData>
+                <Data Name='BugcheckCode'>156</Data>
+                <Data Name='SleepInProgress'>0</Data>
+                <Data Name='PowerButtonTimestamp'>0</Data>
+              </EventData>
+            </Event>
+            """;
+        var evt = MakeEvent("Unexpected Shutdown", 41, EventCategory.Hardware, rawXml: xml);
+
+        var decoded = EventDecoder.Decode(evt);
+
+        Assert.Contains("MACHINE_CHECK_EXCEPTION", decoded.What);
+    }
+
+    [Fact]
+    public void Bugcheck_NoParameters_UsesAlternativeWhereText()
+    {
+        const string xml = """
+            <Event xmlns='http://schemas.microsoft.com/win/2004/08/events/event'>
+              <System><EventID>1001</EventID></System>
+              <EventData>
+                <Data Name='BugcheckCode'>26</Data>
+              </EventData>
+            </Event>
+            """;
+        var evt = MakeEvent("Kernel Bugcheck", 1001, EventCategory.Hardware, rawXml: xml);
+
+        var decoded = EventDecoder.Decode(evt);
+
+        // Should not mention "the parameters above" when there are none.
+        Assert.DoesNotContain("parameters above", decoded.Where);
+        Assert.Contains("did not include", decoded.Where);
     }
 
     // ── Memory Diagnostics ───────────────────────────────────

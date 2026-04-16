@@ -17,7 +17,10 @@ public sealed class TimingCsvLogger : IDisposable
     private string _currentFilePath = "";
 
     // Column order matches the task spec and TimingSnapshot field order.
-    private const string Header =
+    // Internal so the lock-in test can assert header column count == row column
+    // count, catching the "added a field to FormatRow but forgot the header"
+    // class of regression before any user CSV gets misaligned.
+    internal const string Header =
         "timestamp,boot_id,mclk,fclk,uclk," +
         "cl,rcdrd,rcdwr,rp,ras,rc,cwl," +
         "rfc,rfc2,rfc4," +

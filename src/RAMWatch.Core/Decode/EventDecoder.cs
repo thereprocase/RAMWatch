@@ -174,12 +174,17 @@ public static class EventDecoder
         if (p4 is not null) facts.Add(new("Parameter 4", FormatHexParam(p4)));
         if (overrideRaw is not null) facts.Add(new("Override", overrideRaw));
 
+        bool anyParam = p1 is not null || p2 is not null || p3 is not null || p4 is not null;
+        string whereText = anyParam
+            ? "Kernel-mode crash. The parameters above are stop-code-specific — for memory errors they're often the faulting address, an access type, and a probe context."
+            : "Kernel-mode crash. This event payload did not include the four BugcheckParameter fields; the dump file is the only source for them.";
+
         return new DecodedEvent(
             Title:    bugcheckHex is null ? "Kernel Bugcheck (BSOD)" : $"BSOD — {codeName}",
             What:     bugcheckHex is null
                         ? "Windows recorded a kernel bugcheck (BSOD). The stop code wasn't extracted from this event payload."
                         : $"The system bugchecked with stop code {bugcheckHex} ({codeName}). The crash dump (if enabled) is in C:\\Windows\\MEMORY.DMP or \\Minidump\\.",
-            Where:    "Kernel-mode crash. The four parameters above are stop-code-specific — for memory errors they're often the faulting address, an access type, and a probe context.",
+            Where:    whereText,
             Why:      codeWhy,
             WhatToDo: codeAction,
             Facts:    facts);
@@ -280,9 +285,14 @@ public static class EventDecoder
 
         if (hasBugcheck)
         {
-            what = $"The system rebooted following a kernel bugcheck. Stop code: {FormatHex(ParseUlong(bcCode!))}.";
+            string codeHex = FormatHex(ParseUlong(bcCode!));
+            // Reuse the bugcheck classifier so the user sees the symbolic name
+            // and a one-line "why" without having to cross-reference a separate
+            // 1001 event.
+            var (codeName, _, _) = ClassifyBugcheck(codeHex);
+            what = $"The system rebooted following a kernel bugcheck. Stop code: {codeHex} ({codeName}). See the matching Kernel Bugcheck event (id 1001) for full parameter detail.";
             why = "A bugcheck-triggered Kernel-Power 41 means the BSOD path completed and the system reset. The stop code is the real signal — chase that, not the 41 itself.";
-            whatToDo = "Look at the matching WER bugcheck event (id 1001) for the same boot. If memory tuning is active, revert and retest before changing anything else.";
+            whatToDo = "Open the matching WER bugcheck event (id 1001) for the same timestamp. If memory tuning is active, revert and retest before changing anything else.";
         }
         else if (cleanPowerButton)
         {
@@ -290,7 +300,7 @@ public static class EventDecoder
             why = "This is the cleanest of the bad shutdown reasons — the OS knows the user (or BIOS) forced it. Often happens after a hang where the user gave up waiting.";
             whatToDo = "If this followed a hang, treat as instability: capture what the system was doing and check WHEA / driver events at the same timestamp.";
         }
-        else if (sleepInProgress is not null && sleepInProgress != "0")
+        else if (IsTruthy(sleepInProgress))
         {
             what = "Power was lost while the system was entering or leaving sleep.";
             why = "Sleep transitions exercise SoC voltage rails and the IF retraining path — instability here often points at marginal VSOC or VDDG.";
@@ -514,18 +524,35 @@ public static class EventDecoder
         {
             new("Event ID", "1000 (Application Error)"),
             new("Application", string.IsNullOrEmpty(appName) ? "(unknown)" : appName),
-            new("App version", appVer),
+            new("App version", string.IsNullOrEmpty(appVer) ? "(unknown)" : appVer),
             new("Faulting module", string.IsNullOrEmpty(modName) ? "(unknown)" : modName),
-            new("Module version", modVer),
+            new("Module version", string.IsNullOrEmpty(modVer) ? "(unknown)" : modVer),
             new("Exception code", FormatHexParam(excCode)),
             new("Fault offset", FormatHexParam(offset)),
-            new("Process ID", processId),
+            new("Process ID", string.IsNullOrEmpty(processId) ? "(unknown)" : processId),
         };
+
+        string title = $"App Crash — {(string.IsNullOrEmpty(appName) ? "(unknown app)" : appName)}";
+
+        // When EventData is missing the essential fields, build a plain summary
+        // rather than concatenating broken sentences with leading spaces and
+        // double gaps. Truncated WER payloads from third-party providers are the
+        // common case here.
+        if (string.IsNullOrEmpty(appName) || string.IsNullOrEmpty(modName))
+        {
+            return new DecodedEvent(
+                Title:    title,
+                What:     "An application crash was recorded. Standard EventData fields (application name, faulting module, exception code) were missing or truncated.",
+                Where:    "Application Error provider. Open Event Viewer for the raw event payload.",
+                Why:      "Without the faulting-module and exception-code fields there is no signal to chase from this row alone.",
+                WhatToDo: "Cross-reference with WER (Windows Error Reporting) folder under %LOCALAPPDATA%\\CrashDumps for the dump file.",
+                Facts:    facts);
+        }
 
         string excName = ExceptionCodeName(excCode);
 
         return new DecodedEvent(
-            Title:    $"App Crash — {(string.IsNullOrEmpty(appName) ? "(unknown app)" : appName)}",
+            Title:    title,
             What:     $"{appName} faulted in module {modName} with exception {FormatHexParam(excCode)} ({excName}) at offset {FormatHexParam(offset)}.",
             Where:    $"Process {processId}, app version {appVer}, module version {modVer}.",
             Why:      "User-mode app crashes are usually app or driver bugs, not RAM. But a single faulting module that crashes after RAM tuning, and never before, is a control-test signal.",
@@ -551,22 +578,47 @@ public static class EventDecoder
 
     private static DecodedEvent DecodeAppHang(MonitoredEvent evt)
     {
+        // Application Hang 1002 positional layout (per Microsoft Q&A docs):
+        //   0: AppName, 1: AppVersion, 2: ProcessId, 3: StartTime,
+        //   4: TerminationTime, 5: ExeFileName, 6: ReportId, 7: PackageFullName
+        // The earlier shape used here mistook StartTime for ProcessId and read
+        // TerminationTime as a "hang signature" field that does not exist.
         var values = EventXml.ReadUnnamedData(evt.RawXml);
         string Get(int i) => i < values.Count ? values[i] : "";
+
+        string appName     = Get(0);
+        string appVer      = Get(1);
+        string processId   = Get(2);
+        string exeFileName = Get(5);
+        string reportId    = Get(6);
 
         var facts = new List<KeyValuePair<string, string>>
         {
             new("Event ID", "1002 (Application Hang)"),
-            new("Application", Get(0)),
-            new("App version", Get(1)),
-            new("Process ID", Get(3)),
-            new("Hang signature", Get(5)),
+            new("Application", string.IsNullOrEmpty(appName) ? "(unknown)" : appName),
+            new("App version", string.IsNullOrEmpty(appVer) ? "(unknown)" : appVer),
+            new("Process ID", string.IsNullOrEmpty(processId) ? "(unknown)" : processId),
         };
+        if (!string.IsNullOrEmpty(exeFileName)) facts.Add(new("Executable", exeFileName));
+        if (!string.IsNullOrEmpty(reportId))    facts.Add(new("Report ID", reportId));
+
+        string title = $"App Hang — {(string.IsNullOrEmpty(appName) ? "(unknown app)" : appName)}";
+
+        if (string.IsNullOrEmpty(appName))
+        {
+            return new DecodedEvent(
+                Title:    title,
+                What:     "An application hang was recorded. Standard EventData fields (application name, version) were missing or truncated.",
+                Where:    "Application Hang provider. Open Event Viewer for the raw event payload.",
+                Why:      "Without the application identity there is no actionable signal in this row alone.",
+                WhatToDo: "Cross-reference with WER (Windows Error Reporting) folder under %LOCALAPPDATA%\\CrashDumps for the dump file.",
+                Facts:    facts);
+        }
 
         return new DecodedEvent(
-            Title:    $"App Hang — {(string.IsNullOrEmpty(Get(0)) ? "(unknown app)" : Get(0))}",
-            What:     $"{Get(0)} stopped responding to window messages and was terminated by Windows Error Reporting.",
-            Where:    $"Process {Get(3)}, app version {Get(1)}.",
+            Title:    title,
+            What:     $"{appName} stopped responding to window messages and was terminated by Windows Error Reporting.",
+            Where:    $"Process {processId}, app version {appVer}.",
             Why:      "Hangs are a UI-thread signal, not a hardware signal — except when they cluster across many apps simultaneously, which can hint at I/O or driver wedge.",
             WhatToDo: "Single hang: report to vendor. Mass hangs: check disk and storage events at the same timestamp.",
             Facts:    facts);
@@ -644,5 +696,19 @@ public static class EventDecoder
         if (string.IsNullOrEmpty(raw)) return "0x0";
         if (raw.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) return raw.ToLowerInvariant();
         return FormatHex(ParseUlong(raw));
+    }
+
+    /// <summary>
+    /// Boolean-ish flag parser for event log fields. Different Windows builds
+    /// emit Kernel-Power 41's SleepInProgress as either "1"/"0" or "true"/"false";
+    /// accept either rather than letting the entire branch never fire on the
+    /// other variant.
+    /// </summary>
+    private static bool IsTruthy(string? raw)
+    {
+        if (string.IsNullOrEmpty(raw)) return false;
+        var s = raw.Trim();
+        if (s == "0" || s.Equals("false", StringComparison.OrdinalIgnoreCase)) return false;
+        return s == "1" || s.Equals("true", StringComparison.OrdinalIgnoreCase) || ParseUlong(s) != 0;
     }
 }
