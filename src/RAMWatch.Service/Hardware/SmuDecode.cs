@@ -47,6 +47,9 @@ public sealed class SmuDecode : IDisposable
     // HEDT (Threadripper) can have up to 8 CCDs but we cap at 8 for safety.
     private const int MaxCcds = 8;
 
+    // Pre-allocated buffer for CCD temps — avoids List + ToArray per 3s cycle.
+    private readonly double[] _ccdTempBuf = new double[MaxCcds];
+
     public SmuDecode(IHardwareAccess hw, CpuDetect.CpuFamily cpuFamily)
     {
         _hw = hw;
@@ -179,7 +182,7 @@ public sealed class SmuDecode : IDisposable
             };
             if (baseAddr == 0) return;
 
-            var temps = new List<double>(MaxCcds);
+            int count = 0;
             for (int i = 0; i < MaxCcds; i++)
             {
                 uint addr = baseAddr + (uint)(i * 4);
@@ -193,14 +196,14 @@ public sealed class SmuDecode : IDisposable
 
                 // Plausibility check
                 if (tempC is >= -10 and <= 125)
-                    temps.Add(Math.Round(tempC, 1));
+                    _ccdTempBuf[count++] = Math.Round(tempC, 1);
                 else
                     break; // Implausible = not a real CCD
             }
 
-            if (temps.Count > 0)
+            if (count > 0)
             {
-                tp.CcdTempsC = temps.ToArray();
+                tp.CcdTempsC = _ccdTempBuf[..count];
                 tp.Sources |= ThermalDataSource.SmnCcdTemp;
             }
         }

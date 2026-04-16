@@ -148,6 +148,9 @@ public sealed class StateAggregator
         lock (_lock)
         {
             _currentBootDrift.AddRange(events);
+            // Cap to prevent unbounded growth during pathological drift storms.
+            if (_currentBootDrift.Count > 200)
+                _currentBootDrift.RemoveRange(0, _currentBootDrift.Count - 200);
         }
     }
 

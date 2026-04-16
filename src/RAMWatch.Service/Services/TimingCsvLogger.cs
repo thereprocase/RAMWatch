@@ -1,3 +1,4 @@
+using System.Text;
 using RAMWatch.Core.Models;
 
 namespace RAMWatch.Service.Services;
@@ -88,68 +89,50 @@ public sealed class TimingCsvLogger : IDisposable
     /// <summary>
     /// Format a single CSV row. Boolean fields use 1/0, voltages use 4 decimal places.
     /// </summary>
+    // Reused per call to avoid boxing from string.Join(params object[]).
+    [ThreadStatic] private static StringBuilder? _csvBuf;
+
     internal static string FormatRow(TimingSnapshot s)
     {
-        return string.Join(",",
-            s.Timestamp.ToString("o"),
-            s.BootId,
-            s.MemClockMhz,
-            s.FclkMhz,
-            s.UclkMhz,
-            s.CL,
-            s.RCDRD,
-            s.RCDWR,
-            s.RP,
-            s.RAS,
-            s.RC,
-            s.CWL,
-            s.RFC,
-            s.RFC2,
-            s.RFC4,
-            s.RRDS,
-            s.RRDL,
-            s.FAW,
-            s.WTRS,
-            s.WTRL,
-            s.WR,
-            s.RTP,
-            s.RDRDSCL,
-            s.WRWRSCL,
-            s.RDRDSC,
-            s.RDRDSD,
-            s.RDRDDD,
-            s.WRWRSC,
-            s.WRWRSD,
-            s.WRWRDD,
-            s.RDWR,
-            s.WRRD,
-            s.REFI,
-            s.CKE,
-            s.STAG,
-            s.MOD,
-            s.MRD,
-            s.PHYRDL_A,
-            s.PHYRDL_B,
-            s.PowerDown ? 1 : 0,
-            s.GDM ? 1 : 0,
-            s.Cmd2T ? 1 : 0,
-            s.VSoc.ToString("F4"),
-            s.VDimm.ToString("F4"),
-            s.VCore.ToString("F4"),
-            s.VDDP.ToString("F4"),
-            s.VDDG_IOD.ToString("F4"),
-            s.VDDG_CCD.ToString("F4"),
-            s.Vtt.ToString("F4"),
-            s.Vpp.ToString("F4"),
-            s.ProcODT.ToString("F1"),
-            s.RttNom,
-            s.RttWr,
-            s.RttPark,
-            s.ClkDrvStren.ToString("F1"),
-            s.AddrCmdDrvStren.ToString("F1"),
-            s.CsOdtCmdDrvStren.ToString("F1"),
-            s.CkeDrvStren.ToString("F1")
-        );
+        var sb = _csvBuf ??= new StringBuilder(512);
+        sb.Clear();
+
+        sb.Append(s.Timestamp.ToString("o")).Append(',');
+        sb.Append(s.BootId).Append(',');
+        // Clocks
+        sb.Append(s.MemClockMhz).Append(',').Append(s.FclkMhz).Append(',').Append(s.UclkMhz).Append(',');
+        // Primaries
+        sb.Append(s.CL).Append(',').Append(s.RCDRD).Append(',').Append(s.RCDWR).Append(',');
+        sb.Append(s.RP).Append(',').Append(s.RAS).Append(',').Append(s.RC).Append(',').Append(s.CWL).Append(',');
+        // tRFC
+        sb.Append(s.RFC).Append(',').Append(s.RFC2).Append(',').Append(s.RFC4).Append(',');
+        // Secondaries
+        sb.Append(s.RRDS).Append(',').Append(s.RRDL).Append(',').Append(s.FAW).Append(',');
+        sb.Append(s.WTRS).Append(',').Append(s.WTRL).Append(',').Append(s.WR).Append(',').Append(s.RTP).Append(',');
+        // SCL + turn-around
+        sb.Append(s.RDRDSCL).Append(',').Append(s.WRWRSCL).Append(',');
+        sb.Append(s.RDRDSC).Append(',').Append(s.RDRDSD).Append(',').Append(s.RDRDDD).Append(',');
+        sb.Append(s.WRWRSC).Append(',').Append(s.WRWRSD).Append(',').Append(s.WRWRDD).Append(',');
+        sb.Append(s.RDWR).Append(',').Append(s.WRRD).Append(',');
+        // Misc
+        sb.Append(s.REFI).Append(',').Append(s.CKE).Append(',').Append(s.STAG).Append(',');
+        sb.Append(s.MOD).Append(',').Append(s.MRD).Append(',');
+        // PHY + controller
+        sb.Append(s.PHYRDL_A).Append(',').Append(s.PHYRDL_B).Append(',');
+        sb.Append(s.PowerDown ? 1 : 0).Append(',');
+        sb.Append(s.GDM ? 1 : 0).Append(',').Append(s.Cmd2T ? 1 : 0).Append(',');
+        // Voltages
+        sb.Append(s.VSoc.ToString("F4")).Append(',').Append(s.VDimm.ToString("F4")).Append(',');
+        sb.Append(s.VCore.ToString("F4")).Append(',').Append(s.VDDP.ToString("F4")).Append(',');
+        sb.Append(s.VDDG_IOD.ToString("F4")).Append(',').Append(s.VDDG_CCD.ToString("F4")).Append(',');
+        sb.Append(s.Vtt.ToString("F4")).Append(',').Append(s.Vpp.ToString("F4")).Append(',');
+        // Signal integrity
+        sb.Append(s.ProcODT.ToString("F1")).Append(',');
+        sb.Append(s.RttNom).Append(',').Append(s.RttWr).Append(',').Append(s.RttPark).Append(',');
+        sb.Append(s.ClkDrvStren.ToString("F1")).Append(',').Append(s.AddrCmdDrvStren.ToString("F1")).Append(',');
+        sb.Append(s.CsOdtCmdDrvStren.ToString("F1")).Append(',').Append(s.CkeDrvStren.ToString("F1"));
+
+        return sb.ToString();
     }
 
     public void Dispose()

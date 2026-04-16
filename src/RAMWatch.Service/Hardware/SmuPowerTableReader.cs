@@ -53,6 +53,12 @@ public sealed class SmuPowerTableReader : IDisposable
     // The largest known table (Storm Peak) is ~0x1E48 bytes.
     private const uint MaxPmTableBytes = 0x2000;
 
+    // Pre-allocated buffers for ReadPmTable — reused every call to avoid
+    // 16KB of GC pressure per 3s hot-tier cycle (~470MB/day without this).
+    // Safe because all callers hold _driverLock in HardwareReader.
+    private ulong[]? _rawBuf;
+    private float[]? _floatBuf;
+
     public bool IsAvailable => _available;
 
     public void Initialize()
@@ -317,16 +323,19 @@ public sealed class SmuPowerTableReader : IDisposable
         uint qwordCount = (tableBytes + 7) / 8;
         try
         {
-            var raw = _driver.Execute(IoctlReadPmTable, new ulong[qwordCount], (int)qwordCount);
+            // Reuse pre-allocated buffers to avoid 16KB of GC pressure per call.
+            // Buffers are sized for MaxPmTableBytes on first use.
+            _rawBuf ??= new ulong[MaxPmTableBytes / 8];
+            _floatBuf ??= new float[MaxPmTableBytes / 4];
+
+            var raw = _driver.Execute(IoctlReadPmTable, _rawBuf[..(int)qwordCount], (int)qwordCount);
             if (raw is null || raw.Length == 0) return null;
 
             // Reinterpret the uint64 array as a float array.
-            // raw is ulong[] — each element holds 8 bytes, so the byte capacity is raw.Length * 8.
             int floatCount = (int)(tableBytes / 4);
-            var floats = new float[floatCount];
             int bytesToCopy = Math.Min(floatCount * 4, raw.Length * 8);
-            Buffer.BlockCopy(raw, 0, floats, 0, bytesToCopy);
-            return floats;
+            Buffer.BlockCopy(raw, 0, _floatBuf, 0, bytesToCopy);
+            return _floatBuf;
         }
         catch
         {
@@ -567,12 +576,14 @@ public sealed class SmuPowerTableReader : IDisposable
                 VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C,
                 PptLimitByteOffset = 0x000, PptValueByteOffset = 0x004, TdcLimitByteOffset = 0x008, TdcValueByteOffset = 0x00C,
                 ThmValueByteOffset = 0x014, EdcLimitByteOffset = 0x020, EdcValueByteOffset = 0x024,
-                SocketPowerByteOffset = 0x074, CorePowerByteOffset = 0x0A8, SocPowerByteOffset = 0x0BC },
+                SocketPowerByteOffset = 0x074, CorePowerByteOffset = 0x0A8, SocPowerByteOffset = 0x0BC,
+                SocTempByteOffset = 0x1FC },
             0x380905 => new PmTableLayout { TableSizeBytes = 0x5D0, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
                 VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C,
                 PptLimitByteOffset = 0x000, PptValueByteOffset = 0x004, TdcLimitByteOffset = 0x008, TdcValueByteOffset = 0x00C,
                 ThmValueByteOffset = 0x014, EdcLimitByteOffset = 0x020, EdcValueByteOffset = 0x024,
-                SocketPowerByteOffset = 0x074, CorePowerByteOffset = 0x0A8, SocPowerByteOffset = 0x0BC },
+                SocketPowerByteOffset = 0x074, CorePowerByteOffset = 0x0A8, SocPowerByteOffset = 0x0BC,
+                SocTempByteOffset = 0x1FC },
             // Generic Zen3 CPU
             0x000300 => new PmTableLayout { TableSizeBytes = 0x948, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
                 VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C,
