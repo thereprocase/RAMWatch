@@ -32,16 +32,19 @@ Full 7-reviewer War Council on all today's work. Found 3 critical, 14 warning. A
 
 ## Ready to implement next
 
-### Reactive Vitals Snapshot (plan approved, in memory + plan file)
+### Wire thermal telemetry into reactive events + GUI (plan approved)
 
-Capture CPU temp + voltages within microseconds of a WHEA error via direct SMN reads, ordered by volatility (fastest-changing first):
+**UPDATE:** The other session (`1e866eb`) built the entire read infrastructure:
+- `ThermalPowerSnapshot` model (Tctl, CCD temps, SoC temp, peak temp, power, PPT/TDC/EDC)
+- `SmuDecode.PopulateThermalPower()` — direct SMN + PM table reads
+- `HardwareReader.ReadThermalPower()` + StateAggregator + ServiceState wiring
+- Already called on the 30s poll
 
-1. `CpuTempC` (Tctl) — SMN `0x59800`, bits [31:21] × 0.125, RANGE_SEL bit 19 subtracts 49°C
-2. `VCoreSvi2` — SMN SVI2 core plane, `1.55 - vid * 0.00625`
-3. `VSocSvi2` — SMN SVI2 SoC plane
-4. Per-CCD temps — `0x59954`/`0x5B08` + ccd×4, `(val & 0xFFF) * 0.125 - 305`
-
-New files: `VitalsSnapshot.cs` (model), `VitalsReader.cs` (SMN reads). Wire into `OnEventDetected` in RamWatchService. Also add ambient Tctl to TimingSnapshot for the Timings tab 30s poll.
+**What remains for us:**
+1. Reactive WHEA capture — call `ReadThermalPower()` in `OnEventDetected`, stamp onto MonitoredEvent (new `Vitals` field)
+2. GUI display — consume `state.ThermalPower` in MainViewModel, show on Timings tab
+3. Clipboard/digest — add thermal section
+4. Event CSV — add vitals columns for hardware events
 
 Full plan: `C:\Users\repro\.claude\plans\curious-finding-fountain.md`
 Memory: `project_vitals_snapshot.md`
