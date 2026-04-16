@@ -20,6 +20,13 @@ public sealed class ServiceState
     // Phase 2 — null when hardware driver is unavailable
     public TimingSnapshot? Timings { get; init; }
 
+    /// <summary>
+    /// Real-time thermal/power telemetry from the SMU.
+    /// Null when hardware driver is unavailable or CPU is unsupported.
+    /// Ephemeral — not persisted to disk or snapshot journal.
+    /// </summary>
+    public ThermalPowerSnapshot? ThermalPower { get; init; }
+
     // Resolved board vendor (never "Auto" — service resolves Auto at startup).
     // Null when the registry key is inaccessible (treated as Default by the GUI).
     public string? BiosLayoutVendor { get; init; }

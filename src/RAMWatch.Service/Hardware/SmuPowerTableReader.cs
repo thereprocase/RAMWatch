@@ -169,6 +169,77 @@ public sealed class SmuPowerTableReader : IDisposable
     /// <summary>Kept for backward compatibility. Use ReadClocksAndVoltages instead.</summary>
     public void ReadVoltages(TimingSnapshot _) { /* no-op: merged into ReadClocksAndVoltages */ }
 
+    /// <summary>
+    /// Read thermal and power telemetry from the SMU power table.
+    /// Populates only the fields for which this PM table version has known offsets.
+    /// Returns false if the table could not be read at all.
+    /// </summary>
+    public bool ReadThermalPower(ThermalPowerSnapshot tp)
+    {
+        if (_driver is null || !_available) return false;
+
+        try
+        {
+            float[]? table = ReadPmTable();
+            if (table is null) return false;
+
+            // Temperature fields — plausibility: -10 to 125 °C
+            TryReadThermal(table, _layout.ThmValueByteOffset, v => tp.CpuTempC = v);
+            TryReadThermal(table, _layout.SocTempByteOffset, v => tp.SocTempC = v);
+            TryReadThermal(table, _layout.PeakTempByteOffset, v => tp.PeakTempC = v);
+
+            // Power fields — plausibility: 0 to 1000 W (covers even HEDT)
+            TryReadPower(table, _layout.SocketPowerByteOffset, v => tp.SocketPowerW = v);
+            TryReadPower(table, _layout.CorePowerByteOffset, v => tp.CorePowerW = v);
+            TryReadPower(table, _layout.SocPowerByteOffset, v => tp.SocPowerW = v);
+            TryReadPower(table, _layout.PptLimitByteOffset, v => tp.PptLimitW = v);
+            TryReadPower(table, _layout.PptValueByteOffset, v => tp.PptActualW = v);
+
+            // Current fields — plausibility: 0 to 500 A
+            TryReadCurrent(table, _layout.TdcLimitByteOffset, v => tp.TdcLimitA = v);
+            TryReadCurrent(table, _layout.TdcValueByteOffset, v => tp.TdcActualA = v);
+            TryReadCurrent(table, _layout.EdcLimitByteOffset, v => tp.EdcLimitA = v);
+            TryReadCurrent(table, _layout.EdcValueByteOffset, v => tp.EdcActualA = v);
+
+            tp.Sources |= ThermalDataSource.PmTable;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void TryReadThermal(float[] table, uint byteOffset, Action<double> setter)
+    {
+        if (byteOffset == 0) return;
+        int index = (int)(byteOffset / 4);
+        if (index >= table.Length) return;
+        double v = table[index];
+        if (v is >= -10 and <= 125)
+            setter(Math.Round(v, 1));
+    }
+
+    private static void TryReadPower(float[] table, uint byteOffset, Action<double> setter)
+    {
+        if (byteOffset == 0) return;
+        int index = (int)(byteOffset / 4);
+        if (index >= table.Length) return;
+        double v = table[index];
+        if (v is >= 0 and <= 1000)
+            setter(Math.Round(v, 2));
+    }
+
+    private static void TryReadCurrent(float[] table, uint byteOffset, Action<double> setter)
+    {
+        if (byteOffset == 0) return;
+        int index = (int)(byteOffset / 4);
+        if (index >= table.Length) return;
+        double v = table[index];
+        if (v is >= 0 and <= 500)
+            setter(Math.Round(v, 2));
+    }
+
     private static void TryReadVoltage(float[] table, uint byteOffset, double min, double max, Action<double> setter)
     {
         if (byteOffset == 0) return;
@@ -318,6 +389,22 @@ public sealed class SmuPowerTableReader : IDisposable
         public uint CldoVddpByteOffset { get; init; }
         public uint CldoVddgIodByteOffset { get; init; }
         public uint CldoVddgCcdByteOffset { get; init; }
+
+        // Thermal/power byte offsets — 0 means not available.
+        // All point to floats in the PM table array.
+        public uint ThmValueByteOffset { get; init; }       // Tctl/Tdie (°C) — PPT thermal limit value
+        public uint SocketPowerByteOffset { get; init; }     // Total package power (W)
+        public uint CorePowerByteOffset { get; init; }       // VDDCR_CPU power (W)
+        public uint SocPowerByteOffset { get; init; }        // VDDCR_SOC power (W)
+        public uint SocTempByteOffset { get; init; }         // SoC die temp (°C)
+        public uint PeakTempByteOffset { get; init; }        // Peak temp since reset (°C)
+        public uint PptLimitByteOffset { get; init; }        // PPT limit (W)
+        public uint PptValueByteOffset { get; init; }        // PPT actual (W)
+        public uint TdcLimitByteOffset { get; init; }        // TDC limit (A)
+        public uint TdcValueByteOffset { get; init; }        // TDC actual (A)
+        public uint EdcLimitByteOffset { get; init; }        // EDC limit (A)
+        public uint EdcValueByteOffset { get; init; }        // EDC actual (A)
+
         public bool IsValid => TableSizeBytes > 0 && FclkByteOffset > 0 && UclkByteOffset > 0;
     }
 
@@ -334,97 +421,237 @@ public sealed class SmuPowerTableReader : IDisposable
         //   CldoVddgIod = CLDO_VDDG_IOD (I/O die)
         //   CldoVddgCcd = CLDO_VDDG_CCD (core complex die, Zen3 0x38* only)
         //   0 = not available for this version
+        // Thermal/power offset key (Zen 2/3 share the first 12 elements):
+        //   Index 0  (0x000) = PPT_LIMIT    Index 1  (0x004) = PPT_VALUE
+        //   Index 2  (0x008) = TDC_LIMIT    Index 3  (0x00C) = TDC_VALUE
+        //   Index 4  (0x010) = THM_LIMIT    Index 5  (0x014) = THM_VALUE (Tctl °C)
+        //   Index 8  (0x020) = EDC_LIMIT    Index 9  (0x024) = EDC_VALUE
+        //   Index 29 (0x074) = SOCKET_POWER
+        //   Index 42 (0x0A8) = CPU_TELEMETRY_POWER
+        //   Index 47 (0x0BC) = SOC_TELEMETRY_POWER
+        //   SoC temp, peak temp vary by table version/size.
+        //
+        // Zen4 restructured the table — PPT/TDC/EDC at different offsets.
+        // Offsets sourced from ryzen_monitor pm_tables.c and LibreHardwareMonitor RyzenSMU.cs.
+
         return version switch
         {
             // ── Zen2 CPU ────────────────────────────────────────────────
             // Generic v1 — SOC 0xA4, VDDP 0x1E4, VDDG_IOD 0x1E8
             0x000200 => new PmTableLayout { TableSizeBytes = 0x7E4, FclkByteOffset = 0xB0, UclkByteOffset = 0xB8,
-                VddcrSocByteOffset = 0xA4, CldoVddpByteOffset = 0x1E4, CldoVddgIodByteOffset = 0x1E8 },
+                VddcrSocByteOffset = 0xA4, CldoVddpByteOffset = 0x1E4, CldoVddgIodByteOffset = 0x1E8,
+                PptLimitByteOffset = 0x000, PptValueByteOffset = 0x004, TdcLimitByteOffset = 0x008, TdcValueByteOffset = 0x00C,
+                ThmValueByteOffset = 0x014, EdcLimitByteOffset = 0x020, EdcValueByteOffset = 0x024,
+                SocketPowerByteOffset = 0x074, CorePowerByteOffset = 0x0A8, SocPowerByteOffset = 0x0BC,
+                SocTempByteOffset = 0x1CC, PeakTempByteOffset = 0x1FC },
             0x240003 => new PmTableLayout { TableSizeBytes = 0x18AC, FclkByteOffset = 0xB0, UclkByteOffset = 0xB8,
-                VddcrSocByteOffset = 0xA4, CldoVddpByteOffset = 0x1E4, CldoVddgIodByteOffset = 0x1E8 },
+                VddcrSocByteOffset = 0xA4, CldoVddpByteOffset = 0x1E4, CldoVddgIodByteOffset = 0x1E8,
+                PptLimitByteOffset = 0x000, PptValueByteOffset = 0x004, TdcLimitByteOffset = 0x008, TdcValueByteOffset = 0x00C,
+                ThmValueByteOffset = 0x014, EdcLimitByteOffset = 0x020, EdcValueByteOffset = 0x024,
+                SocketPowerByteOffset = 0x074, CorePowerByteOffset = 0x0A8, SocPowerByteOffset = 0x0BC,
+                SocTempByteOffset = 0x1CC, PeakTempByteOffset = 0x1FC },
 
             // v2 revisions — SOC 0xB0, VDDP 0x1F0, VDDG_IOD 0x1F4
             0x240802 => new PmTableLayout { TableSizeBytes = 0x7E0, FclkByteOffset = 0xBC, UclkByteOffset = 0xC4,
-                VddcrSocByteOffset = 0xB0, CldoVddpByteOffset = 0x1F0, CldoVddgIodByteOffset = 0x1F4 },
+                VddcrSocByteOffset = 0xB0, CldoVddpByteOffset = 0x1F0, CldoVddgIodByteOffset = 0x1F4,
+                PptLimitByteOffset = 0x000, PptValueByteOffset = 0x004, TdcLimitByteOffset = 0x008, TdcValueByteOffset = 0x00C,
+                ThmValueByteOffset = 0x014, EdcLimitByteOffset = 0x020, EdcValueByteOffset = 0x024,
+                SocketPowerByteOffset = 0x074, CorePowerByteOffset = 0x0A8, SocPowerByteOffset = 0x0BC },
             0x240902 => new PmTableLayout { TableSizeBytes = 0x514, FclkByteOffset = 0xBC, UclkByteOffset = 0xC4,
-                VddcrSocByteOffset = 0xB0, CldoVddpByteOffset = 0x1F0, CldoVddgIodByteOffset = 0x1F4 },
+                VddcrSocByteOffset = 0xB0, CldoVddpByteOffset = 0x1F0, CldoVddgIodByteOffset = 0x1F4,
+                PptLimitByteOffset = 0x000, PptValueByteOffset = 0x004, TdcLimitByteOffset = 0x008, TdcValueByteOffset = 0x00C,
+                ThmValueByteOffset = 0x014, EdcLimitByteOffset = 0x020, EdcValueByteOffset = 0x024,
+                SocketPowerByteOffset = 0x074, CorePowerByteOffset = 0x0A8, SocPowerByteOffset = 0x0BC },
             0x000202 => new PmTableLayout { TableSizeBytes = 0x7E4, FclkByteOffset = 0xBC, UclkByteOffset = 0xC4,
-                VddcrSocByteOffset = 0xB0, CldoVddpByteOffset = 0x1F0, CldoVddgIodByteOffset = 0x1F4 },
+                VddcrSocByteOffset = 0xB0, CldoVddpByteOffset = 0x1F0, CldoVddgIodByteOffset = 0x1F4,
+                PptLimitByteOffset = 0x000, PptValueByteOffset = 0x004, TdcLimitByteOffset = 0x008, TdcValueByteOffset = 0x00C,
+                ThmValueByteOffset = 0x014, EdcLimitByteOffset = 0x020, EdcValueByteOffset = 0x024,
+                SocketPowerByteOffset = 0x074, CorePowerByteOffset = 0x0A8, SocPowerByteOffset = 0x0BC },
 
             // v3 revisions — SOC 0xB4, VDDP 0x1F4, VDDG_IOD 0x1F8
             0x240503 => new PmTableLayout { TableSizeBytes = 0xD7C, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
-                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x1F4, CldoVddgIodByteOffset = 0x1F8 },
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x1F4, CldoVddgIodByteOffset = 0x1F8,
+                PptLimitByteOffset = 0x000, PptValueByteOffset = 0x004, TdcLimitByteOffset = 0x008, TdcValueByteOffset = 0x00C,
+                ThmValueByteOffset = 0x014, EdcLimitByteOffset = 0x020, EdcValueByteOffset = 0x024,
+                SocketPowerByteOffset = 0x074, CorePowerByteOffset = 0x0A8, SocPowerByteOffset = 0x0BC,
+                SocTempByteOffset = 0x1CC, PeakTempByteOffset = 0x1FC },
             0x240603 => new PmTableLayout { TableSizeBytes = 0xAB0, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
-                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x1F4, CldoVddgIodByteOffset = 0x1F8 },
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x1F4, CldoVddgIodByteOffset = 0x1F8,
+                PptLimitByteOffset = 0x000, PptValueByteOffset = 0x004, TdcLimitByteOffset = 0x008, TdcValueByteOffset = 0x00C,
+                ThmValueByteOffset = 0x014, EdcLimitByteOffset = 0x020, EdcValueByteOffset = 0x024,
+                SocketPowerByteOffset = 0x074, CorePowerByteOffset = 0x0A8, SocPowerByteOffset = 0x0BC,
+                SocTempByteOffset = 0x1CC, PeakTempByteOffset = 0x1FC },
             0x240703 => new PmTableLayout { TableSizeBytes = 0x7E4, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
-                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x1F4, CldoVddgIodByteOffset = 0x1F8 },
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x1F4, CldoVddgIodByteOffset = 0x1F8,
+                PptLimitByteOffset = 0x000, PptValueByteOffset = 0x004, TdcLimitByteOffset = 0x008, TdcValueByteOffset = 0x00C,
+                ThmValueByteOffset = 0x014, EdcLimitByteOffset = 0x020, EdcValueByteOffset = 0x024,
+                SocketPowerByteOffset = 0x074, CorePowerByteOffset = 0x0A8, SocPowerByteOffset = 0x0BC,
+                SocTempByteOffset = 0x1CC, PeakTempByteOffset = 0x1FC },
             0x240803 => new PmTableLayout { TableSizeBytes = 0x7E4, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
-                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x1F4, CldoVddgIodByteOffset = 0x1F8 },
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x1F4, CldoVddgIodByteOffset = 0x1F8,
+                PptLimitByteOffset = 0x000, PptValueByteOffset = 0x004, TdcLimitByteOffset = 0x008, TdcValueByteOffset = 0x00C,
+                ThmValueByteOffset = 0x014, EdcLimitByteOffset = 0x020, EdcValueByteOffset = 0x024,
+                SocketPowerByteOffset = 0x074, CorePowerByteOffset = 0x0A8, SocPowerByteOffset = 0x0BC,
+                SocTempByteOffset = 0x1CC, PeakTempByteOffset = 0x1FC },
             0x240903 => new PmTableLayout { TableSizeBytes = 0x518, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
-                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x1F4, CldoVddgIodByteOffset = 0x1F8 },
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x1F4, CldoVddgIodByteOffset = 0x1F8,
+                PptLimitByteOffset = 0x000, PptValueByteOffset = 0x004, TdcLimitByteOffset = 0x008, TdcValueByteOffset = 0x00C,
+                ThmValueByteOffset = 0x014, EdcLimitByteOffset = 0x020, EdcValueByteOffset = 0x024,
+                SocketPowerByteOffset = 0x074, CorePowerByteOffset = 0x0A8, SocPowerByteOffset = 0x0BC },
             0x000203 => new PmTableLayout { TableSizeBytes = 0x7E4, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
-                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x1F4, CldoVddgIodByteOffset = 0x1F8 },
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x1F4, CldoVddgIodByteOffset = 0x1F8,
+                PptLimitByteOffset = 0x000, PptValueByteOffset = 0x004, TdcLimitByteOffset = 0x008, TdcValueByteOffset = 0x00C,
+                ThmValueByteOffset = 0x014, EdcLimitByteOffset = 0x020, EdcValueByteOffset = 0x024,
+                SocketPowerByteOffset = 0x074, CorePowerByteOffset = 0x0A8, SocPowerByteOffset = 0x0BC,
+                SocTempByteOffset = 0x1CC, PeakTempByteOffset = 0x1FC },
 
             // ── Zen3 CPU ────────────────────────────────────────────────
-            // 0x2D* family — SOC 0xB0, VDDP 0x220, VDDG_IOD 0x224, no VDDG_CCD
+            // 0x2D* family — same first-12 element layout as Zen2
             0x2D0008 => new PmTableLayout { TableSizeBytes = 0x1AB0, FclkByteOffset = 0xBC, UclkByteOffset = 0xC4,
-                VddcrSocByteOffset = 0xB0, CldoVddpByteOffset = 0x220, CldoVddgIodByteOffset = 0x224 },
+                VddcrSocByteOffset = 0xB0, CldoVddpByteOffset = 0x220, CldoVddgIodByteOffset = 0x224,
+                PptLimitByteOffset = 0x000, PptValueByteOffset = 0x004, TdcLimitByteOffset = 0x008, TdcValueByteOffset = 0x00C,
+                ThmValueByteOffset = 0x014, EdcLimitByteOffset = 0x020, EdcValueByteOffset = 0x024,
+                SocketPowerByteOffset = 0x074, CorePowerByteOffset = 0x0A8, SocPowerByteOffset = 0x0BC },
             0x2D0803 => new PmTableLayout { TableSizeBytes = 0x894, FclkByteOffset = 0xBC, UclkByteOffset = 0xC4,
-                VddcrSocByteOffset = 0xB0, CldoVddpByteOffset = 0x220, CldoVddgIodByteOffset = 0x224 },
+                VddcrSocByteOffset = 0xB0, CldoVddpByteOffset = 0x220, CldoVddgIodByteOffset = 0x224,
+                PptLimitByteOffset = 0x000, PptValueByteOffset = 0x004, TdcLimitByteOffset = 0x008, TdcValueByteOffset = 0x00C,
+                ThmValueByteOffset = 0x014, EdcLimitByteOffset = 0x020, EdcValueByteOffset = 0x024,
+                SocketPowerByteOffset = 0x074, CorePowerByteOffset = 0x0A8, SocPowerByteOffset = 0x0BC },
             0x2D0903 => new PmTableLayout { TableSizeBytes = 0x7E4, FclkByteOffset = 0xBC, UclkByteOffset = 0xC4,
-                VddcrSocByteOffset = 0xB0, CldoVddpByteOffset = 0x220, CldoVddgIodByteOffset = 0x224 },
+                VddcrSocByteOffset = 0xB0, CldoVddpByteOffset = 0x220, CldoVddgIodByteOffset = 0x224,
+                PptLimitByteOffset = 0x000, PptValueByteOffset = 0x004, TdcLimitByteOffset = 0x008, TdcValueByteOffset = 0x00C,
+                ThmValueByteOffset = 0x014, EdcLimitByteOffset = 0x020, EdcValueByteOffset = 0x024,
+                SocketPowerByteOffset = 0x074, CorePowerByteOffset = 0x0A8, SocPowerByteOffset = 0x0BC },
 
             // 0x38* family — SOC 0xB4, VDDP 0x224, VDDG_IOD 0x228, VDDG_CCD 0x22C
+            // SocTemp at 0x1FC (index 127), same first-12 layout
             0x380005 => new PmTableLayout { TableSizeBytes = 0x1BB0, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
-                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C },
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C,
+                PptLimitByteOffset = 0x000, PptValueByteOffset = 0x004, TdcLimitByteOffset = 0x008, TdcValueByteOffset = 0x00C,
+                ThmValueByteOffset = 0x014, EdcLimitByteOffset = 0x020, EdcValueByteOffset = 0x024,
+                SocketPowerByteOffset = 0x074, CorePowerByteOffset = 0x0A8, SocPowerByteOffset = 0x0BC,
+                SocTempByteOffset = 0x1FC },
             0x380505 => new PmTableLayout { TableSizeBytes = 0xF30, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
-                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C },
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C,
+                PptLimitByteOffset = 0x000, PptValueByteOffset = 0x004, TdcLimitByteOffset = 0x008, TdcValueByteOffset = 0x00C,
+                ThmValueByteOffset = 0x014, EdcLimitByteOffset = 0x020, EdcValueByteOffset = 0x024,
+                SocketPowerByteOffset = 0x074, CorePowerByteOffset = 0x0A8, SocPowerByteOffset = 0x0BC,
+                SocTempByteOffset = 0x1FC },
             0x380605 => new PmTableLayout { TableSizeBytes = 0xC10, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
-                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C },
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C,
+                PptLimitByteOffset = 0x000, PptValueByteOffset = 0x004, TdcLimitByteOffset = 0x008, TdcValueByteOffset = 0x00C,
+                ThmValueByteOffset = 0x014, EdcLimitByteOffset = 0x020, EdcValueByteOffset = 0x024,
+                SocketPowerByteOffset = 0x074, CorePowerByteOffset = 0x0A8, SocPowerByteOffset = 0x0BC,
+                SocTempByteOffset = 0x1FC },
             0x380705 => new PmTableLayout { TableSizeBytes = 0x8F0, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
-                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C },
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C,
+                PptLimitByteOffset = 0x000, PptValueByteOffset = 0x004, TdcLimitByteOffset = 0x008, TdcValueByteOffset = 0x00C,
+                ThmValueByteOffset = 0x014, EdcLimitByteOffset = 0x020, EdcValueByteOffset = 0x024,
+                SocketPowerByteOffset = 0x074, CorePowerByteOffset = 0x0A8, SocPowerByteOffset = 0x0BC,
+                SocTempByteOffset = 0x1FC },
             0x380804 => new PmTableLayout { TableSizeBytes = 0x8A4, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
-                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C },
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C,
+                PptLimitByteOffset = 0x000, PptValueByteOffset = 0x004, TdcLimitByteOffset = 0x008, TdcValueByteOffset = 0x00C,
+                ThmValueByteOffset = 0x014, EdcLimitByteOffset = 0x020, EdcValueByteOffset = 0x024,
+                SocketPowerByteOffset = 0x074, CorePowerByteOffset = 0x0A8, SocPowerByteOffset = 0x0BC,
+                SocTempByteOffset = 0x1FC },
             0x380805 => new PmTableLayout { TableSizeBytes = 0x8F0, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
-                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C },
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C,
+                PptLimitByteOffset = 0x000, PptValueByteOffset = 0x004, TdcLimitByteOffset = 0x008, TdcValueByteOffset = 0x00C,
+                ThmValueByteOffset = 0x014, EdcLimitByteOffset = 0x020, EdcValueByteOffset = 0x024,
+                SocketPowerByteOffset = 0x074, CorePowerByteOffset = 0x0A8, SocPowerByteOffset = 0x0BC,
+                SocTempByteOffset = 0x1FC },
             0x380904 => new PmTableLayout { TableSizeBytes = 0x5A4, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
-                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C },
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C,
+                PptLimitByteOffset = 0x000, PptValueByteOffset = 0x004, TdcLimitByteOffset = 0x008, TdcValueByteOffset = 0x00C,
+                ThmValueByteOffset = 0x014, EdcLimitByteOffset = 0x020, EdcValueByteOffset = 0x024,
+                SocketPowerByteOffset = 0x074, CorePowerByteOffset = 0x0A8, SocPowerByteOffset = 0x0BC },
             0x380905 => new PmTableLayout { TableSizeBytes = 0x5D0, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
-                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C },
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C,
+                PptLimitByteOffset = 0x000, PptValueByteOffset = 0x004, TdcLimitByteOffset = 0x008, TdcValueByteOffset = 0x00C,
+                ThmValueByteOffset = 0x014, EdcLimitByteOffset = 0x020, EdcValueByteOffset = 0x024,
+                SocketPowerByteOffset = 0x074, CorePowerByteOffset = 0x0A8, SocPowerByteOffset = 0x0BC },
             // Generic Zen3 CPU
             0x000300 => new PmTableLayout { TableSizeBytes = 0x948, FclkByteOffset = 0xC0, UclkByteOffset = 0xC8,
-                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C },
+                VddcrSocByteOffset = 0xB4, CldoVddpByteOffset = 0x224, CldoVddgIodByteOffset = 0x228, CldoVddgCcdByteOffset = 0x22C,
+                PptLimitByteOffset = 0x000, PptValueByteOffset = 0x004, TdcLimitByteOffset = 0x008, TdcValueByteOffset = 0x00C,
+                ThmValueByteOffset = 0x014, EdcLimitByteOffset = 0x020, EdcValueByteOffset = 0x024,
+                SocketPowerByteOffset = 0x074, CorePowerByteOffset = 0x0A8, SocPowerByteOffset = 0x0BC,
+                SocTempByteOffset = 0x1FC },
 
-            // ── Zen4 CPU (Raphael / Granite Ridge) ─────────────────────
-            // SOC 0xD0, VDDP 0x430, no VDDG_IOD/CCD in Zen4
+            // ── Zen4 CPU (Raphael) ─────────────────────────────────────
+            // Restructured table: PPT at 0x00C, temp at 0x02C, socket power at 0x068
+            // Offsets from LibreHardwareMonitor RyzenSMU.cs (v0x00540004 confirmed)
             0x540100 => new PmTableLayout { TableSizeBytes = 0x618, FclkByteOffset = 0x118, UclkByteOffset = 0x128,
-                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430 },
+                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430,
+                ThmValueByteOffset = 0x02C, SocketPowerByteOffset = 0x068,
+                CorePowerByteOffset = 0x050, SocPowerByteOffset = 0x054,
+                TdcValueByteOffset = 0x0C0, EdcValueByteOffset = 0x0C4 },
             0x540101 => new PmTableLayout { TableSizeBytes = 0x61C, FclkByteOffset = 0x118, UclkByteOffset = 0x128,
-                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430 },
+                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430,
+                ThmValueByteOffset = 0x02C, SocketPowerByteOffset = 0x068,
+                CorePowerByteOffset = 0x050, SocPowerByteOffset = 0x054,
+                TdcValueByteOffset = 0x0C0, EdcValueByteOffset = 0x0C4 },
             0x540102 => new PmTableLayout { TableSizeBytes = 0x66C, FclkByteOffset = 0x118, UclkByteOffset = 0x128,
-                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430 },
+                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430,
+                ThmValueByteOffset = 0x02C, SocketPowerByteOffset = 0x068,
+                CorePowerByteOffset = 0x050, SocPowerByteOffset = 0x054,
+                TdcValueByteOffset = 0x0C0, EdcValueByteOffset = 0x0C4 },
             0x540103 => new PmTableLayout { TableSizeBytes = 0x68C, FclkByteOffset = 0x118, UclkByteOffset = 0x128,
-                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430 },
+                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430,
+                ThmValueByteOffset = 0x02C, SocketPowerByteOffset = 0x068,
+                CorePowerByteOffset = 0x050, SocPowerByteOffset = 0x054,
+                TdcValueByteOffset = 0x0C0, EdcValueByteOffset = 0x0C4 },
             0x540104 => new PmTableLayout { TableSizeBytes = 0x6A8, FclkByteOffset = 0x118, UclkByteOffset = 0x128,
-                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430 },
+                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430,
+                ThmValueByteOffset = 0x02C, SocketPowerByteOffset = 0x068,
+                CorePowerByteOffset = 0x050, SocPowerByteOffset = 0x054,
+                TdcValueByteOffset = 0x0C0, EdcValueByteOffset = 0x0C4 },
             0x540105 => new PmTableLayout { TableSizeBytes = 0x6B4, FclkByteOffset = 0x118, UclkByteOffset = 0x128,
-                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430 },
+                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430,
+                ThmValueByteOffset = 0x02C, SocketPowerByteOffset = 0x068,
+                CorePowerByteOffset = 0x050, SocPowerByteOffset = 0x054,
+                TdcValueByteOffset = 0x0C0, EdcValueByteOffset = 0x0C4 },
             0x540108 => new PmTableLayout { TableSizeBytes = 0x6BC, FclkByteOffset = 0x118, UclkByteOffset = 0x128,
-                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430 },
+                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430,
+                ThmValueByteOffset = 0x02C, SocketPowerByteOffset = 0x068,
+                CorePowerByteOffset = 0x050, SocPowerByteOffset = 0x054,
+                TdcValueByteOffset = 0x0C0, EdcValueByteOffset = 0x0C4 },
             0x540000 => new PmTableLayout { TableSizeBytes = 0x828, FclkByteOffset = 0x118, UclkByteOffset = 0x128,
-                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430 },
+                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430,
+                ThmValueByteOffset = 0x02C, SocketPowerByteOffset = 0x068,
+                CorePowerByteOffset = 0x050, SocPowerByteOffset = 0x054,
+                TdcValueByteOffset = 0x0C0, EdcValueByteOffset = 0x0C4 },
             0x540001 => new PmTableLayout { TableSizeBytes = 0x82C, FclkByteOffset = 0x118, UclkByteOffset = 0x128,
-                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430 },
+                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430,
+                ThmValueByteOffset = 0x02C, SocketPowerByteOffset = 0x068,
+                CorePowerByteOffset = 0x050, SocPowerByteOffset = 0x054,
+                TdcValueByteOffset = 0x0C0, EdcValueByteOffset = 0x0C4 },
             0x540002 => new PmTableLayout { TableSizeBytes = 0x87C, FclkByteOffset = 0x118, UclkByteOffset = 0x128,
-                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430 },
+                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430,
+                ThmValueByteOffset = 0x02C, SocketPowerByteOffset = 0x068,
+                CorePowerByteOffset = 0x050, SocPowerByteOffset = 0x054,
+                TdcValueByteOffset = 0x0C0, EdcValueByteOffset = 0x0C4 },
             0x540003 => new PmTableLayout { TableSizeBytes = 0x89C, FclkByteOffset = 0x118, UclkByteOffset = 0x128,
-                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430 },
+                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430,
+                ThmValueByteOffset = 0x02C, SocketPowerByteOffset = 0x068,
+                CorePowerByteOffset = 0x050, SocPowerByteOffset = 0x054,
+                TdcValueByteOffset = 0x0C0, EdcValueByteOffset = 0x0C4 },
             0x540004 => new PmTableLayout { TableSizeBytes = 0x8BC, FclkByteOffset = 0x118, UclkByteOffset = 0x128,
-                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430 },
+                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430,
+                ThmValueByteOffset = 0x02C, SocketPowerByteOffset = 0x068,
+                CorePowerByteOffset = 0x050, SocPowerByteOffset = 0x054,
+                TdcValueByteOffset = 0x0C0, EdcValueByteOffset = 0x0C4 },
             0x540005 => new PmTableLayout { TableSizeBytes = 0x8C8, FclkByteOffset = 0x118, UclkByteOffset = 0x128,
-                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430 },
+                VddcrSocByteOffset = 0xD0, CldoVddpByteOffset = 0x430,
+                ThmValueByteOffset = 0x02C, SocketPowerByteOffset = 0x068,
+                CorePowerByteOffset = 0x050, SocPowerByteOffset = 0x054,
+                TdcValueByteOffset = 0x0C0, EdcValueByteOffset = 0x0C4 },
             0x540208 => new PmTableLayout { TableSizeBytes = 0x8D0, FclkByteOffset = 0x11C, UclkByteOffset = 0x12C,
-                VddcrSocByteOffset = 0xD4, CldoVddpByteOffset = 0x434 },
+                VddcrSocByteOffset = 0xD4, CldoVddpByteOffset = 0x434,
+                ThmValueByteOffset = 0x02C, SocketPowerByteOffset = 0x068,
+                CorePowerByteOffset = 0x050, SocPowerByteOffset = 0x054,
+                TdcValueByteOffset = 0x0C0, EdcValueByteOffset = 0x0C4 },
 
             _ => default  // IsValid == false
         };

@@ -6,6 +6,79 @@ namespace RAMWatch.Core.Models;
 // All types are registered in RamWatchJsonContext for source-generated JSON.
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Thermal/power telemetry — volatile sensor data from the SMU power table
+// and direct SMN register reads. Separate from TimingSnapshot because this
+// is real-time telemetry, not a tuning configuration.
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// Real-time thermal and power telemetry from the AMD SMU.
+/// All fields default to 0, which means "not available" — the service
+/// populates only what it can read for the detected CPU generation.
+/// Sent alongside TimingSnapshot in ServiceState but not persisted in
+/// the snapshot journal (telemetry is ephemeral, timings are permanent).
+/// </summary>
+public sealed class ThermalPowerSnapshot
+{
+    public DateTime Timestamp { get; set; }
+
+    // --- CPU temperatures (degrees C) ---
+    /// <summary>Tctl/Tdie — primary CPU temp. Read from SMN 0x59800 (all Zen).</summary>
+    public double CpuTempC { get; set; }
+    /// <summary>Per-CCD temperatures (Zen 2+). Null or empty if unavailable.</summary>
+    public double[]? CcdTempsC { get; set; }
+    /// <summary>SoC die temperature from the PM table.</summary>
+    public double SocTempC { get; set; }
+    /// <summary>Peak temperature observed by the SMU since last reset.</summary>
+    public double PeakTempC { get; set; }
+
+    // --- Power (watts) ---
+    /// <summary>Total socket/package power draw.</summary>
+    public double SocketPowerW { get; set; }
+    /// <summary>CPU core power (VDDCR_CPU rail).</summary>
+    public double CorePowerW { get; set; }
+    /// <summary>SoC power (VDDCR_SOC rail).</summary>
+    public double SocPowerW { get; set; }
+
+    // --- Current limits (amps) ---
+    /// <summary>PPT limit — platform power target.</summary>
+    public double PptLimitW { get; set; }
+    /// <summary>PPT actual — current platform power consumption.</summary>
+    public double PptActualW { get; set; }
+    /// <summary>TDC limit — sustained current limit.</summary>
+    public double TdcLimitA { get; set; }
+    /// <summary>TDC actual — sustained current draw.</summary>
+    public double TdcActualA { get; set; }
+    /// <summary>EDC limit — peak current limit.</summary>
+    public double EdcLimitA { get; set; }
+    /// <summary>EDC actual — peak current draw.</summary>
+    public double EdcActualA { get; set; }
+
+    // --- Source tracking ---
+    /// <summary>
+    /// Which data sources contributed to this snapshot.
+    /// Helps the consumer know what to trust vs what's absent.
+    /// </summary>
+    public ThermalDataSource Sources { get; set; }
+}
+
+/// <summary>
+/// Flags indicating which data sources successfully contributed readings.
+/// A consumer can check these before displaying fields that may be zero.
+/// </summary>
+[Flags]
+public enum ThermalDataSource
+{
+    None = 0,
+    /// <summary>Direct SMN register read for Tctl (0x59800). Works on all Zen.</summary>
+    SmnTctl = 1,
+    /// <summary>Per-CCD temperature registers (0x59954/0x59B08). Zen 2+.</summary>
+    SmnCcdTemp = 2,
+    /// <summary>SMU PM table fields (power, limits, SoC temp).</summary>
+    PmTable = 4,
+}
+
 /// <summary>
 /// A point-in-time snapshot of the active timing configuration.
 /// Field names use the community-standard short names (CL, RCDRD, etc.)

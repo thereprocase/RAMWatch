@@ -286,6 +286,18 @@ public sealed class RamWatchService : BackgroundService
         _currentTimings = snapshot;
         _aggregator.SetTimings(snapshot, _hardwareReader.DriverStatus);
 
+        // Thermal/power telemetry — independent read path, non-fatal.
+        // Uses the same PawnIO driver but reads different registers.
+        try
+        {
+            var thermalPower = _hardwareReader.ReadThermalPower();
+            _aggregator.SetThermalPower(thermalPower);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Thermal/power read failed");
+        }
+
         // Auto-save the first complete timing read of this boot into the snapshot journal.
         // Defer until clocks are populated (FCLK/UCLK > 0) to avoid saving incomplete data.
         // Subsequent reads in the same boot session are skipped — only one auto-save per boot.

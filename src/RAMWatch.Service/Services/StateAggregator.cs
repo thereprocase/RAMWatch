@@ -24,9 +24,10 @@ public sealed class StateAggregator
     private LkgTracker? _lkgTracker;
     private SnapshotJournal? _snapshotJournal;
 
-    // Phase 2 — current timing snapshot and driver status, set by RamWatchService
-    // after each hardware read cycle.
+    // Phase 2 — current timing snapshot, thermal telemetry, and driver status,
+    // set by RamWatchService after each hardware read cycle.
     private TimingSnapshot? _currentTimings;
+    private ThermalPowerSnapshot? _currentThermalPower;
     private string _driverStatus = "not_found";
 
     // Resolved board vendor — set once at service startup, never changes.
@@ -87,6 +88,18 @@ public sealed class StateAggregator
         {
             _currentTimings = timings;
             _driverStatus = driverStatus;
+        }
+    }
+
+    /// <summary>
+    /// Update the current thermal/power telemetry snapshot.
+    /// Called by RamWatchService on each refresh cycle after hardware reads.
+    /// </summary>
+    public void SetThermalPower(ThermalPowerSnapshot? thermalPower)
+    {
+        lock (_lock)
+        {
+            _currentThermalPower = thermalPower;
         }
     }
 
@@ -166,6 +179,7 @@ public sealed class StateAggregator
         // own locks and calling them under _lock creates a nested-lock hazard.
         bool ready;
         TimingSnapshot? timings;
+        ThermalPowerSnapshot? thermalPower;
         string driverStatus;
         string? biosLayoutVendor;
         List<DriftEvent> driftSnapshot;
@@ -184,6 +198,7 @@ public sealed class StateAggregator
         {
             ready                = _ready;
             timings              = _currentTimings;
+            thermalPower         = _currentThermalPower;
             driverStatus         = _driverStatus;
             biosLayoutVendor     = _biosLayoutVendor;
             driftSnapshot        = new List<DriftEvent>(_currentBootDrift);
@@ -247,6 +262,7 @@ public sealed class StateAggregator
             Errors = _eventLog.GetErrorSources(),
             Integrity = new IntegrityState(0, IntegrityCheckStatus.NotRun, IntegrityCheckStatus.NotRun),
             Timings = timings,
+            ThermalPower = thermalPower,
             BiosLayoutVendor = biosLayoutVendor,
             // Phase 3 — null when no data yet (omitted from JSON by WhenWritingNull)
             RecentChanges = recentChanges,

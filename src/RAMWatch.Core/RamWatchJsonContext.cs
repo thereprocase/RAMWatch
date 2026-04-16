@@ -86,6 +86,10 @@ namespace RAMWatch.Core;
 // DIMM enumeration
 [JsonSerializable(typeof(DimmInfo))]
 [JsonSerializable(typeof(List<DimmInfo>))]
+// Thermal/power telemetry
+[JsonSerializable(typeof(ThermalPowerSnapshot))]
+[JsonSerializable(typeof(ThermalDataSource))]
+[JsonSerializable(typeof(double[]))]
 public partial class RamWatchJsonContext : JsonSerializerContext
 {
 }

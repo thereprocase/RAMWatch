@@ -4,16 +4,18 @@ using RAMWatch.Service.Hardware.PawnIo;
 namespace RAMWatch.Service.Hardware;
 
 /// <summary>
-/// Reads SMU-sourced data: SVI2 voltage telemetry and FCLK/UCLK from the
-/// SMU power table. Two separate concerns, but both belong to the SMU layer
-/// rather than the UMC register layer.
+/// Reads SMU-sourced data: SVI2 voltage telemetry, FCLK/UCLK from the
+/// SMU power table, and thermal/power telemetry.
 ///
 /// SVI2 voltages: SMN direct reads via IHardwareAccess — no extra module.
 /// FCLK/UCLK: SMU power table via RyzenSMU.bin — separate PawnIO handle.
+/// Tctl: Direct SMN register 0x59800 — works on all Zen, no PM table needed.
+/// Per-CCD temps: SMN registers 0x59954+ (Zen2/3) or 0x59B08+ (Zen4/5).
+/// Power/limits: PM table fields (PPT, TDC, EDC, socket/core/SoC power).
 ///
 /// Graceful degradation: if the power table reader fails to initialise,
 /// FCLK/UCLK stay at 0. If SVI2 reads return implausible values, VSoc
-/// stays at 0. The rest of the snapshot is still valid.
+/// stays at 0. Tctl falls back to SMN direct read if PM table unavailable.
 /// </summary>
 public sealed class SmuDecode : IDisposable
 {
@@ -28,6 +30,22 @@ public sealed class SmuDecode : IDisposable
     // The SOC plane address is CPU-family-dependent.
     private const uint Svi2Plane0Offset = 0x00C;  // 0x5A00C
     private const uint Svi2Plane1Offset = 0x010;  // 0x5A010
+
+    // THM_TCON_CUR_TMP — current Tctl temperature register (all Zen).
+    // Read-only. Bits [31:21] = temperature in 0.125°C steps.
+    // Source: AMD PPR, confirmed by LibreHardwareMonitor Amd17Cpu.cs.
+    private const uint ThmTconCurTmp = 0x00059800;
+
+    // Per-CCD temperature base addresses — generation-dependent.
+    // Each CCD's temp is at base + (ccd_index * 4).
+    // Zen 2/3: 0x00059954
+    // Zen 4/5: 0x00059B08
+    private const uint CcdTempBaseZen2 = 0x00059954;
+    private const uint CcdTempBaseZen4 = 0x00059B08;
+
+    // Maximum CCDs we will probe. Desktop Zen tops out at 2 CCDs (16 cores).
+    // HEDT (Threadripper) can have up to 8 CCDs but we cap at 8 for safety.
+    private const int MaxCcds = 8;
 
     public SmuDecode(IHardwareAccess hw, CpuDetect.CpuFamily cpuFamily)
     {
@@ -71,9 +89,125 @@ public sealed class SmuDecode : IDisposable
         _ptReader?.ReadClocksAndVoltages(snapshot);
     }
 
+    /// <summary>
+    /// Populate thermal and power telemetry. Uses three independent data paths:
+    /// 1. Direct SMN read of Tctl (works on all Zen, even if PM table is unavailable)
+    /// 2. Per-CCD temperature registers (Zen 2+)
+    /// 3. PM table thermal/power fields (PPT, TDC, EDC, socket power, etc.)
+    ///
+    /// Each path is independently fault-tolerant. A failure in one does not
+    /// prevent the others from contributing data.
+    /// </summary>
+    public void PopulateThermalPower(ThermalPowerSnapshot tp)
+    {
+        if (!_hw.IsAvailable) return;
+
+        tp.Timestamp = DateTime.UtcNow;
+
+        // Path 1: Direct SMN Tctl — generation-independent, highest reliability
+        ReadTctlDirect(tp);
+
+        // Path 2: Per-CCD temperatures
+        ReadCcdTemps(tp);
+
+        // Path 3: PM table thermal/power fields
+        _ptReader?.ReadThermalPower(tp);
+    }
+
     public void Dispose()
     {
         _ptReader?.Dispose();
+    }
+
+    // ── Direct thermal register reads ────────────────────────────────────
+
+    /// <summary>
+    /// Read Tctl/Tdie from the THM_TCON_CUR_TMP SMN register.
+    /// This is the same register HWiNFO and LibreHardwareMonitor read.
+    /// Works on every Zen generation without version branching.
+    ///
+    /// Register layout (32-bit, read-only):
+    ///   [31:21] — Temperature in 0.125°C steps (11-bit unsigned)
+    ///   [20:19] — Range flags (bit 19 = Tctl offset present)
+    ///   [18:0]  — Reserved
+    ///
+    /// Some SKUs (Threadripper, some EPYC) have a +49°C Tctl offset.
+    /// We report Tctl as-is — the consumer can subtract the offset if needed.
+    /// </summary>
+    private void ReadTctlDirect(ThermalPowerSnapshot tp)
+    {
+        try
+        {
+            if (!_hw.TryReadSmn(ThmTconCurTmp, out uint raw)) return;
+
+            double tempC = (raw >> 21) * 0.125;
+
+            // Plausibility: -10 to 125°C. The register can read 0 on some
+            // APUs or when the sensor is disabled in firmware.
+            if (tempC is >= -10 and <= 125)
+            {
+                tp.CpuTempC = Math.Round(tempC, 1);
+                tp.Sources |= ThermalDataSource.SmnTctl;
+            }
+        }
+        catch
+        {
+            // Non-fatal — CpuTempC stays at 0
+        }
+    }
+
+    /// <summary>
+    /// Read per-CCD die temperatures from SMN registers.
+    /// Each CCD has its own thermal sensor at a predictable offset.
+    ///
+    /// Register layout (32-bit, read-only):
+    ///   [11:0] — Temperature raw value
+    ///   Formula: (raw * 125 - 305000) / 1000 °C
+    ///
+    /// A register value of 0 means the CCD is not present or powered down.
+    /// We probe up to MaxCcds and stop at the first absent CCD.
+    /// </summary>
+    private void ReadCcdTemps(ThermalPowerSnapshot tp)
+    {
+        try
+        {
+            uint baseAddr = _cpuFamily switch
+            {
+                CpuDetect.CpuFamily.Zen4 or CpuDetect.CpuFamily.Zen5 => CcdTempBaseZen4,
+                CpuDetect.CpuFamily.Zen2 or CpuDetect.CpuFamily.Zen3 => CcdTempBaseZen2,
+                _ => 0
+            };
+            if (baseAddr == 0) return;
+
+            var temps = new List<double>(MaxCcds);
+            for (int i = 0; i < MaxCcds; i++)
+            {
+                uint addr = baseAddr + (uint)(i * 4);
+                if (!_hw.TryReadSmn(addr, out uint raw)) break;
+
+                // Raw value of 0 means CCD not present
+                uint tempRaw = raw & 0xFFF;
+                if (tempRaw == 0) break;
+
+                double tempC = (tempRaw * 125.0 - 305000.0) / 1000.0;
+
+                // Plausibility check
+                if (tempC is >= -10 and <= 125)
+                    temps.Add(Math.Round(tempC, 1));
+                else
+                    break; // Implausible = not a real CCD
+            }
+
+            if (temps.Count > 0)
+            {
+                tp.CcdTempsC = temps.ToArray();
+                tp.Sources |= ThermalDataSource.SmnCcdTemp;
+            }
+        }
+        catch
+        {
+            // Non-fatal — CcdTempsC stays null
+        }
     }
 
     // ── SVI2 voltage telemetry ───────────────────────────────────────────

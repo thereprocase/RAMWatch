@@ -91,6 +91,31 @@ public sealed class HardwareReader : IDisposable
         }
     }
 
+    /// <summary>
+    /// Read real-time thermal and power telemetry. Returns null if driver or CPU unsupported.
+    /// Independent from ReadTimings — this can be called on a faster cadence if needed.
+    /// </summary>
+    public ThermalPowerSnapshot? ReadThermalPower()
+    {
+        if (_smuDecode is null) return null;
+
+        try
+        {
+            var tp = new ThermalPowerSnapshot();
+            _smuDecode.PopulateThermalPower(tp);
+
+            // If no data source succeeded, return null rather than an empty object.
+            if (tp.Sources == ThermalDataSource.None)
+                return null;
+
+            return tp;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public void Dispose()
     {
         _smuDecode?.Dispose();
