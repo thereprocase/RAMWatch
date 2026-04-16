@@ -79,7 +79,6 @@ public static class CurrentMdBuilder
 
     private static void AppendClockSection(StringBuilder sb, TimingSnapshot snap)
     {
-        int ddr = snap.MemClockMhz * 2;
         sb.AppendLine("## Clock");
         sb.AppendLine($"{SnapshotDisplayName.DdrLabel(snap.MemClockMhz)} | MCLK {snap.MemClockMhz} | FCLK {snap.FclkMhz} | UCLK {snap.UclkMhz}");
     }
@@ -160,99 +159,52 @@ public static class CurrentMdBuilder
         sb.AppendLine($"{v.TestTool} {metric} {result} — {date}");
     }
 
-    // ── AllTimingPairs — legacy flat ordering (used by LkgMdBuilder and tests) ──
+    // ── AllTimingPairs — flat ordering (used by LkgMdBuilder and tests) ──────────
 
-    // Returns all timing fields as (name, value) pairs in the default display order.
-    // Boolean fields (GDM, Cmd2T) are included as On/Off and 2T/1T respectively.
+    // Returns all timing fields as (name, value) pairs in canonical display order.
+    // Integer fields yield raw value strings. Boolean fields (GDM, Cmd2T) yield
+    // the display-formatted strings ("On"/"Off", "2T"/"1T") — formatting stays here
+    // because these are only ever used for display, never for comparison or export.
     // Internal so LkgMdBuilder can share the same ordered list without duplication.
     internal static IEnumerable<(string name, string value)> AllTimingPairsPublic(TimingSnapshot snap)
         => AllTimingPairs(snap);
 
     private static IEnumerable<(string name, string value)> AllTimingPairs(TimingSnapshot snap)
     {
-        yield return ("CL",       snap.CL.ToString());
-        yield return ("RCDRD",    snap.RCDRD.ToString());
-        yield return ("RCDWR",    snap.RCDWR.ToString());
-        yield return ("RP",       snap.RP.ToString());
-        yield return ("RAS",      snap.RAS.ToString());
-        yield return ("RC",       snap.RC.ToString());
-        yield return ("CWL",      snap.CWL.ToString());
-        yield return ("RFC",      snap.RFC.ToString());
-        yield return ("RFC2",     snap.RFC2.ToString());
-        yield return ("RFC4",     snap.RFC4.ToString());
-        yield return ("RRDS",     snap.RRDS.ToString());
-        yield return ("RRDL",     snap.RRDL.ToString());
-        yield return ("FAW",      snap.FAW.ToString());
-        yield return ("WTRS",     snap.WTRS.ToString());
-        yield return ("WTRL",     snap.WTRL.ToString());
-        yield return ("WR",       snap.WR.ToString());
-        yield return ("RTP",      snap.RTP.ToString());
-        yield return ("RDRDSCL",  snap.RDRDSCL.ToString());
-        yield return ("WRWRSCL",  snap.WRWRSCL.ToString());
-        yield return ("RDRDSC",   snap.RDRDSC.ToString());
-        yield return ("RDRDSD",   snap.RDRDSD.ToString());
-        yield return ("RDRDDD",   snap.RDRDDD.ToString());
-        yield return ("WRWRSC",   snap.WRWRSC.ToString());
-        yield return ("WRWRSD",   snap.WRWRSD.ToString());
-        yield return ("WRWRDD",   snap.WRWRDD.ToString());
-        yield return ("RDWR",     snap.RDWR.ToString());
-        yield return ("WRRD",     snap.WRRD.ToString());
-        yield return ("REFI",     snap.REFI.ToString());
-        yield return ("CKE",      snap.CKE.ToString());
-        yield return ("STAG",     snap.STAG.ToString());
-        yield return ("MOD",      snap.MOD.ToString());
-        yield return ("MRD",      snap.MRD.ToString());
-        yield return ("GDM",      snap.GDM ? "On" : "Off");
-        yield return ("Cmd2T",    snap.Cmd2T ? "2T" : "1T");
+        foreach (var (name, get) in TimingSnapshotFields.Timings)
+            yield return (name, get(snap).ToString());
+
+        // Boolean display formatting stays here — raw bools are not meaningful
+        // in the CURRENT.md / LKG.md checklist context.
+        yield return ("GDM",   snap.GDM   ? "On" : "Off");
+        yield return ("Cmd2T", snap.Cmd2T ? "2T" : "1T");
     }
 
     // ── GetTimingPair — maps a field name to its snapshot value ───────────────
 
     /// <summary>
     /// Returns the (name, formatted-value) pair for a named timing field.
-    /// Unknown field names return ("Unknown", "?") rather than throwing —
+    /// Unknown field names return (field, "?") rather than throwing —
     /// the caller is responsible for only passing valid field names from the layout.
+    /// Display formatting (On/Off, 2T/1T) is applied here for boolean fields.
     /// </summary>
     internal static (string name, string value) GetTimingPair(TimingSnapshot snap, string field)
-        => field switch
+    {
+        // Check integer categories in order: Clocks, Timings, Phy.
+        foreach (var (name, get) in TimingSnapshotFields.Clocks)
+            if (name == field) return (name, get(snap).ToString());
+        foreach (var (name, get) in TimingSnapshotFields.Timings)
+            if (name == field) return (name, get(snap).ToString());
+        foreach (var (name, get) in TimingSnapshotFields.Phy)
+            if (name == field) return (name, get(snap).ToString());
+
+        // Boolean display formatting stays at this call site per the memo.
+        return field switch
         {
-            "CL"       => ("CL",       snap.CL.ToString()),
-            "RCDRD"    => ("RCDRD",    snap.RCDRD.ToString()),
-            "RCDWR"    => ("RCDWR",    snap.RCDWR.ToString()),
-            "RP"       => ("RP",       snap.RP.ToString()),
-            "RAS"      => ("RAS",      snap.RAS.ToString()),
-            "RC"       => ("RC",       snap.RC.ToString()),
-            "CWL"      => ("CWL",      snap.CWL.ToString()),
-            "RFC"      => ("RFC",      snap.RFC.ToString()),
-            "RFC2"     => ("RFC2",     snap.RFC2.ToString()),
-            "RFC4"     => ("RFC4",     snap.RFC4.ToString()),
-            "RRDS"     => ("RRDS",     snap.RRDS.ToString()),
-            "RRDL"     => ("RRDL",     snap.RRDL.ToString()),
-            "FAW"      => ("FAW",      snap.FAW.ToString()),
-            "WTRS"     => ("WTRS",     snap.WTRS.ToString()),
-            "WTRL"     => ("WTRL",     snap.WTRL.ToString()),
-            "WR"       => ("WR",       snap.WR.ToString()),
-            "RTP"      => ("RTP",      snap.RTP.ToString()),
-            "RDRDSCL"  => ("RDRDSCL",  snap.RDRDSCL.ToString()),
-            "WRWRSCL"  => ("WRWRSCL",  snap.WRWRSCL.ToString()),
-            "RDRDSC"   => ("RDRDSC",   snap.RDRDSC.ToString()),
-            "RDRDSD"   => ("RDRDSD",   snap.RDRDSD.ToString()),
-            "RDRDDD"   => ("RDRDDD",   snap.RDRDDD.ToString()),
-            "WRWRSC"   => ("WRWRSC",   snap.WRWRSC.ToString()),
-            "WRWRSD"   => ("WRWRSD",   snap.WRWRSD.ToString()),
-            "WRWRDD"   => ("WRWRDD",   snap.WRWRDD.ToString()),
-            "RDWR"     => ("RDWR",     snap.RDWR.ToString()),
-            "WRRD"     => ("WRRD",     snap.WRRD.ToString()),
-            "REFI"     => ("REFI",     snap.REFI.ToString()),
-            "CKE"      => ("CKE",      snap.CKE.ToString()),
-            "STAG"     => ("STAG",     snap.STAG.ToString()),
-            "MOD"      => ("MOD",      snap.MOD.ToString()),
-            "MRD"      => ("MRD",      snap.MRD.ToString()),
-            "PHYRDL_A" => ("PHYRDL_A", snap.PHYRDL_A.ToString()),
-            "PHYRDL_B" => ("PHYRDL_B", snap.PHYRDL_B.ToString()),
-            "GDM"       => ("GDM",       snap.GDM ? "On" : "Off"),
-            "Cmd2T"     => ("Cmd2T",     snap.Cmd2T ? "2T" : "1T"),
+            "GDM"       => ("GDM",       snap.GDM       ? "On" : "Off"),
+            "Cmd2T"     => ("Cmd2T",     snap.Cmd2T     ? "2T" : "1T"),
             "PowerDown" => ("PowerDown", snap.PowerDown ? "On" : "Off"),
-            _           => (field,       "?"),
+            _           => (field, "?"),
         };
+    }
 }

@@ -417,4 +417,101 @@ public class DigestBuilderTests
         // Should contain a ratio expression.
         Assert.Contains("FCLK 1800", digest);
     }
+
+    // ── PHY-aware equality (deliberate behavior change, step 4 of refactor) ────
+
+    [Fact]
+    public void Digest_LkgPhyDiffers_ShowsDiff()
+    {
+        // Before the refactor, SnapshotsEqual excluded PHY so a PHY-only change
+        // was reported as "Same as current". Now PHY participates in TuningEqual,
+        // so a PHY delta triggers the diff path.
+        var state   = MakeState();
+        var current = MakeSnapshot();
+        var lkg     = MakeSnapshot();
+        // Mutate PHY on lkg to simulate training drift between boots.
+        lkg.PHYRDL_A = current.PHYRDL_A + 4;
+
+        string digest = DigestBuilder.BuildDigest(
+            state,
+            current:      current,
+            lkg:          lkg,
+            recentValidations: new List<ValidationResult>(),
+            drifts:       new List<DriftEvent>(),
+            designations: null,
+            historyCount: 0);
+
+        // Must NOT say "Same as current" — PHY differs.
+        Assert.DoesNotContain("Same as current", digest);
+        Assert.Contains("LKG", digest);
+    }
+
+    [Fact]
+    public void Digest_LkgPhyIdentical_TimingsDiffer_ShowsDiff()
+    {
+        // Sanity: when timing fields differ the diff path fires regardless of PHY.
+        var state   = MakeState();
+        var current = MakeSnapshot(cl: 16);
+        var lkg     = MakeSnapshot(cl: 18);
+        // PHY is the same in both (MakeSnapshot default).
+
+        string digest = DigestBuilder.BuildDigest(
+            state,
+            current:      current,
+            lkg:          lkg,
+            recentValidations: new List<ValidationResult>(),
+            drifts:       new List<DriftEvent>(),
+            designations: null,
+            historyCount: 0);
+
+        Assert.Contains("LKG diff:", digest);
+        Assert.Contains("CL:", digest);
+    }
+
+    [Fact]
+    public void Digest_LkgVoltagesOnly_SayssSameAsCurrent()
+    {
+        // Voltages are excluded from TuningEqual. A voltage-only change between
+        // current and LKG is still "Same as current" tuning-wise.
+        var state   = MakeState();
+        var current = MakeSnapshot();
+        var lkg     = MakeSnapshot();
+        lkg.VSoc  = current.VSoc  + 0.050;
+        lkg.VCore = current.VCore + 0.050;
+
+        string digest = DigestBuilder.BuildDigest(
+            state,
+            current:      current,
+            lkg:          lkg,
+            recentValidations: new List<ValidationResult>(),
+            drifts:       new List<DriftEvent>(),
+            designations: null,
+            historyCount: 0);
+
+        Assert.Contains("LKG: Same as current", digest);
+    }
+
+    [Fact]
+    public void Digest_LkgPhyDiffers_PhyFieldAppearsInDiffOutput()
+    {
+        // Behavior change (step 5): PHY now appears in AppendSnapshotDiff output.
+        // The "(training)" annotation distinguishes it from hand-tuned fields.
+        var state   = MakeState();
+        var current = MakeSnapshot();
+        var lkg     = MakeSnapshot();
+        lkg.PHYRDL_A = current.PHYRDL_A + 4;
+
+        string digest = DigestBuilder.BuildDigest(
+            state,
+            current:      current,
+            lkg:          lkg,
+            recentValidations: new List<ValidationResult>(),
+            drifts:       new List<DriftEvent>(),
+            designations: null,
+            historyCount: 0);
+
+        Assert.Contains("LKG diff:", digest);
+        Assert.Contains("PHYRDL_A", digest);
+        Assert.Contains("training", digest);
+    }
 }

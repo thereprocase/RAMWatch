@@ -1,3 +1,4 @@
+using RAMWatch.Core;
 using RAMWatch.Core.Models;
 
 namespace RAMWatch.Service.Services;
@@ -86,7 +87,7 @@ public static class MinimumComputer
                 {
                     if (ExcludedFields.Contains(field)) continue;
 
-                    int value = GetTimingValue(snap, field);
+                    int value = TimingSnapshotFields.GetIntField(snap, field) ?? 0;
                     if (value == 0) continue; // Skip unset fields
 
                     bool higherBetter = HigherIsBetter.Contains(field);
@@ -126,43 +127,4 @@ public static class MinimumComputer
         return result;
     }
 
-    /// <summary>
-    /// Read a named integer timing field from a snapshot via reflection-free dispatch.
-    /// </summary>
-    private static int GetTimingValue(TimingSnapshot snap, string field) => field switch
-    {
-        "CL" => snap.CL,
-        "RCDRD" => snap.RCDRD,
-        "RCDWR" => snap.RCDWR,
-        "RP" => snap.RP,
-        "RAS" => snap.RAS,
-        "RC" => snap.RC,
-        "CWL" => snap.CWL,
-        "RFC" => snap.RFC,
-        "RFC2" => snap.RFC2,
-        "RFC4" => snap.RFC4,
-        "RRDS" => snap.RRDS,
-        "RRDL" => snap.RRDL,
-        "FAW" => snap.FAW,
-        "WTRS" => snap.WTRS,
-        "WTRL" => snap.WTRL,
-        "WR" => snap.WR,
-        "RTP" => snap.RTP,
-        "RDRDSCL" => snap.RDRDSCL,
-        "WRWRSCL" => snap.WRWRSCL,
-        "RDRDSC" => snap.RDRDSC,
-        "RDRDSD" => snap.RDRDSD,
-        "RDRDDD" => snap.RDRDDD,
-        "WRWRSC" => snap.WRWRSC,
-        "WRWRSD" => snap.WRWRSD,
-        "WRWRDD" => snap.WRWRDD,
-        "RDWR" => snap.RDWR,
-        "WRRD" => snap.WRRD,
-        "REFI" => snap.REFI,
-        "CKE" => snap.CKE,
-        "STAG" => snap.STAG,
-        "MOD" => snap.MOD,
-        "MRD" => snap.MRD,
-        _ => 0
-    };
 }

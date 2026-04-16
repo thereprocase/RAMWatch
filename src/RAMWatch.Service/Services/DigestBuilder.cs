@@ -128,7 +128,6 @@ public static class DigestBuilder
 
     private static void AppendClockLine(StringBuilder sb, TimingSnapshot snap)
     {
-        int ddr = snap.MemClockMhz * 2;
         string ratio = DeriveRatio(snap);
         string vdimmLabel = snap.VDimm > 0 ? $" | VDIMM {snap.VDimm:F3}V" : "";
         sb.AppendLine($"Current: {SnapshotDisplayName.DdrLabel(snap.MemClockMhz)} | FCLK {snap.FclkMhz}{vdimmLabel} | {ratio}");
@@ -305,9 +304,13 @@ public static class DigestBuilder
         }
     }
 
+    // Behavior change (timing-snapshot-refactor.md §3 / §5): PHY now appears in the
+    // diff. PHY drift between boots is a real signal the user should see when something
+    // unusual is happening. The "(training)" annotation lets the reader distinguish
+    // expected training variance from a genuine tuning change.
     private static void AppendSnapshotDiff(StringBuilder sb, TimingSnapshot current, TimingSnapshot lkg)
     {
-        // Compare every integer timing field and emit lines for changed values.
+        // Compare every tuning-relevant field and emit lines for changed values.
         var diffs = new List<string>();
 
         void Check(string name, int cur, int lkgVal)
@@ -320,45 +323,19 @@ public static class DigestBuilder
             if (cur != lkgVal) diffs.Add($"  {name}: {lkgVal}\u2192{cur}");
         }
 
-        Check("CL",       current.CL,       lkg.CL);
-        Check("RCDRD",    current.RCDRD,    lkg.RCDRD);
-        Check("RCDWR",    current.RCDWR,    lkg.RCDWR);
-        Check("RP",       current.RP,       lkg.RP);
-        Check("RAS",      current.RAS,      lkg.RAS);
-        Check("RC",       current.RC,       lkg.RC);
-        Check("CWL",      current.CWL,      lkg.CWL);
-        Check("RFC",      current.RFC,      lkg.RFC);
-        Check("RFC2",     current.RFC2,     lkg.RFC2);
-        Check("RFC4",     current.RFC4,     lkg.RFC4);
-        Check("RRDS",     current.RRDS,     lkg.RRDS);
-        Check("RRDL",     current.RRDL,     lkg.RRDL);
-        Check("FAW",      current.FAW,      lkg.FAW);
-        Check("WTRS",     current.WTRS,     lkg.WTRS);
-        Check("WTRL",     current.WTRL,     lkg.WTRL);
-        Check("WR",       current.WR,       lkg.WR);
-        Check("RTP",      current.RTP,      lkg.RTP);
-        Check("RDRDSCL",  current.RDRDSCL,  lkg.RDRDSCL);
-        Check("WRWRSCL",  current.WRWRSCL,  lkg.WRWRSCL);
-        Check("RDRDSC",   current.RDRDSC,   lkg.RDRDSC);
-        Check("RDRDSD",   current.RDRDSD,   lkg.RDRDSD);
-        Check("RDRDDD",   current.RDRDDD,   lkg.RDRDDD);
-        Check("WRWRSC",   current.WRWRSC,   lkg.WRWRSC);
-        Check("WRWRSD",   current.WRWRSD,   lkg.WRWRSD);
-        Check("WRWRDD",   current.WRWRDD,   lkg.WRWRDD);
-        Check("RDWR",     current.RDWR,     lkg.RDWR);
-        Check("WRRD",     current.WRRD,     lkg.WRRD);
-        Check("REFI",     current.REFI,     lkg.REFI);
-        Check("CKE",      current.CKE,      lkg.CKE);
-        Check("STAG",     current.STAG,     lkg.STAG);
-        Check("MOD",      current.MOD,      lkg.MOD);
-        Check("MRD",      current.MRD,      lkg.MRD);
-        CheckBool("GDM",  current.GDM,      lkg.GDM);
-        CheckBool("Cmd2T", current.Cmd2T,   lkg.Cmd2T);
+        foreach (var (name, get) in TimingSnapshotFields.Clocks)
+            Check(name, get(current), get(lkg));
+        foreach (var (name, get) in TimingSnapshotFields.Timings)
+            Check(name, get(current), get(lkg));
+        foreach (var (name, get) in TimingSnapshotFields.Phy)
+            Check($"{name} (training)", get(current), get(lkg));
+        foreach (var (name, get) in TimingSnapshotFields.Booleans)
+            CheckBool(name, get(current), get(lkg));
 
         if (diffs.Count == 0)
         {
-            // Clocks or voltages differ but no timing field changed.
-            sb.AppendLine("  (clocks or voltages differ — timing fields identical)");
+            // Voltages differ but no tuning field changed.
+            sb.AppendLine("  (voltages differ — timing fields identical)");
         }
         else
         {
@@ -488,47 +465,12 @@ public static class DigestBuilder
         return result;
     }
 
+    // Behavior change (timing-snapshot-refactor.md §4): PHY now participates in
+    // tuning equality. PHY shifting between snapshots is a real signal worth
+    // catching as "not the same configuration". Voltages remain excluded —
+    // SVI2 telemetry is sub-millivolt noisy and does not represent a tuning change.
     private static bool SnapshotsEqual(TimingSnapshot a, TimingSnapshot b)
-    {
-        return a.CL == b.CL
-            && a.RCDRD == b.RCDRD
-            && a.RCDWR == b.RCDWR
-            && a.RP == b.RP
-            && a.RAS == b.RAS
-            && a.RC == b.RC
-            && a.CWL == b.CWL
-            && a.RFC == b.RFC
-            && a.RFC2 == b.RFC2
-            && a.RFC4 == b.RFC4
-            && a.RRDS == b.RRDS
-            && a.RRDL == b.RRDL
-            && a.FAW == b.FAW
-            && a.WTRS == b.WTRS
-            && a.WTRL == b.WTRL
-            && a.WR == b.WR
-            && a.RTP == b.RTP
-            && a.RDRDSCL == b.RDRDSCL
-            && a.WRWRSCL == b.WRWRSCL
-            && a.RDRDSC == b.RDRDSC
-            && a.RDRDSD == b.RDRDSD
-            && a.RDRDDD == b.RDRDDD
-            && a.WRWRSC == b.WRWRSC
-            && a.WRWRSD == b.WRWRSD
-            && a.WRWRDD == b.WRWRDD
-            && a.RDWR == b.RDWR
-            && a.WRRD == b.WRRD
-            && a.REFI == b.REFI
-            && a.CKE == b.CKE
-            && a.STAG == b.STAG
-            && a.MOD == b.MOD
-            && a.MRD == b.MRD
-            && a.PowerDown == b.PowerDown
-            && a.GDM == b.GDM
-            && a.Cmd2T == b.Cmd2T
-            && a.MemClockMhz == b.MemClockMhz
-            && a.FclkMhz == b.FclkMhz
-            && a.UclkMhz == b.UclkMhz;
-    }
+        => TimingSnapshotFields.TuningEqual(a, b);
 
     private static int Gcd(int a, int b) => b == 0 ? a : Gcd(b, a % b);
 }

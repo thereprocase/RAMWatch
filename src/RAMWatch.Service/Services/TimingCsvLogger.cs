@@ -89,6 +89,11 @@ public sealed class TimingCsvLogger : IDisposable
     /// <summary>
     /// Format a single CSV row. Boolean fields use 1/0, voltages use 4 decimal places.
     /// </summary>
+    // Field-list source of truth: TimingSnapshotFields (src/RAMWatch.Core/TimingSnapshotFields.cs).
+    // The column order here is load-bearing — existing CSV files depend on it being eternal.
+    // Do NOT reorder or derive columns from the helper at runtime: that would break header stability.
+    // The lock-in test in TimingSnapshotFieldsTests.FormatRow_ColumnCount_MatchesHelperFieldCount
+    // will fail if the helper grows a field the CSV row does not cover.
     // Reused per call to avoid boxing from string.Join(params object[]).
     [ThreadStatic] private static StringBuilder? _csvBuf;
 

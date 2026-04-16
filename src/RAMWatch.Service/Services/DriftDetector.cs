@@ -290,52 +290,11 @@ public sealed class DriftDetector : IDisposable
     /// <summary>
     /// Map a timing name string to the integer value on the snapshot.
     /// Returns null for names that don't correspond to an integer field
-    /// (callers should skip nulls).
+    /// (callers should skip nulls). Booleans are projected to 0/1.
+    /// Dispatch delegated to TimingSnapshotFields.GetIntField.
     /// </summary>
-    private static int? GetTimingValue(TimingSnapshot s, string name) => name switch
-    {
-        "MemClockMhz" => s.MemClockMhz,
-        "FclkMhz"     => s.FclkMhz,
-        "UclkMhz"     => s.UclkMhz,
-        "CL"          => s.CL,
-        "RCDRD"       => s.RCDRD,
-        "RCDWR"       => s.RCDWR,
-        "RP"          => s.RP,
-        "RAS"         => s.RAS,
-        "RC"          => s.RC,
-        "CWL"         => s.CWL,
-        "RFC"         => s.RFC,
-        "RFC2"        => s.RFC2,
-        "RFC4"        => s.RFC4,
-        "RRDS"        => s.RRDS,
-        "RRDL"        => s.RRDL,
-        "FAW"         => s.FAW,
-        "WTRS"        => s.WTRS,
-        "WTRL"        => s.WTRL,
-        "WR"          => s.WR,
-        "RTP"         => s.RTP,
-        "RDRDSCL"     => s.RDRDSCL,
-        "WRWRSCL"     => s.WRWRSCL,
-        "RDRDSC"      => s.RDRDSC,
-        "RDRDSD"      => s.RDRDSD,
-        "RDRDDD"      => s.RDRDDD,
-        "WRWRSC"      => s.WRWRSC,
-        "WRWRSD"      => s.WRWRSD,
-        "WRWRDD"      => s.WRWRDD,
-        "RDWR"        => s.RDWR,
-        "WRRD"        => s.WRRD,
-        "REFI"        => s.REFI,
-        "CKE"         => s.CKE,
-        "STAG"        => s.STAG,
-        "MOD"         => s.MOD,
-        "MRD"         => s.MRD,
-        "PHYRDL_A"    => s.PHYRDL_A,
-        "PHYRDL_B"    => s.PHYRDL_B,
-        "GDM"         => s.GDM       ? 1 : 0,
-        "Cmd2T"       => s.Cmd2T     ? 1 : 0,
-        "PowerDown"   => s.PowerDown ? 1 : 0,
-        _             => null
-    };
+    private static int? GetTimingValue(TimingSnapshot s, string name)
+        => TimingSnapshotFields.GetIntField(s, name);
 
     private void SaveWindow()
     {

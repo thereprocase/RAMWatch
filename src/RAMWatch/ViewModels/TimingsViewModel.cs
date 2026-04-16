@@ -329,48 +329,31 @@ public partial class TimingsViewModel : ObservableObject
     /// <summary>
     /// Returns the formatted display value for a named timing field.
     /// RFC fields include the nanosecond conversion when MCLK is known.
+    /// Boolean and PHY fields use display-formatted strings (On/Off, 2T/1T).
+    /// Integer dispatch delegates to TimingSnapshotFields; display formatting
+    /// (ns conversion, On/Off, 2T/1T) stays at this call site per the memo.
     /// </summary>
-    private static string GetFieldValue(TimingSnapshot snap, string field) => field switch
+    private static string GetFieldValue(TimingSnapshot snap, string field)
     {
-        "CL"       => snap.CL.ToString(),
-        "RCDRD"    => snap.RCDRD.ToString(),
-        "RCDWR"    => snap.RCDWR.ToString(),
-        "RP"       => snap.RP.ToString(),
-        "RAS"      => snap.RAS.ToString(),
-        "RC"       => snap.RC.ToString(),
-        "CWL"      => snap.CWL.ToString(),
-        "RFC"      => FormatRfc(snap.RFC, snap.MemClockMhz),
-        "RFC2"     => FormatRfc(snap.RFC2, snap.MemClockMhz),
-        "RFC4"     => FormatRfc(snap.RFC4, snap.MemClockMhz),
-        "RRDS"     => snap.RRDS.ToString(),
-        "RRDL"     => snap.RRDL.ToString(),
-        "FAW"      => snap.FAW.ToString(),
-        "WTRS"     => snap.WTRS.ToString(),
-        "WTRL"     => snap.WTRL.ToString(),
-        "WR"       => snap.WR.ToString(),
-        "RTP"      => snap.RTP.ToString(),
-        "RDRDSCL"  => snap.RDRDSCL.ToString(),
-        "WRWRSCL"  => snap.WRWRSCL.ToString(),
-        "RDRDSC"   => snap.RDRDSC.ToString(),
-        "RDRDSD"   => snap.RDRDSD.ToString(),
-        "RDRDDD"   => snap.RDRDDD.ToString(),
-        "WRWRSC"   => snap.WRWRSC.ToString(),
-        "WRWRSD"   => snap.WRWRSD.ToString(),
-        "WRWRDD"   => snap.WRWRDD.ToString(),
-        "RDWR"     => snap.RDWR.ToString(),
-        "WRRD"     => snap.WRRD.ToString(),
-        "REFI"     => snap.REFI.ToString(),
-        "CKE"      => snap.CKE.ToString(),
-        "STAG"     => snap.STAG.ToString(),
-        "MOD"      => snap.MOD.ToString(),
-        "MRD"      => snap.MRD.ToString(),
-        "PHYRDL_A" => snap.PHYRDL_A.ToString(),
-        "PHYRDL_B" => snap.PHYRDL_B.ToString(),
-        "GDM"       => snap.GDM ? "On" : "Off",
-        "Cmd2T"     => snap.Cmd2T ? "2T" : "1T",
-        "PowerDown" => snap.PowerDown ? "On" : "Off",
-        _           => "?",
-    };
+        // RFC nanosecond conversion is display logic — handled before the generic
+        // integer lookup so it wins over the plain .ToString() path.
+        if (field is "RFC")  return FormatRfc(snap.RFC,  snap.MemClockMhz);
+        if (field is "RFC2") return FormatRfc(snap.RFC2, snap.MemClockMhz);
+        if (field is "RFC4") return FormatRfc(snap.RFC4, snap.MemClockMhz);
+
+        // Integer fields: Clocks, Timings, Phy all return raw int → ToString().
+        int? intVal = TimingSnapshotFields.GetIntField(snap, field);
+        if (intVal.HasValue) return intVal.Value.ToString();
+
+        // Boolean display formatting stays at this call site.
+        return field switch
+        {
+            "GDM"       => snap.GDM       ? "On" : "Off",
+            "Cmd2T"     => snap.Cmd2T     ? "2T" : "1T",
+            "PowerDown" => snap.PowerDown ? "On" : "Off",
+            _           => "?",
+        };
+    }
 
     /// <summary>
     /// Updates the DIMM information display. Called once when the first state

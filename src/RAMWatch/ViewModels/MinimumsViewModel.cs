@@ -189,19 +189,9 @@ public partial class MinimumsViewModel : ObservableObject
         HasData = Rows.Count > 0;
     }
 
-    private static int GetTimingValue(TimingSnapshot snap, string field) => field switch
-    {
-        "CL" => snap.CL, "RCDRD" => snap.RCDRD, "RCDWR" => snap.RCDWR,
-        "RP" => snap.RP, "RAS" => snap.RAS, "RC" => snap.RC, "CWL" => snap.CWL,
-        "RFC" => snap.RFC, "RFC2" => snap.RFC2, "RFC4" => snap.RFC4,
-        "RRDS" => snap.RRDS, "RRDL" => snap.RRDL, "FAW" => snap.FAW,
-        "WTRS" => snap.WTRS, "WTRL" => snap.WTRL, "WR" => snap.WR, "RTP" => snap.RTP,
-        "RDRDSCL" => snap.RDRDSCL, "WRWRSCL" => snap.WRWRSCL,
-        "RDRDSC" => snap.RDRDSC, "RDRDSD" => snap.RDRDSD, "RDRDDD" => snap.RDRDDD,
-        "WRWRSC" => snap.WRWRSC, "WRWRSD" => snap.WRWRSD, "WRWRDD" => snap.WRWRDD,
-        "RDWR" => snap.RDWR, "WRRD" => snap.WRRD,
-        "REFI" => snap.REFI, "CKE" => snap.CKE, "STAG" => snap.STAG,
-        "MOD" => snap.MOD, "MRD" => snap.MRD,
-        _ => 0
-    };
+    // Dispatch delegated to TimingSnapshotFields.GetIntField — single source of truth.
+    // Returns 0 for unknown field names (booleans and PHY are excluded from minimums
+    // by the TimingFields allowlist above, so null from GetIntField maps to 0 safely).
+    private static int GetTimingValue(TimingSnapshot snap, string field)
+        => TimingSnapshotFields.GetIntField(snap, field) ?? 0;
 }
