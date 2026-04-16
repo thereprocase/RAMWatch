@@ -305,7 +305,7 @@
                     </ItemsControl>
                 </Grid>
 
-                <!-- ── VOLTAGES ────────────────────────────────────────── -->
+                <!-- ── VOLTAGES (3-column layout for readability) ──────── -->
                 <TextBlock Text="VOLTAGES" Style="{StaticResource SectionHeader}" />
                 <Border Background="{StaticResource BgPanel}"
                         CornerRadius="2"
@@ -316,68 +316,67 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="22" />
                             <RowDefinition Height="22" />
+                            <RowDefinition Height="22" />
                         </Grid.RowDefinitions>
 
-                        <!-- Row 0: CPU + SoC voltages -->
                         <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal">
                             <TextBlock Text="VCore"
                                        Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="56" />
+                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="52" />
                             <TextBlock Text="{Binding VcoreDisplay}" Style="{StaticResource MonoText}" />
                         </StackPanel>
                         <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal">
                             <TextBlock Text="VSoC"
                                        Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="56" />
+                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="52" />
                             <TextBlock Text="{Binding VsocDisplay}" Style="{StaticResource MonoText}" />
                         </StackPanel>
                         <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal">
-                            <TextBlock Text="VDDP"
-                                       Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="56" />
-                            <TextBlock Text="{Binding VddpDisplay}" Style="{StaticResource MonoText}" />
-                        </StackPanel>
-                        <StackPanel Grid.Row="0" Grid.Column="3" Orientation="Horizontal">
                             <TextBlock Text="VDIMM"
                                        Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="56" />
+                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="52" />
                             <TextBlock Text="{Binding VdimmDisplay}" Style="{StaticResource MonoText}" />
                         </StackPanel>
 
-                        <!-- Row 1: Fabric + DRAM rail voltages -->
                         <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal">
-                            <TextBlock Text="VDDG I"
+                            <TextBlock Text="VDDP"
                                        Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="56" />
-                            <TextBlock Text="{Binding VddgIodDisplay}" Style="{StaticResource MonoText}" />
+                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="52" />
+                            <TextBlock Text="{Binding VddpDisplay}" Style="{StaticResource MonoText}" />
                         </StackPanel>
                         <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal">
-                            <TextBlock Text="VDDG C"
+                            <TextBlock Text="VDDG I"
                                        Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="56" />
-                            <TextBlock Text="{Binding VddgCcdDisplay}" Style="{StaticResource MonoText}" />
+                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="52" />
+                            <TextBlock Text="{Binding VddgIodDisplay}" Style="{StaticResource MonoText}" />
                         </StackPanel>
                         <StackPanel Grid.Row="1" Grid.Column="2" Orientation="Horizontal">
+                            <TextBlock Text="VDDG C"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="52" />
+                            <TextBlock Text="{Binding VddgCcdDisplay}" Style="{StaticResource MonoText}" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal">
                             <TextBlock Text="Vtt"
                                        Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="56" />
+                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="52" />
                             <TextBlock Text="{Binding VttDisplay}" Style="{StaticResource MonoText}" />
                         </StackPanel>
-                        <StackPanel Grid.Row="1" Grid.Column="3" Orientation="Horizontal">
+                        <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal">
                             <TextBlock Text="Vpp"
                                        Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="56" />
+                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="52" />
                             <TextBlock Text="{Binding VppDisplay}" Style="{StaticResource MonoText}" />
                         </StackPanel>
                     </Grid>
                 </Border>
 
-                <!-- ── SIGNAL INTEGRITY ───────────────────────────────── -->
+                <!-- ── SIGNAL INTEGRITY (3-column layout) ─────────────── -->
                 <TextBlock Text="SIGNAL INTEGRITY" Style="{StaticResource SectionHeader}" Margin="0,4,0,0" />
                 <Border Background="{StaticResource BgPanel}"
                         CornerRadius="2"
@@ -388,9 +387,9 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="22" />
                             <RowDefinition Height="22" />
                             <RowDefinition Height="22" />
                         </Grid.RowDefinitions>
@@ -399,51 +398,53 @@
                         <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal">
                             <TextBlock Text="ProcODT"
                                        Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="64" />
+                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="56" />
                             <TextBlock Text="{Binding ProcOdtDisplay}" Style="{StaticResource MonoText}" />
                         </StackPanel>
                         <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal">
                             <TextBlock Text="RttNom"
                                        Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="64" />
+                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="56" />
                             <TextBlock Text="{Binding RttNomDisplay}" Style="{StaticResource MonoText}" />
                         </StackPanel>
                         <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal">
                             <TextBlock Text="RttWr"
                                        Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="64" />
+                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="56" />
                             <TextBlock Text="{Binding RttWrDisplay}" Style="{StaticResource MonoText}" />
                         </StackPanel>
-                        <StackPanel Grid.Row="0" Grid.Column="3" Orientation="Horizontal">
+
+                        <!-- Row 1: RttPark + drive strengths -->
+                        <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal">
                             <TextBlock Text="RttPark"
                                        Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="64" />
+                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="56" />
                             <TextBlock Text="{Binding RttParkDisplay}" Style="{StaticResource MonoText}" />
                         </StackPanel>
-
-                        <!-- Row 1: Drive strengths -->
-                        <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal">
+                        <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal">
                             <TextBlock Text="ClkDrv"
                                        Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="64" />
+                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="56" />
                             <TextBlock Text="{Binding ClkDrvStrenDisplay}" Style="{StaticResource MonoText}" />
                         </StackPanel>
-                        <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal">
+                        <StackPanel Grid.Row="1" Grid.Column="2" Orientation="Horizontal">
                             <TextBlock Text="AddrCmd"
                                        Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="64" />
+                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="56" />
                             <TextBlock Text="{Binding AddrCmdDrvStrenDisplay}" Style="{StaticResource MonoText}" />
                         </StackPanel>
-                        <StackPanel Grid.Row="1" Grid.Column="2" Orientation="Horizontal">
+
+                        <!-- Row 2: More drive strengths -->
+                        <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal">
                             <TextBlock Text="CsOdt"
                                        Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="64" />
+                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="56" />
                             <TextBlock Text="{Binding CsOdtCmdDrvStrenDisplay}" Style="{StaticResource MonoText}" />
                         </StackPanel>
-                        <StackPanel Grid.Row="1" Grid.Column="3" Orientation="Horizontal">
+                        <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal">
                             <TextBlock Text="CkeDrv"
                                        Foreground="{StaticResource TextSecondary}"
-                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="64" />
+                                       FontFamily="{StaticResource UIFont}" FontSize="12" Width="56" />
                             <TextBlock Text="{Binding CkeDrvStrenDisplay}" Style="{StaticResource MonoText}" />
                         </StackPanel>
                     </Grid>
