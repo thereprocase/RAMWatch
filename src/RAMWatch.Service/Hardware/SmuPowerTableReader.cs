@@ -212,7 +212,7 @@ public sealed class SmuPowerTableReader : IDisposable
 
     private static void TryReadThermal(float[] table, uint byteOffset, Action<double> setter)
     {
-        if (byteOffset == 0) return;
+        if (byteOffset == PmTableLayout.NoOffset) return;
         int index = (int)(byteOffset / 4);
         if (index >= table.Length) return;
         double v = table[index];
@@ -222,7 +222,7 @@ public sealed class SmuPowerTableReader : IDisposable
 
     private static void TryReadPower(float[] table, uint byteOffset, Action<double> setter)
     {
-        if (byteOffset == 0) return;
+        if (byteOffset == PmTableLayout.NoOffset) return;
         int index = (int)(byteOffset / 4);
         if (index >= table.Length) return;
         double v = table[index];
@@ -232,7 +232,7 @@ public sealed class SmuPowerTableReader : IDisposable
 
     private static void TryReadCurrent(float[] table, uint byteOffset, Action<double> setter)
     {
-        if (byteOffset == 0) return;
+        if (byteOffset == PmTableLayout.NoOffset) return;
         int index = (int)(byteOffset / 4);
         if (index >= table.Length) return;
         double v = table[index];
@@ -242,7 +242,7 @@ public sealed class SmuPowerTableReader : IDisposable
 
     private static void TryReadVoltage(float[] table, uint byteOffset, double min, double max, Action<double> setter)
     {
-        if (byteOffset == 0) return;
+        if (byteOffset == PmTableLayout.NoOffset) return;
         int index = (int)(byteOffset / 4);
         if (index >= table.Length) return;
         double v = table[index];
@@ -378,7 +378,7 @@ public sealed class SmuPowerTableReader : IDisposable
 
     // Internal so the test project can call GetLayout directly.
     // The test project is listed in InternalsVisibleTo in RAMWatch.Service.csproj.
-    internal readonly struct PmTableLayout
+    internal readonly struct PmTableLayout()
     {
         public uint TableSizeBytes { get; init; }
         public uint FclkByteOffset { get; init; }
@@ -390,20 +390,22 @@ public sealed class SmuPowerTableReader : IDisposable
         public uint CldoVddgIodByteOffset { get; init; }
         public uint CldoVddgCcdByteOffset { get; init; }
 
-        // Thermal/power byte offsets — 0 means not available.
+        // Thermal/power byte offsets — NoOffset means not available.
+        // PPT limit genuinely lives at byte offset 0x000, so we can't use 0 as sentinel.
         // All point to floats in the PM table array.
-        public uint ThmValueByteOffset { get; init; }       // Tctl/Tdie (°C) — PPT thermal limit value
-        public uint SocketPowerByteOffset { get; init; }     // Total package power (W)
-        public uint CorePowerByteOffset { get; init; }       // VDDCR_CPU power (W)
-        public uint SocPowerByteOffset { get; init; }        // VDDCR_SOC power (W)
-        public uint SocTempByteOffset { get; init; }         // SoC die temp (°C)
-        public uint PeakTempByteOffset { get; init; }        // Peak temp since reset (°C)
-        public uint PptLimitByteOffset { get; init; }        // PPT limit (W)
-        public uint PptValueByteOffset { get; init; }        // PPT actual (W)
-        public uint TdcLimitByteOffset { get; init; }        // TDC limit (A)
-        public uint TdcValueByteOffset { get; init; }        // TDC actual (A)
-        public uint EdcLimitByteOffset { get; init; }        // EDC limit (A)
-        public uint EdcValueByteOffset { get; init; }        // EDC actual (A)
+        public const uint NoOffset = uint.MaxValue;
+        public uint ThmValueByteOffset { get; init; }                       // Tctl/Tdie (°C)
+        public uint SocketPowerByteOffset { get; init; }                   // Total package power (W)
+        public uint CorePowerByteOffset { get; init; }                     // VDDCR_CPU power (W)
+        public uint SocPowerByteOffset { get; init; }                      // VDDCR_SOC power (W)
+        public uint SocTempByteOffset { get; init; } = NoOffset;           // SoC die temp (°C)
+        public uint PeakTempByteOffset { get; init; } = NoOffset;          // Peak temp since reset (°C)
+        public uint PptLimitByteOffset { get; init; }                      // PPT limit (W) — lives at 0x000
+        public uint PptValueByteOffset { get; init; }                      // PPT actual (W)
+        public uint TdcLimitByteOffset { get; init; }                      // TDC limit (A)
+        public uint TdcValueByteOffset { get; init; } = NoOffset;          // TDC actual (A)
+        public uint EdcLimitByteOffset { get; init; }                      // EDC limit (A)
+        public uint EdcValueByteOffset { get; init; } = NoOffset;          // EDC actual (A)
 
         public bool IsValid => TableSizeBytes > 0 && FclkByteOffset > 0 && UclkByteOffset > 0;
     }

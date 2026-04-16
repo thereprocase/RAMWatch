@@ -16,6 +16,10 @@ public sealed class HardwareReader : IDisposable
     // BIOS WMI values are BIOS-set constants — read once, reuse forever.
     // A service restart picks up changes after a BIOS flash.
     private BiosWmiReader.BiosConfig? _cachedBiosConfig;
+    // PawnIO driver is NOT thread-safe. The periodic timer and the WHEA event
+    // callback can both call ReadTimings/ReadThermalPower concurrently.
+    // All public read methods must acquire this lock before issuing IOCTLs.
+    private readonly Lock _driverLock = new();
 
     public bool IsAvailable => _driver.IsAvailable;
     public string DriverStatus => _driver.IsAvailable ? "loaded" : "not_found";
@@ -48,6 +52,7 @@ public sealed class HardwareReader : IDisposable
     {
         if (_umcDecode is null) return null;
 
+        lock (_driverLock)
         try
         {
             var snapshot = _umcDecode.ReadTimings(bootId);
@@ -99,6 +104,7 @@ public sealed class HardwareReader : IDisposable
     {
         if (_smuDecode is null) return null;
 
+        lock (_driverLock)
         try
         {
             var tp = new ThermalPowerSnapshot();

@@ -710,7 +710,7 @@ public partial class MainViewModel : ObservableObject
                 {
                     long gb = d.CapacityBytes / (1024 * 1024 * 1024);
                     string cap = gb > 0 ? $"{gb}GB" : "";
-                    string spd = d.SpeedMTs > 0 ? SnapshotDisplayName.DdrLabel(d.SpeedMTs / 2) : "";
+                    string spd = d.SpeedMTs > 0 ? SnapshotDisplayName.DdrLabel((d.SpeedMTs + 1) / 2) : "";
                     return string.Join(" ", new[] { d.Slot, cap, spd, d.Manufacturer.Trim(), d.PartNumber.Trim() }
                         .Where(s => s.Length > 0));
                 });
