@@ -657,6 +657,20 @@ public sealed class RamWatchService : BackgroundService
                 await HandleDeleteBootFailAsync(delFail, client);
                 break;
 
+            // Timing refresh — external clients (e.g., RAMBurn) can request
+            // an immediate cold-tier re-read after a stress test completes.
+            case RequestTimingRefreshMessage refresh:
+                await ReadTimingsAsync();
+                await _aggregator!.BroadcastStateAsync();
+                await client.SendAsync(MessageSerializer.Serialize(
+                    new ResponseMessage
+                    {
+                        Type = "response",
+                        RequestId = refresh.RequestId,
+                        Status = "ok"
+                    }));
+                break;
+
             default:
                 _logger.LogDebug("Unhandled message type: {Type}", message.Type);
                 break;

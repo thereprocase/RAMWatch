@@ -73,6 +73,7 @@ public static class MessageSerializer
                 "closeEra" => JsonSerializer.Deserialize(line, typeof(CloseEraMessage), Options) as IpcMessage,
                 "moveToEra" => JsonSerializer.Deserialize(line, typeof(MoveToEraMessage), Options) as IpcMessage,
                 // Boot fails
+                "requestTimingRefresh" => JsonSerializer.Deserialize(line, typeof(RequestTimingRefreshMessage), Options) as IpcMessage,
                 "logBootFail" => JsonSerializer.Deserialize(line, typeof(LogBootFailMessage), Options) as IpcMessage,
                 "deleteBootFail" => JsonSerializer.Deserialize(line, typeof(DeleteBootFailMessage), Options) as IpcMessage,
                 // Phase 3 — service → client

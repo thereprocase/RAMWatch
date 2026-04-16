@@ -240,6 +240,16 @@ public sealed class MoveToEraMessage : IpcMessage
     public string? EraId { get; init; }
 }
 
+/// <summary>
+/// Request an immediate cold-tier timing re-read. The service triggers
+/// a full UMC + BIOS WMI read and broadcasts a fresh StateMessage.
+/// Useful after a stress test completes to capture post-test timing state.
+/// </summary>
+public sealed class RequestTimingRefreshMessage : IpcMessage
+{
+    public required string RequestId { get; init; }
+}
+
 // ── Boot fail logging (Client → Service) ────────────────────────
 
 public sealed class LogBootFailMessage : IpcMessage
