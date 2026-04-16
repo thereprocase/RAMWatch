@@ -302,7 +302,7 @@ public partial class SnapshotsViewModel : ObservableObject
             : snap.Timestamp;
 
         string primary = snap.MemClockMhz > 0
-            ? $"CL{snap.CL}-{snap.RCDRD}-{snap.RP}-{snap.RAS} @ DDR{snap.MemClockMhz * 2}"
+            ? $"CL{snap.CL}-{snap.RCDRD}-{snap.RP}-{snap.RAS} @ {SnapshotDisplayName.DdrLabel(snap.MemClockMhz)}"
             : $"CL{snap.CL}-{snap.RCDRD}-{snap.RP}-{snap.RAS}";
 
         string validation = hasValidation ? "Yes" : "";

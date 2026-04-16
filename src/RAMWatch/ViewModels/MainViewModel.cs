@@ -810,7 +810,7 @@ public partial class MainViewModel : ObservableObject
             string syncNote = (t.FclkMhz > 0 && t.UclkMhz > 0 && t.FclkMhz != t.UclkMhz)
                 ? " ** ASYNC **" : "";
             double clNs = t.CL * 1000.0 / t.MemClockMhz;
-            lines.Add($"  DDR{t.MemClockMhz * 2} / FCLK {t.FclkMhz} / UCLK {t.UclkMhz}{syncNote}  (CL ~{clNs:F1}ns)");
+            lines.Add($"  {SnapshotDisplayName.DdrLabel(t.MemClockMhz)} / FCLK {t.FclkMhz} / UCLK {t.UclkMhz}{syncNote}  (CL ~{clNs:F1}ns)");
 
             // Primary
             lines.Add($"  CL {t.CL}  RCDRD {t.RCDRD}  RCDWR {t.RCDWR}  RP {t.RP}  RAS {t.RAS}  RC {t.RC}  CWL {t.CWL}");

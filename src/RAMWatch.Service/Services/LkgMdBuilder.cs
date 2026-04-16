@@ -72,7 +72,6 @@ public static class LkgMdBuilder
 
     private static void AppendClockSection(StringBuilder sb, TimingSnapshot snap)
     {
-        int ddr = snap.MemClockMhz * 2;
         sb.AppendLine("## Clock");
         sb.AppendLine($"{SnapshotDisplayName.DdrLabel(snap.MemClockMhz)} | MCLK {snap.MemClockMhz} | FCLK {snap.FclkMhz} | UCLK {snap.UclkMhz}");
     }
