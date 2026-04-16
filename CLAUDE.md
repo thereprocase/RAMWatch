@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 RAMWatch is a Windows-only DRAM tuning monitor: a system health tracker + tuning journal + shareable history for enthusiasts who tune RAM timings. It reads hardware registers, watches event logs, tracks timing drift across boots, and maintains a git-backed tuning diary. Read-only — it never modifies hardware.
 
-**Status:** Phase 1 (Service + IPC + Minimal GUI) substantially complete and running. Solution, all four projects, and tests build. Service installed at `C:\Program Files\RAMWatch\` running as LocalSystem; GUI launches from Start Menu. Runtime data accumulating in `C:\ProgramData\RAMWatch\`. Active monitoring: event log watching, UMC register reads, timing CSV logging, boot baselines, drift detection, snapshot journal. Phase 2 (Hardware Reads + Timings) partially complete — UMC decode and SVI2 voltage reads are working.
+**Status:** Phases 1-3 substantially complete. Solution builds, 576 tests passing, service installed and running. All hardware reads operational: UMC timings, SVI2 voltages, SMU PM table (FCLK/UCLK, VDDP/VDDG, thermal/power), BIOS WMI (VDimm/Vtt/Vpp, ProcODT, Rtt, drive strengths), DIMMs, UMC address map. Three-tier polling: hot (3s thermals+SVI2), warm (30-60s full state), cold (boot+trigger timings). IPC protocol v2 with ThermalUpdateMessage and RequestTimingRefreshMessage for external clients (RAMBurn integration). WHEA monitoring with MCA bank decode, per-CCD temps, reactive vitals capture on hardware events. Two War Council code reviews completed with all findings addressed.
 
 ## Architecture Blockers (Resolved)
 
@@ -31,7 +31,7 @@ Two executables communicating over a secured named pipe (`\\.\pipe\RAMWatch`):
 
 **Pipe security:** DACL restricts access to SYSTEM + interactive user SID. Not open to all local users.
 
-IPC is JSON-over-newline. Message types: `state` (full push on connect + periodic), `event` (real-time), `getState`, `snapshot`, `runIntegrity`, `updateSettings`, `logValidation`, `updateDesignations`, `getDigest`, `getLkgDiff`.
+IPC is JSON-over-newline (protocol v2). Service → client: `state` (full push on connect + warm-tier periodic), `event` (real-time with optional vitals), `thermalUpdate` (hot-tier 3s push with ThermalPowerSnapshot + SVI2 VCore/VSoC). Client → service: `getState`, `runIntegrity`, `updateSettings`, `logValidation`, `updateDesignations`, `getDigest`, `saveSnapshot`, `requestTimingRefresh` (triggers immediate cold-tier re-read). Also: era management, boot fail logging, snapshot CRUD.
 
 ## Technology Stack
 
