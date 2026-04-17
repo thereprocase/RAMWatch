@@ -29,6 +29,8 @@ public class DriftDetectorTests : IDisposable
             SnapshotId = Guid.NewGuid().ToString("N"),
             Timestamp  = DateTime.UtcNow,
             BootId     = bootId,
+            // Clocks are non-zero so CheckForDrift's incomplete-read guard passes.
+            MemClockMhz = 1900, FclkMhz = 1900, UclkMhz = 1900,
             CL  = cl,
             RTP = rtp,
             // Set all other fields to consistent defaults so they don't produce
@@ -70,6 +72,8 @@ public class DriftDetectorTests : IDisposable
 
     /// <summary>
     /// Seed the detector with N boots, all with the given CL value.
+    /// Boot IDs are globally unique (Guid-based) so repeated SeedBoots calls
+    /// produce distinct boots even when called with the same parameters.
     /// </summary>
     private static void SeedBoots(DriftDetector detector, int count, int cl,
         DesignationMap? desig = null)
@@ -77,7 +81,7 @@ public class DriftDetectorTests : IDisposable
         desig ??= AutoCL();
         for (int i = 0; i < count; i++)
         {
-            detector.CheckForDrift(MakeSnapshot($"seed_{i:D3}", cl: cl), desig);
+            detector.CheckForDrift(MakeSnapshot($"seed_{Guid.NewGuid():N}", cl: cl), desig);
         }
     }
 
@@ -346,6 +350,38 @@ public class DriftDetectorTests : IDisposable
 
         var tmpFiles = Directory.GetFiles(_tempDir, "*.tmp");
         Assert.Empty(tmpFiles);
+    }
+
+    [Fact]
+    public void RepeatedSameBootId_WindowDoesNotInflate()
+    {
+        // The warm-tier polling loop calls CheckForDrift many times per boot.
+        // Without dedup, the rolling window fills with copies of the current boot.
+        using var detector = new DriftDetector(_tempDir);
+
+        for (int i = 0; i < 50; i++)
+        {
+            detector.CheckForDrift(MakeSnapshot("boot_same", cl: 11), AutoCL());
+        }
+
+        Assert.Equal(1, detector.GetWindow().Count);
+    }
+
+    [Fact]
+    public void IncompleteRead_FclkZero_NoWindowPollution()
+    {
+        // An SMU PM table read during cold-tier warm-up can produce a snapshot
+        // with FCLK/UCLK = 0. It must not enter the drift window or the whole
+        // baseline would be shifted toward zero clocks.
+        using var detector = new DriftDetector(_tempDir);
+        var incomplete = MakeSnapshot("boot_cold", cl: 11);
+        incomplete.FclkMhz = 0;
+        incomplete.UclkMhz = 0;
+
+        var events = detector.CheckForDrift(incomplete, AutoCL());
+
+        Assert.Empty(events);
+        Assert.Equal(0, detector.GetWindow().Count);
     }
 
     [Fact]

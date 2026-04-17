@@ -70,6 +70,12 @@ public sealed class DriftDetector : IDisposable
         {
             var events = new List<DriftEvent>();
 
+            // Incomplete hardware read — SMU PM table hasn't populated yet.
+            // Don't update the window; wait for a complete read so the rolling
+            // baseline contains real timing data, not zeros.
+            if (current.FclkMhz == 0 || current.UclkMhz == 0)
+                return events;
+
             if (_window.Boots.Count >= MinBootsForDrift)
             {
                 foreach (var (name, value) in ExtractAutoTimings(current, designations))
@@ -220,7 +226,15 @@ public sealed class DriftDetector : IDisposable
             Values    = ExtractAllIntTimings(snapshot)
         };
 
-        _window.Boots.Add(entry);
+        // Upsert by BootId. The warm-tier polling loop calls CheckForDrift
+        // many times per boot; without dedup, the 20-slot window fills up
+        // with copies of the current boot within minutes, evicting real
+        // historical baselines and silencing drift detection.
+        int existingIdx = _window.Boots.FindIndex(b => b.BootId == snapshot.BootId);
+        if (existingIdx >= 0)
+            _window.Boots[existingIdx] = entry;
+        else
+            _window.Boots.Add(entry);
 
         // Trim to window size — drop the oldest entries.
         while (_window.Boots.Count > WindowSize)
