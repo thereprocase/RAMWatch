@@ -36,6 +36,21 @@ public partial class TimelineEntry : ObservableObject
     public required string TypeLabel { get; init; }
 
     /// <summary>
+    /// Sensor key the row's ProvenanceGlyph looks up in the registry.
+    /// Derived from <see cref="EntryType"/> — drift and config-change
+    /// entries are Derived (diamond), validation entries are Measured
+    /// from a user log (circle).
+    /// </summary>
+    public string ProvenanceKey => EntryType switch
+    {
+        TimelineEntryType.ConfigChange   => "TimelineConfigChange",
+        TimelineEntryType.Drift          => "TimelineDrift",
+        TimelineEntryType.ValidationPass => "TimelineValidation",
+        TimelineEntryType.ValidationFail => "TimelineValidation",
+        _                                => "TimelineValidation",
+    };
+
+    /// <summary>
     /// Compact timing summary for context, e.g. "DDR4-3600 CL16-20-20-42".
     /// Null when no snapshot data is available for this entry.
     /// </summary>

@@ -36,9 +36,12 @@ public class SensorProvenanceTests
     [InlineData("AddrCmdDrvStren", Provenance.Static,   "BIOS AMD_ACPI WMI")]
     [InlineData("CsOdtCmdDrvStren",Provenance.Static,   "BIOS AMD_ACPI WMI")]
     [InlineData("CkeDrvStren",     Provenance.Static,   "BIOS AMD_ACPI WMI")]
-    [InlineData("EventMonitor",    Provenance.Measured, "Windows Event Log")]
-    [InlineData("Integrity",       Provenance.Reported, "CBS.log tail")]
-    [InlineData("SystemInfo",      Provenance.Static,   "Windows registry + WMI")]
+    [InlineData("EventMonitor",        Provenance.Measured, "Windows Event Log")]
+    [InlineData("Integrity",           Provenance.Reported, "CBS.log tail")]
+    [InlineData("SystemInfo",          Provenance.Static,   "Windows registry + WMI")]
+    [InlineData("TimelineConfigChange",Provenance.Reported, "ConfigChangeDetector")]
+    [InlineData("TimelineDrift",       Provenance.Reported, "DriftDetector + 20-boot window")]
+    [InlineData("TimelineValidation",  Provenance.Measured, "User test log")]
     public void Registry_For_ReturnsExpectedTier(string key, Provenance expectedTier, string expectedSource)
     {
         var info = SensorProvenanceRegistry.For(key);
@@ -176,6 +179,34 @@ public class SensorProvenanceTests
         // Still below MinSamples — should not demote.
         Assert.Equal(Provenance.Measured, obs.Adjust("NaNSensor", declared).Provenance);
     }
+
+    // ── Derived-tier glyph shape (diamond) contract ──────────────────────
+
+    [Fact]
+    public void Registry_TimelineDerived_EntriesAreDiamondShape()
+    {
+        // Derived entries must carry the diamond shape so the glyph renders
+        // with the DrawGeometry path, not DrawEllipse. The colour tracks the
+        // weakest input; drift/config-change wrap Reported UMC register
+        // readbacks so they inherit amber.
+        var drift = SensorProvenanceRegistry.For("TimelineDrift");
+        Assert.Equal(ProvenanceShape.Diamond, drift.Shape);
+
+        var change = SensorProvenanceRegistry.For("TimelineConfigChange");
+        Assert.Equal(ProvenanceShape.Diamond, change.Shape);
+    }
+
+    [Fact]
+    public void Registry_TimelineValidation_IsMeasuredCircle()
+    {
+        // User-logged stress-test results are primary observations, not
+        // computations — they render as circles.
+        var validation = SensorProvenanceRegistry.For("TimelineValidation");
+        Assert.Equal(ProvenanceShape.Circle, validation.Shape);
+        Assert.Equal(Provenance.Measured, validation.Provenance);
+    }
+
+    // ── Observer event ──────────────────────────────────────────────────
 
     [Fact]
     public void Observer_SensorUpdated_FiresOncePerRecord()

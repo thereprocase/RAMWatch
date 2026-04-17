@@ -1,7 +1,8 @@
 <UserControl x:Class="RAMWatch.Views.TimelineTab"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="clr-namespace:RAMWatch.ViewModels">
+             xmlns:vm="clr-namespace:RAMWatch.ViewModels"
+             xmlns:controls="clr-namespace:RAMWatch.Controls">
 
     <Grid Margin="8,8,8,0">
         <Grid.RowDefinitions>
@@ -111,7 +112,10 @@
 
                                 <!-- Content area -->
                                 <StackPanel Margin="10,8,10,8">
-                                    <!-- Top row: type label + timestamp -->
+                                    <!-- Top row: type label + timestamp. Glyph shape
+                                         tells derived (diamond) vs. primary-observation
+                                         (circle); the colored left strip already conveys
+                                         severity, so these two channels are independent. -->
                                     <DockPanel>
                                         <TextBlock DockPanel.Dock="Right"
                                                    Text="{Binding TimestampDisplay}"
@@ -119,6 +123,10 @@
                                                    FontFamily="{StaticResource MonoFont}"
                                                    FontSize="11"
                                                    VerticalAlignment="Center" />
+                                        <controls:ProvenanceGlyph SensorKey="{Binding ProvenanceKey}"
+                                                                  DisplayName="{Binding TypeLabel}"
+                                                                  VerticalAlignment="Center"
+                                                                  Margin="0,0,6,0" />
                                         <TextBlock FontSize="10"
                                                    FontWeight="SemiBold"
                                                    VerticalAlignment="Center"

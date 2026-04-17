@@ -84,6 +84,9 @@ public static class SensorProvenanceRegistry
     private const string SrcEventLog    = "Windows Event Log";
     private const string SrcCbsLog      = "CBS.log tail";
     private const string SrcRegistry    = "Windows registry + WMI";
+    private const string SrcDerivedState = "ConfigChangeDetector";
+    private const string SrcDerivedDrift = "DriftDetector + 20-boot window";
+    private const string SrcUserLog     = "User test log";
 
     // Canned detail strings keep the tooltip voice consistent across tiles.
     private const string DetMeasTemp =
@@ -168,6 +171,31 @@ public static class SensorProvenanceRegistry
         ["SystemInfo"] = SensorProvenanceInfo.Static(
             SrcRegistry,
             "CPU codename, BIOS version, and AGESA version captured once at service startup from HKLM\\HARDWARE\\DESCRIPTION\\System\\BIOS. Stale only if you flash BIOS without rebooting."),
+
+        // ── Timeline entries (Derived + user-logged) ─────────────
+        // Config changes are computed by ConfigChangeDetector comparing
+        // consecutive boot snapshots; diamond + amber (weakest input is
+        // the UMC Reported register readback).
+        ["TimelineConfigChange"] = SensorProvenanceInfo.Derived(
+            Provenance.Reported,
+            SrcDerivedState,
+            "Computed: ConfigChangeDetector diffs the current TimingSnapshot against the last-persisted one and emits a delta when any field (after tolerance filtering) changes. Primary inputs are UMC register readbacks — commanded setpoints, not direct measurements."),
+
+        // Drift = DriftDetector's finding that a timing landed somewhere
+        // other than the rolling 20-boot mode. Derived from historical
+        // comparison of the same Reported UMC fields.
+        ["TimelineDrift"] = SensorProvenanceInfo.Derived(
+            Provenance.Reported,
+            SrcDerivedDrift,
+            "Computed: DriftDetector compares this boot's trained timings against the mode of the last 20 boots. Inputs are UMC register readbacks."),
+
+        // Validation pass/fail entries are user-authored — a human ran a
+        // stress test and wrote down the outcome. Primary observation, so
+        // Measured (circle, green), but the source is a user log not an
+        // ADC — the tooltip makes that distinction explicit.
+        ["TimelineValidation"] = SensorProvenanceInfo.Measured(
+            SrcUserLog,
+            "User-entered stress-test result. Primary observation: a human ran MemTest / TM5 / y-cruncher / etc. and logged whether the system passed and for how long. Not a hardware sensor — these rows are authoritative because you wrote them."),
     };
 
     /// <summary>
