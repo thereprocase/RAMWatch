@@ -44,6 +44,9 @@ public sealed class RamWatchService : BackgroundService
     // Resets to false on each service start; set to true after the first save.
     private bool _autoSavedThisBoot;
 
+    // Timestamp of service readiness — used to compute uptime in the stop event.
+    private DateTime _serviceStartedAt;
+
     // Boot baseline — rolling 50-boot event count history for normal/elevated coloring
     private BootBaselineJournal? _baselineJournal;
 
@@ -201,6 +204,16 @@ public sealed class RamWatchService : BackgroundService
         _logger.LogInformation("Monitoring active. Boot ID: {BootId}, Driver: {Driver}",
             _bootId, _hardwareReader.DriverStatus);
 
+        // Emit a startup marker so an empty events CSV is unambiguous —
+        // a silent success used to look identical to a crashed service.
+        _serviceStartedAt = DateTime.UtcNow;
+        EmitLifecycleEvent(
+            EventSeverity.Info,
+            $"Service ready. Pipe: \\\\.\\pipe\\{PipeConstants.PipeName}. " +
+            $"EventLog: up. Hardware: {_hardwareReader.DriverName} ({_hardwareReader.DriverStatus}). " +
+            $"Board: {_systemInfo?.BoardVendor} {_systemInfo?.BoardModel}. " +
+            $"BIOS: {_systemInfo?.BiosVersion}. AGESA: {_systemInfo?.AgesaVersion}.");
+
         // Three-tier polling:
         // HOT  (3s): thermal + SVI2 voltages → ThermalUpdateMessage
         // WARM (30-60s): full timing read + state broadcast + CBS scan
@@ -228,6 +241,15 @@ public sealed class RamWatchService : BackgroundService
         // Record this boot's event counts before disposing the event log.
         if (_baselineJournal is not null && _eventLog is not null)
             _baselineJournal.RecordBoot(_bootId, _eventLog.GetErrorSources());
+
+        // Emit a stop marker so CSV readers can see the service shut down cleanly
+        // (rather than inferring shutdown from log silence).
+        var uptime = _serviceStartedAt == default
+            ? TimeSpan.Zero
+            : DateTime.UtcNow - _serviceStartedAt;
+        EmitLifecycleEvent(
+            EventSeverity.Info,
+            $"Service stopping. Uptime: {(int)uptime.TotalHours:D2}:{uptime.Minutes:D2}:{uptime.Seconds:D2}.");
 
         _eventLog?.Dispose();
         _csvLogger?.Dispose();
@@ -468,6 +490,23 @@ public sealed class RamWatchService : BackgroundService
         // Re-evaluate LKG against current validation results.
         var allSnapshots = _snapshotJournal?.GetAll() ?? new List<TimingSnapshot> { snapshot };
         _lkgTracker.UpdateLkg(_validationLogger.GetResults(), allSnapshots);
+    }
+
+    /// <summary>
+    /// Emit a synthetic service-lifecycle event (startup/shutdown) through the
+    /// normal event path: daily CSV, mirror copy, and broadcast to clients.
+    /// Category is Application so the Hardware-only vitals capture is skipped.
+    /// </summary>
+    private void EmitLifecycleEvent(EventSeverity severity, string summary)
+    {
+        var evt = new MonitoredEvent(
+            DateTime.UtcNow,
+            "Service",
+            EventCategory.Application,
+            0,
+            severity,
+            summary);
+        OnEventDetected(evt);
     }
 
     private void OnEventDetected(MonitoredEvent evt)
