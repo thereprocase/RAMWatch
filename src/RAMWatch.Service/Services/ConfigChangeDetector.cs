@@ -13,6 +13,11 @@ namespace RAMWatch.Service.Services;
 /// </summary>
 public sealed class ConfigChangeDetector : IDisposable
 {
+    // Hard cap prevents unbounded changes.json growth on heavily-tuned
+    // systems. Matches the SnapshotJournal (1000) / ValidationTestLogger
+    // (500) pattern. Oldest entries are evicted first.
+    private const int MaxChanges = 500;
+
     private readonly string _snapshotPath;
     private readonly string _changesPath;
     private readonly Lock _lock = new();
@@ -75,6 +80,10 @@ public sealed class ConfigChangeDetector : IDisposable
                 string json = File.ReadAllText(_changesPath);
                 var loaded = JsonSerializer.Deserialize(json, RamWatchJsonContext.Default.ListConfigChange);
                 _changes = loaded ?? new List<ConfigChange>();
+                // Trim pre-existing oversized files from before the cap existed.
+                // Oldest entries go first to match the runtime eviction order.
+                while (_changes.Count > MaxChanges)
+                    _changes.RemoveAt(0);
             }
             catch
             {
@@ -110,19 +119,27 @@ public sealed class ConfigChangeDetector : IDisposable
 
             TimingSnapshot? before = _previous;
             _previous = current;
-            SaveSnapshot(current);
 
             if (before is null)
             {
-                // First boot — establish baseline, no change to report.
+                // First boot — establish baseline, persist it as the anchor
+                // for the next boot's comparison, no change to report.
+                SaveSnapshot(current);
                 return null;
             }
 
             var deltas = BuildDeltas(before, current);
             if (deltas.Count == 0)
             {
+                // No real change after applying BuildDeltas tolerances. Skip
+                // the on-disk write; the anchor is still semantically valid
+                // and rewriting last_snapshot.json on every warm-tier tick
+                // (~2880 times/day) was pure NTFS/SSD churn.
                 return null;
             }
+
+            // A real change — persist the new anchor.
+            SaveSnapshot(current);
 
             var change = new ConfigChange
             {
@@ -135,6 +152,9 @@ public sealed class ConfigChangeDetector : IDisposable
             };
 
             _changes.Add(change);
+            // Evict oldest entries so the on-disk journal stays bounded.
+            while (_changes.Count > MaxChanges)
+                _changes.RemoveAt(0);
             SaveChanges();
 
             return change;
