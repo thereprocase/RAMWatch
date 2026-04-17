@@ -259,7 +259,9 @@
                      Each column is an independent StackPanel so groups pack tight
                      with no row alignment forced across columns (fixes wasted space
                      when groups have different heights).
-                     GroupColumnConverter does greedy bin-packing by estimated height. -->
+                     TimingsViewModel.ComputeColumns does greedy bin-packing by
+                     estimated height and exposes the result as LeftColumnGroups /
+                     RightColumnGroups. -->
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
