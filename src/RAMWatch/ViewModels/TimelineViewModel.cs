@@ -217,6 +217,19 @@ public partial class TimelineViewModel : ObservableObject
             await _closeEraHandler(ActiveEraId);
     }
 
+    /// <summary>
+    /// End the active era and immediately open the inline-naming banner so
+    /// the user can type the next campaign's name without a second click.
+    /// Matches the common "I'm switching to a new attempt" verb.
+    /// </summary>
+    [RelayCommand]
+    private async Task StartNextEraAsync()
+    {
+        if (!string.IsNullOrEmpty(ActiveEraId) && _closeEraHandler is not null)
+            await _closeEraHandler(ActiveEraId);
+        IsNamingEra = true;
+    }
+
     // ── Type filters ────────────────────────────────────────
 
     [ObservableProperty]
@@ -225,8 +238,13 @@ public partial class TimelineViewModel : ObservableObject
     [ObservableProperty]
     private bool _showFail = true;
 
+    // "Change" rows are overwhelmingly auto memory retraining between
+    // boots — a single tick on a secondary timing or a channel-asymmetric
+    // PHYRDL re-train. Every boot produces one, across weeks that fills
+    // the logbook and drowns the intentional events. Default off; users
+    // who want to see retrain history toggle it on.
     [ObservableProperty]
-    private bool _showChange = true;
+    private bool _showChange = false;
 
     [ObservableProperty]
     private bool _showDrift = true;

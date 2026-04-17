@@ -81,10 +81,18 @@
                                FontFamily="{StaticResource UIFont}"
                                FontSize="12"
                                VerticalAlignment="Center" />
+                    <Button Content="Start new"
+                            Command="{Binding StartNextEraCommand}"
+                            Style="{StaticResource DarkButton}"
+                            Margin="12,0,0,0"
+                            Padding="10,2"
+                            FontSize="11"
+                            ToolTip="End this campaign and immediately name the next one."
+                            AutomationProperties.Name="End this era and start a new one" />
                     <Button Content="End"
                             Command="{Binding EndActiveEraCommand}"
                             Style="{StaticResource DarkButton}"
-                            Margin="12,0,0,0"
+                            Margin="6,0,0,0"
                             Padding="10,2"
                             FontSize="11"
                             AutomationProperties.Name="End active tuning era" />
@@ -231,8 +239,9 @@
                           Foreground="{StaticResource StatusGreen}" FontSize="10" Margin="0,0,6,0" />
                 <CheckBox Content="Fail" IsChecked="{Binding ShowFail}"
                           Foreground="{StaticResource StatusRed}" FontSize="10" Margin="0,0,6,0" />
-                <CheckBox Content="Change" IsChecked="{Binding ShowChange}"
-                          Foreground="{StaticResource StatusAmber}" FontSize="10" Margin="0,0,6,0" />
+                <CheckBox Content="Retrain" IsChecked="{Binding ShowChange}"
+                          Foreground="{StaticResource StatusAmber}" FontSize="10" Margin="0,0,6,0"
+                          ToolTip="Auto memory retraining between boots. Noisy — off by default." />
                 <CheckBox Content="Drift" IsChecked="{Binding ShowDrift}"
                           Foreground="{StaticResource StatusRed}" FontSize="10" />
             </StackPanel>
