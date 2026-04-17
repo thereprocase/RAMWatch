@@ -99,7 +99,12 @@ public sealed class UmcDecode
 
     private static int Bits(uint value, int hi, int lo)
     {
-        uint mask = (1u << (hi - lo + 1)) - 1;
+        // Width 32 (hi=31, lo=0) would compute 1u << 32. C# masks the shift
+        // count to 5 bits, producing 1u, so mask = 0 and the return is 0 —
+        // a silent decode bug the first time anyone adds a full-width field.
+        // No current caller hits this, but the guard is cheap.
+        int width = hi - lo + 1;
+        uint mask = width >= 32 ? 0xFFFFFFFFu : (1u << width) - 1;
         return (int)((value >> lo) & mask);
     }
 

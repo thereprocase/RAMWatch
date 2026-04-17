@@ -305,14 +305,18 @@ public sealed class SmuPowerTableReader : IDisposable
     {
         if (_driver is null) return null;
 
-        // Ask the SMU to refresh the DRAM-mapped table
+        // Ask the SMU to refresh the DRAM-mapped table. On failure, abort
+        // rather than reading a stale table — tuning decisions are made
+        // against these values and a pre-change snapshot passed off as
+        // current is the exact sort of misleading data we're trying to
+        // avoid. A skipped hot-tier tick is recoverable; a wrong one isn't.
         try
         {
             _driver.Execute(IoctlUpdatePmTable, [], 0);
         }
         catch
         {
-            // If update fails, try reading the stale table anyway
+            return null;
         }
 
         // Table size is in bytes; ioctl_read_pm_table takes a count of uint64 slots
