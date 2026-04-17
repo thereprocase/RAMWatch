@@ -173,32 +173,52 @@ public partial class MainViewModel : ObservableObject
             HistoryCount = 10
         };
 
-        _pendingDigestRequestId = requestId;
-        await _pipe.SendAsync(MessageSerializer.Serialize(msg));
-
-        // Wait up to 5s for the response. If it doesn't arrive, fall back to
-        // the local export so the tray action never silently does nothing.
-        var deadline = DateTime.UtcNow.AddSeconds(5);
-        while (DateTime.UtcNow < deadline)
+        // Register this request's awaitable BEFORE sending so the response
+        // handler always has a target — even if the pipe answers before the
+        // SendAsync awaiter resumes. Dictionary-keyed completion sources
+        // let two rapid Copy Digest invocations each receive their own
+        // response; the prior single-slot _pendingDigestRequestId would
+        // let the second overwrite the first, and both awaits would drain
+        // from the same volatile field.
+        var tcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (_digestLock)
         {
-            await Task.Delay(50);
-            if (_lastDigestText is not null)
-            {
-                Clipboard.SetText(_lastDigestText);
-                _lastDigestText = null;
-                _pendingDigestRequestId = null;
-                return;
-            }
+            _digestWaiters[requestId] = tcs;
         }
 
-        // Timeout — fall back to local export.
-        _pendingDigestRequestId = null;
-        Clipboard.SetText(BuildClipboardExport());
+        try
+        {
+            await _pipe.SendAsync(MessageSerializer.Serialize(msg));
+
+            // Wait up to 5s for the response. If it doesn't arrive, fall back
+            // to the local export so the tray action never silently does nothing.
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            try
+            {
+                var digest = await tcs.Task.WaitAsync(cts.Token);
+                if (!string.IsNullOrWhiteSpace(digest))
+                {
+                    Clipboard.SetText(digest);
+                    return;
+                }
+            }
+            catch (OperationCanceledException) { /* fall through to local export */ }
+
+            Clipboard.SetText(BuildClipboardExport());
+        }
+        finally
+        {
+            lock (_digestLock)
+            {
+                _digestWaiters.Remove(requestId);
+            }
+        }
     }
 
     // ── Digest state — set by ProcessMessage when a DigestResponseMessage arrives.
-    private string? _pendingDigestRequestId;
-    private volatile string? _lastDigestText;
+    // Keyed by RequestId so concurrent Copy Digest invocations don't collide.
+    private readonly Dictionary<string, TaskCompletionSource<string>> _digestWaiters = new();
+    private readonly Lock _digestLock = new();
 
     [RelayCommand]
     private async Task SaveSnapshotAsync(string? label = null)
@@ -441,12 +461,17 @@ public partial class MainViewModel : ObservableObject
                 ApplyThermalUpdate(thermal);
                 break;
             case DigestResponseMessage digest:
-                // CopyDigestAsync polls _lastDigestText; set it here on the I/O thread.
-                if (_pendingDigestRequestId is not null &&
-                    digest.RequestId == _pendingDigestRequestId &&
-                    !string.IsNullOrWhiteSpace(digest.DigestText))
+                // Route the response to the specific CopyDigestAsync call that
+                // requested it. Multiple in-flight requests each have their own
+                // TaskCompletionSource keyed by RequestId.
                 {
-                    _lastDigestText = digest.DigestText;
+                    TaskCompletionSource<string>? waiter = null;
+                    lock (_digestLock)
+                    {
+                        if (digest.RequestId is not null)
+                            _digestWaiters.TryGetValue(digest.RequestId, out waiter);
+                    }
+                    waiter?.TrySetResult(digest.DigestText ?? "");
                 }
                 break;
             case DesignationsResponseMessage desig:
