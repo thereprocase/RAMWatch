@@ -109,6 +109,13 @@ public sealed class TimingSnapshot
     public int RFC { get; set; }            // tRFC1 in clocks
     public int RFC2 { get; set; }
     public int RFC4 { get; set; }
+    /// <summary>
+    /// True when the UMC decode fell back to the 0x50264 tRFC register
+    /// because 0x50260 returned the ComboAM4v2PI 1.2.0.x magic value
+    /// (0x21060138). Surfaces to the UI so users on buggy AGESA know
+    /// the displayed tRFC values came from the workaround path.
+    /// </summary>
+    public bool TrfcReadbackBugDetected { get; set; }
 
     // --- Secondaries ---
     public int RRDS { get; set; }

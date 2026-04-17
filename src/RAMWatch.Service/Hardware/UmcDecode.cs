@@ -205,14 +205,33 @@ public sealed class UmcDecode
         uint reg264 = ReadSmn(chOffset | 0x50264);
 
         uint rfcReg;
+        bool usedFallback = false;
         if (reg260 != reg264)
-            rfcReg = (reg260 != TrfcBugValue) ? reg260 : reg264;
+        {
+            if (reg260 == TrfcBugValue)
+            {
+                rfcReg = reg264;
+                usedFallback = true;
+            }
+            else
+            {
+                rfcReg = reg260;
+            }
+        }
         else
+        {
             rfcReg = reg260;
+        }
 
         s.RFC = Bits(rfcReg, 10, 0);
         s.RFC2 = Bits(rfcReg, 21, 11);
         s.RFC4 = Bits(rfcReg, 31, 22);
+
+        // Propagate the fallback signal so the UI can surface a warning
+        // rather than silently showing values derived from the workaround
+        // register. Set here rather than cleared so a later channel that
+        // also triggers the fallback doesn't un-set the flag.
+        if (usedFallback) s.TrfcReadbackBugDetected = true;
     }
 
     private void ReadMisc(uint chOffset, TimingSnapshot s)
