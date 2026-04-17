@@ -11,18 +11,25 @@ namespace RAMWatch.Tests;
 internal sealed class FakeHardwareAccess : IHardwareAccess
 {
     private readonly Dictionary<uint, uint> _smnValues;
+    private readonly HashSet<uint> _failingAddresses;
 
     public bool IsAvailable => true;
     public string StatusDescription => "Fake hardware (test)";
     public string DriverName => "Fake";
 
-    public FakeHardwareAccess(Dictionary<uint, uint> smnValues)
+    public FakeHardwareAccess(Dictionary<uint, uint> smnValues, HashSet<uint>? failingAddresses = null)
     {
         _smnValues = smnValues;
+        _failingAddresses = failingAddresses ?? new HashSet<uint>();
     }
 
     public bool TryReadSmn(uint address, out uint value)
     {
+        if (_failingAddresses.Contains(address))
+        {
+            value = 0;
+            return false;
+        }
         value = _smnValues.TryGetValue(address, out uint v) ? v : 0;
         return true; // Always succeeds in test — returns 0 for unregistered addresses
     }
@@ -231,6 +238,38 @@ public class UmcDecodeTests
         using var hw = new NullHardwareAccess();
         var decoder = new UmcDecode(hw);
         Assert.Null(decoder.ReadTimings("boot_test"));
+    }
+
+    [Fact]
+    public void ReadTimings_ReturnsNull_WhenAnySmnReadFails()
+    {
+        // Any per-register IOCTL failure must abort the decode rather than
+        // commit a snapshot with zero-valued fields that would poison the
+        // drift window and snapshot journal. One tRFC register failing
+        // alongside a clean primary-timing register used to silently produce
+        // a snapshot with real CL/RAS but tRFC = 0.
+        var regs = Regs(
+            (0x50204, (24u << 24) | (22u << 16) | (42u << 8) | 16u),
+            (0x50208, (22u << 16) | 64u));
+        var failures = new HashSet<uint> { 0x50260 }; // tRFC primary reg fails
+
+        using var hw = new FakeHardwareAccess(regs, failures);
+        var decoder = new UmcDecode(hw);
+
+        Assert.Null(decoder.ReadTimings("boot_test"));
+    }
+
+    [Fact]
+    public void ReadAddressMap_ReturnsNull_WhenAnySmnReadFails()
+    {
+        // Same invariant for the address map. Previously a failed read of
+        // 0x50050/0x50058 left bgs0/bgs1 = 0, which satisfied bgs != sentinel
+        // and reported BgsEnabled=true on pure driver failure.
+        var failures = new HashSet<uint> { 0x50050 };
+        using var hw = new FakeHardwareAccess(new Dictionary<uint, uint>(), failures);
+        var decoder = new UmcDecode(hw);
+
+        Assert.Null(decoder.ReadAddressMap());
     }
 
     [Fact]

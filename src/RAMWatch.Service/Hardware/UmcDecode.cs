@@ -26,6 +26,12 @@ public sealed class UmcDecode
     // the ComboAM4v2PI 1.2.0.x bug. Use 0x50264 instead.
     private const uint TrfcBugValue = 0x21060138;
 
+    // Per-call flag: if any ReadSmn() failed during the current ReadTimings
+    // pass, the whole snapshot is treated as incomplete. Previously ReadSmn
+    // silently returned 0 on failure, leaking zero-valued timings into the
+    // snapshot journal and drift window.
+    private bool _readFailed;
+
     public UmcDecode(IHardwareAccess hw)
     {
         _hw = hw;
@@ -37,6 +43,8 @@ public sealed class UmcDecode
     public TimingSnapshot? ReadTimings(string bootId)
     {
         if (!_hw.IsAvailable) return null;
+
+        _readFailed = false;
 
         try
         {
@@ -63,6 +71,14 @@ public sealed class UmcDecode
             if (ChannelBases.Length > 1)
                 ReadPhy(ChannelBases[1], snapshot, channel: 1);
 
+            // If any SMN read failed, treat the whole snapshot as incomplete
+            // rather than committing a partial mix of real values and zeros.
+            // Downstream consumers (CSV logger, drift detector, config change
+            // detector) have their own zero-clock guards, but those only
+            // catch the specific FCLK/UCLK=0 case; a failure that zero'd
+            // e.g. tRFC1 while clocks read cleanly would still reach disk.
+            if (_readFailed) return null;
+
             return snapshot;
         }
         catch
@@ -74,7 +90,10 @@ public sealed class UmcDecode
     private uint ReadSmn(uint address)
     {
         if (!_hw.TryReadSmn(address, out uint value))
+        {
+            _readFailed = true;
             return 0;
+        }
         return value;
     }
 
@@ -235,6 +254,8 @@ public sealed class UmcDecode
     /// </summary>
     public List<AddressMapConfig>? ReadAddressMap()
     {
+        _readFailed = false;
+
         try
         {
             var result = new List<AddressMapConfig>();
@@ -263,10 +284,20 @@ public sealed class UmcDecode
                     BankGroupSwapAlt0 = bgsAlt0,
                     BankGroupSwapAlt1 = bgsAlt1,
                     BankHashEnabled = (addrHashBank & 1) != 0,
+                    // BgsEnabled was true when bgs0/bgs1 != 0x87654321 (the disabled
+                    // sentinel). If the SMN read failed, bgs0/bgs1 were silently 0,
+                    // which is "not the sentinel" and produced BgsEnabled=true
+                    // even though we hadn't actually read the register. The _readFailed
+                    // check below now suppresses the whole result in that case.
                     BgsEnabled = bgs0 != 0x87654321 || bgs1 != 0x87654321,
                     BgsAltEnabled = (bgsAlt0 >> 4 & 0x7F) > 0 || (bgsAlt1 >> 4 & 0x7F) > 0,
                 });
             }
+
+            // Same invariant as ReadTimings: if any underlying read failed,
+            // the whole decode is unreliable. Return null so the caller
+            // treats the address map as unread, not as "all defaults".
+            if (_readFailed) return null;
 
             return result;
         }
