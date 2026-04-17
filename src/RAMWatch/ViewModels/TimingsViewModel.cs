@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using RAMWatch.Core;
 using RAMWatch.Core.Models;
+using RAMWatch.Services;
 
 namespace RAMWatch.ViewModels;
 
@@ -98,6 +99,22 @@ public partial class TimingsViewModel : ObservableObject
 
     [ObservableProperty]
     private string _vppDisplay = "—";
+
+    // Raw numeric copies of the three BIOS-WMI voltages that carry the
+    // ASRock "unread zero" sentinel. The ProvenanceGlyph binds SensorValue
+    // to these so SensorProvenanceResolver.ForVoltage can flip the glyph
+    // to a grey square + explanatory tooltip when the BIOS didn't expose
+    // the APCB block. The rest of the voltages don't need numeric shadows
+    // because they have no sentinel — the observer catches their
+    // flat-across-N-samples case on its own.
+    [ObservableProperty]
+    private double _vdimm;
+
+    [ObservableProperty]
+    private double _vtt;
+
+    [ObservableProperty]
+    private double _vpp;
 
     // ── Signal integrity ─────────────────────────────────────
     [ObservableProperty]
@@ -258,6 +275,13 @@ public partial class TimingsViewModel : ObservableObject
         VttDisplay      = snapshot.Vtt      > 0 ? $"{snapshot.Vtt:F4}"      : "N/A";
         VppDisplay      = snapshot.Vpp      > 0 ? $"{snapshot.Vpp:F4}"      : "N/A";
 
+        // Numeric shadows the ProvenanceGlyph reads (see field declarations).
+        Vdimm = snapshot.VDimm;
+        Vtt   = snapshot.Vtt;
+        Vpp   = snapshot.Vpp;
+
+        RecordSamples(snapshot);
+
         // Signal integrity
         ProcOdtDisplay        = snapshot.ProcODT > 0 ? $"{snapshot.ProcODT:F1} Ω" : "N/A";
         RttNomDisplay         = snapshot.RttNom.Length > 0 ? snapshot.RttNom : "N/A";
@@ -309,6 +333,45 @@ public partial class TimingsViewModel : ObservableObject
         }
 
         HasTimings = true;
+    }
+
+    /// <summary>
+    /// Feed each sensor on this snapshot into the shared ProvenanceObserver.
+    /// The observer tracks per-sensor min/max/count and demotes declarations
+    /// the data contradicts — a "Measured" sensor that never varies, or a
+    /// "Static" one that drifts, both flip to grey-square Unknown after
+    /// <see cref="ProvenanceObserver.MinSamples"/> readings.
+    /// </summary>
+    private static void RecordSamples(TimingSnapshot snap)
+    {
+        var obs = SensorProvenanceResolver.Observer;
+
+        // SVI2 (live) — NaN treated as missing, so unread planes don't
+        // poison the running min/max.
+        obs.Record("Vsoc",  snap.VSoc  > 0 ? snap.VSoc  : double.NaN);
+        obs.Record("Vcore", snap.VCore > 0 ? snap.VCore : double.NaN);
+
+        // SMU PM table — LDO setpoints + clocks.
+        obs.Record("Vddp",    snap.VDDP     > 0 ? snap.VDDP     : double.NaN);
+        obs.Record("VddgIod", snap.VDDG_IOD > 0 ? snap.VDDG_IOD : double.NaN);
+        obs.Record("VddgCcd", snap.VDDG_CCD > 0 ? snap.VDDG_CCD : double.NaN);
+        obs.Record("Mclk",    snap.MemClockMhz);
+        obs.Record("Fclk",    snap.FclkMhz);
+        obs.Record("Uclk",    snap.UclkMhz);
+
+        // BIOS WMI — static config. Zero means unread (ASRock etc.), which
+        // the observer must not see as a legitimate "never varies" sample.
+        if (snap.VDimm > 0) obs.Record("Vdimm", snap.VDimm);
+        if (snap.Vtt   > 0) obs.Record("Vtt",   snap.Vtt);
+        if (snap.Vpp   > 0) obs.Record("Vpp",   snap.Vpp);
+
+        if (snap.ProcODT         > 0) obs.Record("ProcOdt",          snap.ProcODT);
+        if (snap.ClkDrvStren     > 0) obs.Record("ClkDrvStren",      snap.ClkDrvStren);
+        if (snap.AddrCmdDrvStren > 0) obs.Record("AddrCmdDrvStren",  snap.AddrCmdDrvStren);
+        if (snap.CsOdtCmdDrvStren > 0) obs.Record("CsOdtCmdDrvStren", snap.CsOdtCmdDrvStren);
+        if (snap.CkeDrvStren     > 0) obs.Record("CkeDrvStren",      snap.CkeDrvStren);
+        // Rtt fields are strings, not doubles; observer skips them. Registry
+        // still provides the glyph colour from their Static declaration.
     }
 
     /// <summary>
@@ -478,6 +541,11 @@ public partial class TimingsViewModel : ObservableObject
             PptDisplay = $"—/{tp.PptLimitW:F0}W";
         else
             PptDisplay = "—";
+
+        var obs = SensorProvenanceResolver.Observer;
+        if (tp.CpuTempC    > 0) obs.Record("CpuTemp",     tp.CpuTempC);
+        if (tp.SocketPowerW > 0) obs.Record("SocketPower", tp.SocketPowerW);
+        if (tp.PptActualW  > 0) obs.Record("Ppt",         tp.PptActualW);
     }
 
     /// <summary>

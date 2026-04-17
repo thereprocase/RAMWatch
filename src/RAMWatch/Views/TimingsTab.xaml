@@ -1,6 +1,7 @@
 <UserControl x:Class="RAMWatch.Views.TimingsTab"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:RAMWatch.Controls">
 
     <!-- DataContext is TimingsViewModel, set by MainWindow via x:Name binding -->
 
@@ -110,6 +111,8 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" Orientation="Horizontal">
+                            <controls:ProvenanceGlyph SensorKey="Mclk" DisplayName="MCLK"
+                                                      VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="MCLK"
                                        Foreground="{StaticResource TextSecondary}"
                                        FontFamily="{StaticResource UIFont}"
@@ -120,6 +123,8 @@
                         </StackPanel>
 
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <controls:ProvenanceGlyph SensorKey="Fclk" DisplayName="FCLK"
+                                                      VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="FCLK"
                                        Foreground="{StaticResource TextSecondary}"
                                        FontFamily="{StaticResource UIFont}"
@@ -130,6 +135,8 @@
                         </StackPanel>
 
                         <StackPanel Grid.Column="2" Orientation="Horizontal">
+                            <controls:ProvenanceGlyph SensorKey="Uclk" DisplayName="UCLK"
+                                                      VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="UCLK"
                                        Foreground="{StaticResource TextSecondary}"
                                        FontFamily="{StaticResource UIFont}"
@@ -164,6 +171,8 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" Orientation="Horizontal">
+                            <controls:ProvenanceGlyph SensorKey="CpuTemp" DisplayName="Tctl"
+                                                      VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="Tctl"
                                        Foreground="{StaticResource TextSecondary}"
                                        FontFamily="{StaticResource UIFont}"
@@ -174,6 +183,8 @@
                         </StackPanel>
 
                         <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <controls:ProvenanceGlyph SensorKey="SocketPower" DisplayName="Socket power"
+                                                      VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="Power"
                                        Foreground="{StaticResource TextSecondary}"
                                        FontFamily="{StaticResource UIFont}"
@@ -184,6 +195,8 @@
                         </StackPanel>
 
                         <StackPanel Grid.Column="2" Orientation="Horizontal">
+                            <controls:ProvenanceGlyph SensorKey="Ppt" DisplayName="PPT"
+                                                      VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="PPT"
                                        Foreground="{StaticResource TextSecondary}"
                                        FontFamily="{StaticResource UIFont}"
@@ -363,18 +376,25 @@
                         </Grid.RowDefinitions>
 
                         <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal">
+                            <controls:ProvenanceGlyph SensorKey="Vcore" DisplayName="VCore"
+                                                      VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="VCore"
                                        Foreground="{StaticResource TextSecondary}"
                                        FontFamily="{StaticResource UIFont}" FontSize="12" Width="52" />
                             <TextBlock Text="{Binding VcoreDisplay}" Style="{StaticResource MonoText}" />
                         </StackPanel>
                         <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal">
+                            <controls:ProvenanceGlyph SensorKey="Vsoc" DisplayName="VSoC"
+                                                      VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="VSoC"
                                        Foreground="{StaticResource TextSecondary}"
                                        FontFamily="{StaticResource UIFont}" FontSize="12" Width="52" />
                             <TextBlock Text="{Binding VsocDisplay}" Style="{StaticResource MonoText}" />
                         </StackPanel>
                         <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal">
+                            <controls:ProvenanceGlyph SensorKey="Vdimm" DisplayName="VDIMM"
+                                                      SensorValue="{Binding Vdimm}"
+                                                      VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="VDIMM"
                                        Foreground="{StaticResource TextSecondary}"
                                        FontFamily="{StaticResource UIFont}" FontSize="12" Width="52" />
@@ -382,18 +402,24 @@
                         </StackPanel>
 
                         <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal">
+                            <controls:ProvenanceGlyph SensorKey="Vddp" DisplayName="VDDP"
+                                                      VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="VDDP"
                                        Foreground="{StaticResource TextSecondary}"
                                        FontFamily="{StaticResource UIFont}" FontSize="12" Width="52" />
                             <TextBlock Text="{Binding VddpDisplay}" Style="{StaticResource MonoText}" />
                         </StackPanel>
                         <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal">
+                            <controls:ProvenanceGlyph SensorKey="VddgIod" DisplayName="VDDG IOD"
+                                                      VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="VDDG I"
                                        Foreground="{StaticResource TextSecondary}"
                                        FontFamily="{StaticResource UIFont}" FontSize="12" Width="52" />
                             <TextBlock Text="{Binding VddgIodDisplay}" Style="{StaticResource MonoText}" />
                         </StackPanel>
                         <StackPanel Grid.Row="1" Grid.Column="2" Orientation="Horizontal">
+                            <controls:ProvenanceGlyph SensorKey="VddgCcd" DisplayName="VDDG CCD"
+                                                      VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="VDDG C"
                                        Foreground="{StaticResource TextSecondary}"
                                        FontFamily="{StaticResource UIFont}" FontSize="12" Width="52" />
@@ -401,12 +427,18 @@
                         </StackPanel>
 
                         <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal">
+                            <controls:ProvenanceGlyph SensorKey="Vtt" DisplayName="Vtt"
+                                                      SensorValue="{Binding Vtt}"
+                                                      VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="Vtt"
                                        Foreground="{StaticResource TextSecondary}"
                                        FontFamily="{StaticResource UIFont}" FontSize="12" Width="52" />
                             <TextBlock Text="{Binding VttDisplay}" Style="{StaticResource MonoText}" />
                         </StackPanel>
                         <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal">
+                            <controls:ProvenanceGlyph SensorKey="Vpp" DisplayName="Vpp"
+                                                      SensorValue="{Binding Vpp}"
+                                                      VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="Vpp"
                                        Foreground="{StaticResource TextSecondary}"
                                        FontFamily="{StaticResource UIFont}" FontSize="12" Width="52" />
@@ -435,18 +467,24 @@
 
                         <!-- Row 0: Termination -->
                         <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal">
+                            <controls:ProvenanceGlyph SensorKey="ProcOdt" DisplayName="ProcODT"
+                                                      VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="ProcODT"
                                        Foreground="{StaticResource TextSecondary}"
                                        FontFamily="{StaticResource UIFont}" FontSize="12" Width="56" />
                             <TextBlock Text="{Binding ProcOdtDisplay}" Style="{StaticResource MonoText}" />
                         </StackPanel>
                         <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal">
+                            <controls:ProvenanceGlyph SensorKey="RttNom" DisplayName="RttNom"
+                                                      VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="RttNom"
                                        Foreground="{StaticResource TextSecondary}"
                                        FontFamily="{StaticResource UIFont}" FontSize="12" Width="56" />
                             <TextBlock Text="{Binding RttNomDisplay}" Style="{StaticResource MonoText}" />
                         </StackPanel>
                         <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal">
+                            <controls:ProvenanceGlyph SensorKey="RttWr" DisplayName="RttWr"
+                                                      VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="RttWr"
                                        Foreground="{StaticResource TextSecondary}"
                                        FontFamily="{StaticResource UIFont}" FontSize="12" Width="56" />
@@ -455,18 +493,24 @@
 
                         <!-- Row 1: RttPark + drive strengths -->
                         <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal">
+                            <controls:ProvenanceGlyph SensorKey="RttPark" DisplayName="RttPark"
+                                                      VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="RttPark"
                                        Foreground="{StaticResource TextSecondary}"
                                        FontFamily="{StaticResource UIFont}" FontSize="12" Width="56" />
                             <TextBlock Text="{Binding RttParkDisplay}" Style="{StaticResource MonoText}" />
                         </StackPanel>
                         <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal">
+                            <controls:ProvenanceGlyph SensorKey="ClkDrvStren" DisplayName="ClkDrv"
+                                                      VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="ClkDrv"
                                        Foreground="{StaticResource TextSecondary}"
                                        FontFamily="{StaticResource UIFont}" FontSize="12" Width="56" />
                             <TextBlock Text="{Binding ClkDrvStrenDisplay}" Style="{StaticResource MonoText}" />
                         </StackPanel>
                         <StackPanel Grid.Row="1" Grid.Column="2" Orientation="Horizontal">
+                            <controls:ProvenanceGlyph SensorKey="AddrCmdDrvStren" DisplayName="AddrCmd"
+                                                      VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="AddrCmd"
                                        Foreground="{StaticResource TextSecondary}"
                                        FontFamily="{StaticResource UIFont}" FontSize="12" Width="56" />
@@ -475,12 +519,16 @@
 
                         <!-- Row 2: More drive strengths -->
                         <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal">
+                            <controls:ProvenanceGlyph SensorKey="CsOdtCmdDrvStren" DisplayName="CsOdt"
+                                                      VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="CsOdt"
                                        Foreground="{StaticResource TextSecondary}"
                                        FontFamily="{StaticResource UIFont}" FontSize="12" Width="56" />
                             <TextBlock Text="{Binding CsOdtCmdDrvStrenDisplay}" Style="{StaticResource MonoText}" />
                         </StackPanel>
                         <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal">
+                            <controls:ProvenanceGlyph SensorKey="CkeDrvStren" DisplayName="CkeDrv"
+                                                      VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="CkeDrv"
                                        Foreground="{StaticResource TextSecondary}"
                                        FontFamily="{StaticResource UIFont}" FontSize="12" Width="56" />
