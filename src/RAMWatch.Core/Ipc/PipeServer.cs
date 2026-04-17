@@ -147,7 +147,16 @@ public sealed class PipeServer : IAsyncDisposable
             PipeAccessRights.FullControl,
             AccessControlType.Allow));
 
-        // Interactive users — the logged-in desktop user
+        // Interactive users — the logged-in desktop user.
+        //
+        // Known scope: InteractiveSid grants every interactive session —
+        // console, RDP, and Fast User Switching. On a single-user enthusiast
+        // box (the target audience) this is effectively the console user.
+        // On a multi-user host, any RDP session into the box can read tuning
+        // state and send commands. Narrowing to the active console session
+        // requires resolving the SID at install time (stored in a resource
+        // the service reads at startup) or querying Windows Terminal Services
+        // at runtime — deferred; see B4 discussion in the architecture doc.
         security.AddAccessRule(new PipeAccessRule(
             new SecurityIdentifier(WellKnownSidType.InteractiveSid, null),
             PipeAccessRights.ReadWrite,
