@@ -196,6 +196,13 @@ public static class SensorProvenanceRegistry
         ["TimelineValidation"] = SensorProvenanceInfo.Measured(
             SrcUserLog,
             "User-entered stress-test result. Primary observation: a human ran MemTest / TM5 / y-cruncher / etc. and logged whether the system passed and for how long. Not a hardware sensor — these rows are authoritative because you wrote them."),
+
+        // User-saved snapshots (Save Snapshot / Ctrl+S) are deliberate
+        // markers in the tuning journal — the canonical "I'm starting a
+        // new thing" row. Measured (primary observation) + green circle.
+        ["TimelineSnapshot"] = SensorProvenanceInfo.Measured(
+            SrcUserLog,
+            "User-saved snapshot. You named and filed this one yourself — it's the canonical bookmark for 'I'm testing this config from here on.' Validations and changes that follow are tagged to the snapshot's era."),
     };
 
     /// <summary>

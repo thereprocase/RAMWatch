@@ -6,12 +6,218 @@
 
     <Grid Margin="8,8,8,0">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />   <!-- Era banner -->
             <RowDefinition Height="Auto" />   <!-- Section header + filters -->
             <RowDefinition Height="*" />      <!-- Timeline entries -->
         </Grid.RowDefinitions>
 
+        <!-- ═══ Era banner ═══════════════════════════════════════════════
+             Three mutually-exclusive states:
+               1. ACTIVE ERA — green strip, shows name + start date + End btn
+               2. UNNAMED CONFIG — amber nudge: "you just changed BIOS, name it?"
+               3. NO ERA — dim strip with "Start new config" button
+             The "Start new config" flow inline-expands to a TextBox + Start/Cancel
+             (IsNamingEra) so we don't need a modal dialog for a one-field input.
+          ═════════════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="0"
+                Margin="0,0,0,6"
+                CornerRadius="2"
+                Padding="10,6">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <!-- Default: neutral (no-era state). -->
+                    <Setter Property="Background" Value="{StaticResource BgPanel}" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding HasActiveEra}" Value="True">
+                            <Setter Property="Background" Value="#1A1F3B4D" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding HasUnnamedConfig}" Value="True">
+                            <Setter Property="Background" Value="#33FFB300" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+
+            <Grid>
+                <!-- (1) Active-era state -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding HasActiveEra}" Value="True" />
+                                        <Condition Binding="{Binding IsNamingEra}" Value="False" />
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+
+                    <Ellipse Width="8" Height="8"
+                             Fill="{StaticResource StatusGreen}"
+                             VerticalAlignment="Center"
+                             Margin="0,0,8,0" />
+                    <TextBlock Text="Testing: "
+                               Foreground="{StaticResource TextSecondary}"
+                               FontFamily="{StaticResource UIFont}"
+                               FontSize="12"
+                               VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding ActiveEraName}"
+                               Foreground="{StaticResource TextPrimary}"
+                               FontFamily="{StaticResource UIFont}"
+                               FontWeight="SemiBold"
+                               FontSize="12"
+                               VerticalAlignment="Center" />
+                    <TextBlock Text=" — "
+                               Foreground="{StaticResource TextSecondary}"
+                               FontFamily="{StaticResource UIFont}"
+                               FontSize="12"
+                               VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding ActiveEraStartText}"
+                               Foreground="{StaticResource TextSecondary}"
+                               FontFamily="{StaticResource UIFont}"
+                               FontSize="12"
+                               VerticalAlignment="Center" />
+                    <Button Content="End"
+                            Command="{Binding EndActiveEraCommand}"
+                            Style="{StaticResource DarkButton}"
+                            Margin="12,0,0,0"
+                            Padding="10,2"
+                            FontSize="11"
+                            AutomationProperties.Name="End active tuning era" />
+                </StackPanel>
+
+                <!-- (2 + 3) No active era — nudge if unnamed, neutral otherwise.
+                     IsNamingEra=False: button row.
+                     IsNamingEra=True:  TextBox + Start + Cancel. -->
+                <Grid>
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasActiveEra}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+
+                    <!-- Button row -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsNamingEra}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+
+                        <!-- Amber dot when a recent unnamed config change is detected;
+                             grey dot otherwise. -->
+                        <Ellipse Width="8" Height="8"
+                                 VerticalAlignment="Center"
+                                 Margin="0,0,8,0">
+                            <Ellipse.Style>
+                                <Style TargetType="Ellipse">
+                                    <Setter Property="Fill" Value="{StaticResource TextDisabled}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasUnnamedConfig}" Value="True">
+                                            <Setter Property="Fill" Value="{StaticResource StatusAmber}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
+                        </Ellipse>
+
+                        <TextBlock VerticalAlignment="Center"
+                                   FontFamily="{StaticResource UIFont}"
+                                   FontSize="12">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+                                    <Setter Property="Text" Value="No active tuning config. Name this boot to start a campaign." />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasUnnamedConfig}" Value="True">
+                                            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                                            <Setter Property="Text" Value="New BIOS config detected — name it to trace tests and errors back to this boot." />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <Button Content="Start new config"
+                                Command="{Binding StartNamingCommand}"
+                                Style="{StaticResource DarkButton}"
+                                Margin="12,0,0,0"
+                                Padding="10,2"
+                                FontSize="11"
+                                AutomationProperties.Name="Start new tuning era" />
+                    </StackPanel>
+
+                    <!-- Inline name entry -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsNamingEra}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+
+                        <TextBlock Text="Config name"
+                                   Foreground="{StaticResource TextSecondary}"
+                                   FontFamily="{StaticResource UIFont}"
+                                   FontSize="11"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0" />
+                        <TextBox Text="{Binding NewEraName, UpdateSourceTrigger=PropertyChanged}"
+                                 Width="220"
+                                 Background="{StaticResource BgAccent}"
+                                 Foreground="{StaticResource TextPrimary}"
+                                 BorderThickness="0"
+                                 Padding="6,3"
+                                 FontFamily="{StaticResource UIFont}"
+                                 FontSize="12"
+                                 VerticalAlignment="Center"
+                                 AutomationProperties.Name="Tuning config name">
+                            <TextBox.InputBindings>
+                                <KeyBinding Key="Enter"  Command="{Binding ConfirmNewEraCommand}" />
+                                <KeyBinding Key="Escape" Command="{Binding CancelNamingCommand}" />
+                            </TextBox.InputBindings>
+                        </TextBox>
+                        <Button Content="Start"
+                                Command="{Binding ConfirmNewEraCommand}"
+                                Style="{StaticResource DarkButton}"
+                                Margin="8,0,0,0"
+                                Padding="10,2"
+                                FontSize="11"
+                                IsDefault="True"
+                                AutomationProperties.Name="Confirm new tuning era" />
+                        <Button Content="Cancel"
+                                Command="{Binding CancelNamingCommand}"
+                                Style="{StaticResource DarkButton}"
+                                Margin="6,0,0,0"
+                                Padding="10,2"
+                                FontSize="11"
+                                IsCancel="True"
+                                AutomationProperties.Name="Cancel naming" />
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </Border>
+
         <!-- Section header + type filters -->
-        <DockPanel Grid.Row="0">
+        <DockPanel Grid.Row="1">
             <TextBlock Text="TIMELINE"
                        Style="{StaticResource SectionHeader}"
                        DockPanel.Dock="Left" />
@@ -19,6 +225,8 @@
                         HorizontalAlignment="Right"
                         VerticalAlignment="Center"
                         Margin="0,0,0,2">
+                <CheckBox Content="Snap" IsChecked="{Binding ShowSnapshot}"
+                          Foreground="{StaticResource StatusGreen}" FontSize="10" Margin="0,0,6,0" />
                 <CheckBox Content="Pass" IsChecked="{Binding ShowPass}"
                           Foreground="{StaticResource StatusGreen}" FontSize="10" Margin="0,0,6,0" />
                 <CheckBox Content="Fail" IsChecked="{Binding ShowFail}"
@@ -31,8 +239,8 @@
         </DockPanel>
 
         <!-- Empty state -->
-        <TextBlock Grid.Row="1"
-                   Text="No timeline entries yet. Changes, tests, and drift events will appear here."
+        <TextBlock Grid.Row="2"
+                   Text="No timeline entries yet. Snapshots, tests, changes, and drift events will appear here."
                    Foreground="{StaticResource TextSecondary}"
                    FontStyle="Italic"
                    VerticalAlignment="Center"
@@ -42,7 +250,7 @@
                    AutomationProperties.Name="Timeline empty" />
 
         <!-- Timeline list -->
-        <ScrollViewer Grid.Row="1"
+        <ScrollViewer Grid.Row="2"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled"
                       Margin="0,4,0,0"
@@ -73,6 +281,9 @@
                                                 </DataTrigger>
                                                 <DataTrigger Binding="{Binding EntryType}" Value="{x:Static vm:TimelineEntryType.ValidationFail}">
                                                     <Setter Property="Background" Value="{StaticResource StatusRed}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding EntryType}" Value="{x:Static vm:TimelineEntryType.Snapshot}">
+                                                    <Setter Property="Background" Value="{StaticResource StatusGreen}" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -147,6 +358,9 @@
                                                         <DataTrigger Binding="{Binding EntryType}" Value="{x:Static vm:TimelineEntryType.ValidationFail}">
                                                             <Setter Property="Foreground" Value="{StaticResource StatusRed}" />
                                                         </DataTrigger>
+                                                        <DataTrigger Binding="{Binding EntryType}" Value="{x:Static vm:TimelineEntryType.Snapshot}">
+                                                            <Setter Property="Foreground" Value="{StaticResource StatusGreen}" />
+                                                        </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </TextBlock.Style>
@@ -177,6 +391,28 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </TextBlock.Style>
+                                    </TextBlock>
+
+                                    <!-- Era footer — "under <era name>" — gives every
+                                         row a trace back to the campaign it was filed
+                                         under, so "FAIL y-cruncher" isn't homeless. -->
+                                    <TextBlock Foreground="{StaticResource TextDisabled}"
+                                               FontFamily="{StaticResource UIFont}"
+                                               FontSize="10"
+                                               FontStyle="Italic"
+                                               Margin="0,2,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding EraName}" Value="">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                        <Run Text="under " />
+                                        <Run Text="{Binding EraName, Mode=OneWay}" />
                                     </TextBlock>
                                 </StackPanel>
                             </DockPanel>

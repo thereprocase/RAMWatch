@@ -99,6 +99,7 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _driverStatus = "unknown";
 
+
     // Resolved board vendor from the service — e.g. "MSI", "ASUS". Empty when not yet received.
     // Used to populate the "detected:" label in Settings and to drive TimingsTab layout.
     [ObservableProperty]
@@ -132,6 +133,8 @@ public partial class MainViewModel : ObservableObject
         // the service rather than only removing the row from the local collection.
         Timeline.SetDeleteValidationHandler(SendDeleteValidationAsync);
         Timeline.SetDeleteChangeHandler(SendDeleteChangeAsync);
+        Timeline.SetCreateEraHandler(SendCreateEraAsync);
+        Timeline.SetCloseEraHandler(SendCloseEraAsync);
 
         // Wire IPC callbacks into the Snapshots view model for delete and rename.
         Snapshots.SetDeleteHandler(SendDeleteSnapshotAsync);
@@ -318,6 +321,42 @@ public partial class MainViewModel : ObservableObject
             Type         = "deleteValidation",
             RequestId    = Guid.NewGuid().ToString("N"),
             ValidationId = validationId
+        };
+        await _pipe.SendAsync(MessageSerializer.Serialize(msg));
+    }
+
+    /// <summary>
+    /// Opens a new tuning era with the given name. The service tags every
+    /// subsequent snapshot, validation, and boot-fail with the era ID until
+    /// CloseEra is called — this is the anchor for the "new deliberate BIOS
+    /// config I'm testing" workflow. No-op if not connected.
+    /// </summary>
+    public async Task SendCreateEraAsync(string name)
+    {
+        if (!_pipe.IsConnected) return;
+        if (string.IsNullOrWhiteSpace(name)) return;
+        var msg = new CreateEraMessage
+        {
+            Type      = "createEra",
+            RequestId = Guid.NewGuid().ToString("N"),
+            Name      = name.Trim(),
+        };
+        await _pipe.SendAsync(MessageSerializer.Serialize(msg));
+    }
+
+    /// <summary>
+    /// Closes the era with the given ID. The service stops auto-tagging new
+    /// entries; existing entries keep their EraId for historical lookup.
+    /// </summary>
+    public async Task SendCloseEraAsync(string eraId)
+    {
+        if (!_pipe.IsConnected) return;
+        if (string.IsNullOrEmpty(eraId)) return;
+        var msg = new CloseEraMessage
+        {
+            Type      = "closeEra",
+            RequestId = Guid.NewGuid().ToString("N"),
+            EraId     = eraId,
         };
         await _pipe.SendAsync(MessageSerializer.Serialize(msg));
     }
@@ -666,7 +705,10 @@ public partial class MainViewModel : ObservableObject
                 Timings.LoadDimms(state.Dimms));
         }
 
-        // Timeline — interleave config changes, drift events, validation results
+        // Timeline — interleave config changes, drift events, validation results.
+        // The era banner on the Timeline tab reads its state from inside
+        // LoadFromState (state.ActiveEra + whether there's a recent unnamed
+        // config change).
         Application.Current?.Dispatcher.Invoke(() =>
             Timeline.LoadFromState(state));
 

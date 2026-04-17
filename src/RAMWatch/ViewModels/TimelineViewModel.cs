@@ -16,6 +16,7 @@ public enum TimelineEntryType
     Drift,
     ValidationPass,
     ValidationFail,
+    Snapshot,
     Info
 }
 
@@ -47,8 +48,17 @@ public partial class TimelineEntry : ObservableObject
         TimelineEntryType.Drift          => "TimelineDrift",
         TimelineEntryType.ValidationPass => "TimelineValidation",
         TimelineEntryType.ValidationFail => "TimelineValidation",
+        TimelineEntryType.Snapshot       => "TimelineSnapshot",
         _                                => "TimelineValidation",
     };
+
+    /// <summary>
+    /// Optional era name a timeline row was recorded under. Shown under
+    /// the summary so a reader can trace "which config was I testing?"
+    /// without opening another tab. Empty string when the entry predates
+    /// eras or wasn't tagged.
+    /// </summary>
+    public string EraName { get; init; } = "";
 
     /// <summary>
     /// Compact timing summary for context, e.g. "DDR4-3600 CL16-20-20-42".
@@ -135,6 +145,78 @@ public partial class TimelineViewModel : ObservableObject
     [ObservableProperty]
     private bool _hasEntries;
 
+    // ── Active era banner ───────────────────────────────────
+    // The tuning-journal anchor. A user boots into a new BIOS config,
+    // hits "Start new config", types a name — that becomes the era.
+    // Every snapshot, validation, and boot-fail after it is tagged with
+    // the EraId until the user ends it. When no era is active and the
+    // service reports a recent ConfigChange, HasUnnamedConfig fires a
+    // nudge so deliberate changes don't vanish into routine-noise rows.
+
+    [ObservableProperty]
+    private bool _hasActiveEra;
+
+    [ObservableProperty]
+    private string _activeEraName = "";
+
+    [ObservableProperty]
+    private string _activeEraStartText = "";
+
+    [ObservableProperty]
+    private string _activeEraId = "";
+
+    [ObservableProperty]
+    private bool _hasUnnamedConfig;
+
+    // Inline-naming banner state. StartNaming flips _isNamingEra to true;
+    // the banner swaps its button row for a TextBox + Start/Cancel, and
+    // focus jumps to the box. Confirm sends CreateEra; Cancel rewinds.
+    [ObservableProperty]
+    private bool _isNamingEra;
+
+    [ObservableProperty]
+    private string _newEraName = "";
+
+    private Func<string, Task>? _createEraHandler;
+    private Func<string, Task>? _closeEraHandler;
+
+    public void SetCreateEraHandler(Func<string, Task> handler) => _createEraHandler = handler;
+    public void SetCloseEraHandler(Func<string, Task> handler)  => _closeEraHandler  = handler;
+
+    [RelayCommand]
+    private void StartNaming()
+    {
+        IsNamingEra = true;
+        // NewEraName is left untouched so the user can keep a half-typed
+        // name if they cancel and reopen. Trimmed on submit.
+    }
+
+    [RelayCommand]
+    private void CancelNaming()
+    {
+        IsNamingEra = false;
+        NewEraName = "";
+    }
+
+    [RelayCommand]
+    private async Task ConfirmNewEraAsync()
+    {
+        var name = (NewEraName ?? "").Trim();
+        if (name.Length == 0) return;
+        if (_createEraHandler is not null)
+            await _createEraHandler(name);
+        IsNamingEra = false;
+        NewEraName = "";
+    }
+
+    [RelayCommand]
+    private async Task EndActiveEraAsync()
+    {
+        if (string.IsNullOrEmpty(ActiveEraId)) return;
+        if (_closeEraHandler is not null)
+            await _closeEraHandler(ActiveEraId);
+    }
+
     // ── Type filters ────────────────────────────────────────
 
     [ObservableProperty]
@@ -149,10 +231,16 @@ public partial class TimelineViewModel : ObservableObject
     [ObservableProperty]
     private bool _showDrift = true;
 
+    // Snapshots are intentional user markers (Save Snapshot / Ctrl+S) —
+    // the one entry type a tuner always wants in their logbook. Default on.
+    [ObservableProperty]
+    private bool _showSnapshot = true;
+
     partial void OnShowPassChanged(bool value) => ApplyFilters();
     partial void OnShowFailChanged(bool value) => ApplyFilters();
     partial void OnShowChangeChanged(bool value) => ApplyFilters();
     partial void OnShowDriftChanged(bool value) => ApplyFilters();
+    partial void OnShowSnapshotChanged(bool value) => ApplyFilters();
 
     private void ApplyFilters()
     {
@@ -172,8 +260,9 @@ public partial class TimelineViewModel : ObservableObject
     {
         TimelineEntryType.ValidationPass => ShowPass,
         TimelineEntryType.ValidationFail => ShowFail,
-        TimelineEntryType.ConfigChange => ShowChange,
-        TimelineEntryType.Drift => ShowDrift,
+        TimelineEntryType.ConfigChange   => ShowChange,
+        TimelineEntryType.Drift          => ShowDrift,
+        TimelineEntryType.Snapshot       => ShowSnapshot,
         _ => true
     };
 
@@ -202,6 +291,31 @@ public partial class TimelineViewModel : ObservableObject
     /// </summary>
     public void LoadFromState(ServiceState state)
     {
+        // Era banner context — set before the list rebuild so bindings
+        // fire once, not twice.
+        if (state.ActiveEra is { } era)
+        {
+            HasActiveEra        = true;
+            ActiveEraName       = era.Name;
+            ActiveEraId         = era.EraId;
+            ActiveEraStartText  = $"started {era.StartTimestamp.ToLocalTime():MMM d, HH:mm}";
+            HasUnnamedConfig    = false;
+        }
+        else
+        {
+            HasActiveEra        = false;
+            ActiveEraName       = "";
+            ActiveEraId         = "";
+            ActiveEraStartText  = "";
+
+            // "Recent ConfigChange and no active era" → the user likely
+            // just booted into a new BIOS config and should name it.
+            bool recent =
+                state.RecentChanges is { Count: > 0 } &&
+                (DateTime.UtcNow - state.RecentChanges[0].Timestamp) < TimeSpan.FromHours(2);
+            HasUnnamedConfig = recent;
+        }
+
         var entries = new List<TimelineEntry>();
 
         // Build snapshot lookup for timing summaries on timeline entries.
@@ -212,6 +326,46 @@ public partial class TimelineViewModel : ObservableObject
             {
                 if (!string.IsNullOrEmpty(snap.SnapshotId))
                     snapLookup[snap.SnapshotId] = snap;
+            }
+        }
+
+        // Era lookup so each row can carry the name of the era it was
+        // tagged under — "testing attempt-7 tight tRAS" under a FAIL row
+        // is exactly the trace the user asked for.
+        var eraLookup = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (state.Eras is not null)
+        {
+            foreach (var e in state.Eras)
+                eraLookup[e.EraId] = e.Name;
+        }
+
+        string ResolveEraName(string? eraId)
+            => eraId is not null && eraLookup.TryGetValue(eraId, out var n) ? n : "";
+
+        // Snapshots — only user-labeled ones appear as timeline rows. The
+        // service also auto-captures "before/after" snapshots around each
+        // ConfigChange; those have empty labels and would otherwise pepper
+        // the timeline with rows nobody saved by hand. The ConfigChange
+        // entries below already cover that event on their own row.
+        if (state.Snapshots is { Count: > 0 })
+        {
+            foreach (var snap in state.Snapshots)
+            {
+                if (string.IsNullOrWhiteSpace(snap.Label)) continue;
+
+                entries.Add(new TimelineEntry
+                {
+                    EntryId          = Guid.NewGuid(),
+                    Timestamp        = snap.Timestamp,
+                    EntryType        = TimelineEntryType.Snapshot,
+                    Summary          = string.IsNullOrWhiteSpace(snap.Notes)
+                        ? $"Saved snapshot: {snap.Label}"
+                        : $"Saved snapshot: {snap.Label} — {snap.Notes}",
+                    TimestampDisplay = FormatTimestamp(snap.Timestamp),
+                    TypeLabel        = "SNAPSHOT",
+                    TimingSummary    = FormatTimingSummary(snap),
+                    EraName          = ResolveEraName(snap.EraId),
+                });
             }
         }
 
@@ -242,7 +396,8 @@ public partial class TimelineViewModel : ObservableObject
                     TimestampDisplay = FormatTimestamp(change.Timestamp),
                     TypeLabel = "CHANGE",
                     ServiceId = change.ChangeId,
-                    TimingSummary = FormatTimingSummary(snap)
+                    TimingSummary = FormatTimingSummary(snap),
+                    EraName = ResolveEraName(change.EraId),
                 };
                 changeEntry.OnConfirmedDeleteAsync = _deleteChangeHandler;
                 entries.Add(changeEntry);
@@ -306,7 +461,8 @@ public partial class TimelineViewModel : ObservableObject
                     TypeLabel        = result.Passed ? "PASS" : "FAIL",
                     // Id on the ValidationResult is the service-side stable identifier.
                     ServiceId        = result.Id,
-                    TimingSummary    = FormatTimingSummary(snap)
+                    TimingSummary    = FormatTimingSummary(snap),
+                    EraName          = ResolveEraName(result.EraId),
                 };
                 // Wire the IPC delete callback so confirmed deletes reach the service.
                 entry.OnConfirmedDeleteAsync = _deleteValidationHandler;
