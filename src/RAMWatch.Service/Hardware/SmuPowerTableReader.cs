@@ -332,13 +332,22 @@ public sealed class SmuPowerTableReader : IDisposable
             _rawBuf ??= new ulong[MaxPmTableBytes / 8];
             _floatBuf ??= new float[MaxPmTableBytes / 4];
 
-            var raw = _driver.Execute(IoctlReadPmTable, _rawBuf[..(int)qwordCount], (int)qwordCount);
-            if (raw is null || raw.Length == 0) return null;
+            // ExecuteInto writes straight into _rawBuf — zero per-call
+            // allocation. The previous form (Execute with _rawBuf[..n]
+            // slice) allocated a new input array via Range-indexer AND a
+            // new output array inside Execute, defeating the pre-allocation
+            // intent. At 3s hot-tier cadence that was ~120 MB/day Gen0.
+            if (!_driver.ExecuteInto(IoctlReadPmTable,
+                                     Array.Empty<ulong>(), 0,
+                                     _rawBuf, (int)qwordCount))
+            {
+                return null;
+            }
 
             // Reinterpret the uint64 array as a float array.
             int floatCount = (int)(tableBytes / 4);
-            int bytesToCopy = Math.Min(floatCount * 4, raw.Length * 8);
-            Buffer.BlockCopy(raw, 0, _floatBuf, 0, bytesToCopy);
+            int bytesToCopy = Math.Min(floatCount * 4, (int)qwordCount * 8);
+            Buffer.BlockCopy(_rawBuf, 0, _floatBuf, 0, bytesToCopy);
             return _floatBuf;
         }
         catch

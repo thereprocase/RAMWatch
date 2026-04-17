@@ -78,6 +78,34 @@ public sealed class PawnIoDriver : IDisposable
         return output;
     }
 
+    /// <summary>
+    /// Execute a PawnIO function into a caller-supplied output buffer. Zero
+    /// allocations per call, for hot paths (PM table read at 3s cadence).
+    /// Returns true on success; on failure, the output buffer contents are
+    /// undefined and the caller should discard the read.
+    /// </summary>
+    public bool ExecuteInto(string functionName, ulong[] input, int inputCount, ulong[] output, int outputCount)
+    {
+        if (_handle == IntPtr.Zero)
+            throw new InvalidOperationException("PawnIO handle not open");
+        if (output.Length < outputCount)
+            throw new ArgumentException("output buffer is smaller than outputCount", nameof(output));
+        if (input.Length < inputCount)
+            throw new ArgumentException("input buffer is smaller than inputCount", nameof(input));
+
+        nuint returnSize = 0;
+        int hr = NativeMethods.pawnio_execute(
+            _handle,
+            functionName,
+            input,
+            (nuint)inputCount,
+            output,
+            (nuint)outputCount,
+            ref returnSize);
+
+        return hr >= 0;
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
