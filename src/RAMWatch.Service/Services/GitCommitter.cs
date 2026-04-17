@@ -252,12 +252,37 @@ public sealed class GitCommitter : IAsyncDisposable
     // CHANGELOG.md management
     // -------------------------------------------------------------------------
 
+    // Defence against a pathologically grown or adversarial CHANGELOG.md
+    // (e.g. imported from another machine, tampered on disk). Reading the
+    // whole file into memory on every commit means a 100 MB file costs
+    // 100 MB of transient allocation; an AOT service on a constrained box
+    // could OOM.
+    private const long MaxChangelogBytes = 16L * 1024 * 1024;
+
     private static void UpdateChangelog(string repoPath, string message, TimingSnapshot snap)
     {
         string changelogPath = Path.Combine(repoPath, "CHANGELOG.md");
         string newEntry = BuildChangelogEntry(message, snap);
 
-        string existing = File.Exists(changelogPath) ? File.ReadAllText(changelogPath) : "";
+        string existing = "";
+        if (File.Exists(changelogPath))
+        {
+            var info = new FileInfo(changelogPath);
+            if (info.Length > MaxChangelogBytes)
+            {
+                // Refuse to concatenate a runaway file. TrimChangelog would
+                // bring it back under MaxChangelogEntries anyway, so we can
+                // safely discard the tail and preserve only the head.
+                using var stream = info.OpenRead();
+                var buf = new byte[MaxChangelogBytes];
+                int read = stream.Read(buf, 0, buf.Length);
+                existing = Encoding.UTF8.GetString(buf, 0, read);
+            }
+            else
+            {
+                existing = File.ReadAllText(changelogPath);
+            }
+        }
 
         // Prepend new entry at top, then trim to max entries.
         string updated = newEntry + existing;
@@ -370,7 +395,12 @@ public sealed class GitCommitter : IAsyncDisposable
 
     private static void WriteAtomic(string path, string content)
     {
-        string tmp = path + ".tmp";
+        // Guid suffix prevents collisions if this helper is ever called
+        // concurrently for the same path. ProcessCommitAsync drains
+        // single-reader today, so races aren't reachable, but the journals
+        // use this pattern — matching it here avoids a silent regression if
+        // a future caller runs in parallel with the drain loop.
+        string tmp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
             File.WriteAllText(tmp, content, Encoding.UTF8);
