@@ -48,7 +48,9 @@ public sealed class SettingsManager
             }
             catch (Exception)
             {
-                // Corrupt or unreadable — use defaults, don't crash (architecture requirement)
+                // Corrupt or unreadable — preserve the original so the user
+                // can recover their settings, then fall back to defaults.
+                DataDirectory.ArchiveCorruptFile(_path);
                 _current = new AppSettings();
             }
 

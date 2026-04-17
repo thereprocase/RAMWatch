@@ -52,7 +52,8 @@ public sealed class DriftDetector : IDisposable
             }
             catch
             {
-                // Corrupt file — start fresh. We lose history but gain correctness.
+                // Corrupt file — archive and start fresh.
+                DataDirectory.ArchiveCorruptFile(_windowPath);
                 _window = new DriftWindow();
             }
         }

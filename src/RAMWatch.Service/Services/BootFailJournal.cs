@@ -40,6 +40,7 @@ public sealed class BootFailJournal
             }
             catch
             {
+                DataDirectory.ArchiveCorruptFile(_path);
                 _entries = [];
             }
         }

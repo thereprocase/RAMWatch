@@ -865,7 +865,9 @@ public sealed class RamWatchService : BackgroundService
         }
         catch
         {
-            // Corrupt or missing — use defaults
+            // Corrupt — archive and fall through to defaults so the user's
+            // Auto/Manual designations aren't silently lost.
+            DataDirectory.ArchiveCorruptFile(DesignationsPath);
         }
         return new DesignationMap();
     }

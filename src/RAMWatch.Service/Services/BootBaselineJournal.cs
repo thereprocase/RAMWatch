@@ -44,6 +44,7 @@ public sealed class BootBaselineJournal
             }
             catch
             {
+                DataDirectory.ArchiveCorruptFile(_journalPath);
                 _entries = [];
             }
         }

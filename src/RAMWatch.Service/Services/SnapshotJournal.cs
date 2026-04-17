@@ -48,7 +48,9 @@ public sealed class SnapshotJournal
             }
             catch (Exception)
             {
-                // Corrupt or unreadable — empty list, service keeps running.
+                // Corrupt or unreadable — archive the original so snapshot
+                // history isn't silently lost, then recover to an empty list.
+                DataDirectory.ArchiveCorruptFile(_path);
                 _snapshots = new List<TimingSnapshot>();
             }
         }

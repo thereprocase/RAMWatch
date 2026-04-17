@@ -70,7 +70,9 @@ public sealed class LkgTracker
             }
             catch (Exception)
             {
-                // Corrupt or unreadable — no LKG until a new one is established.
+                // Corrupt or unreadable — archive and recover to null. A new
+                // LKG will be established on the next passing validation run.
+                DataDirectory.ArchiveCorruptFile(_path);
                 _currentLkg = null;
             }
         }

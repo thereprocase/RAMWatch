@@ -73,4 +73,37 @@ public static class DataDirectory
 
         info.SetAccessControl(security);
     }
+
+    /// <summary>
+    /// Move a corrupt JSON file out of the way before overwriting it with
+    /// defaults. Preserves the original content as
+    /// <c>&lt;name&gt;.corrupt.&lt;yyyyMMddHHmmss&gt;&lt;ext&gt;</c> so the user
+    /// can recover hand-edited or partially-written state.
+    ///
+    /// Every journal's Load path used to silently swallow corruption and
+    /// reset to defaults — losing validation history, snapshot journal,
+    /// drift window, boot-fail entries, etc., with no trace. Archiving
+    /// on corruption is the trace.
+    ///
+    /// Best effort: if the rename fails (locked, permissions), we proceed
+    /// to the default-recovery path anyway so the service keeps running.
+    /// </summary>
+    public static void ArchiveCorruptFile(string path)
+    {
+        if (string.IsNullOrEmpty(path) || !File.Exists(path)) return;
+        try
+        {
+            string? dir = Path.GetDirectoryName(path);
+            if (string.IsNullOrEmpty(dir)) return;
+            string name = Path.GetFileNameWithoutExtension(path);
+            string ext = Path.GetExtension(path);
+            string archived = Path.Combine(dir,
+                $"{name}.corrupt.{DateTime.UtcNow:yyyyMMddHHmmss}{ext}");
+            File.Move(path, archived);
+        }
+        catch
+        {
+            // Non-fatal — the Load path will still recover to defaults.
+        }
+    }
 }

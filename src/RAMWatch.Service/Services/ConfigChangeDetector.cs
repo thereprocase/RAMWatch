@@ -47,7 +47,9 @@ public sealed class ConfigChangeDetector : IDisposable
             }
             catch
             {
-                // Corrupt file — treat as first boot; we'll overwrite on next save.
+                // Corrupt file — archive and treat as first boot; we'll
+                // overwrite on next save.
+                DataDirectory.ArchiveCorruptFile(_snapshotPath);
                 _previous = null;
             }
         }
@@ -76,7 +78,9 @@ public sealed class ConfigChangeDetector : IDisposable
             }
             catch
             {
-                // Corrupt file — empty list; we'll append correctly on the next change.
+                // Corrupt file — archive so change history isn't silently
+                // lost, then recover to empty list.
+                DataDirectory.ArchiveCorruptFile(_changesPath);
                 _changes = new List<ConfigChange>();
             }
         }

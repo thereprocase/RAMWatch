@@ -38,6 +38,7 @@ public sealed class EraJournal
             }
             catch
             {
+                DataDirectory.ArchiveCorruptFile(_path);
                 _eras = [];
             }
         }

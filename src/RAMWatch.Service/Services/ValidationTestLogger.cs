@@ -47,7 +47,9 @@ public sealed class ValidationTestLogger
             }
             catch (Exception)
             {
-                // Corrupt or unreadable — empty list, service keeps running (architecture requirement).
+                // Corrupt or unreadable — archive so validation history isn't
+                // silently lost, then recover to empty list.
+                DataDirectory.ArchiveCorruptFile(_path);
                 _results = new List<ValidationResult>();
             }
         }
