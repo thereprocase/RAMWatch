@@ -1367,6 +1367,17 @@ public sealed class RamWatchService : BackgroundService
             return;
         }
 
+        // BootFailKind is deserialized as an integer. Enum.IsDefined rejects
+        // out-of-range values that a malformed or malicious client could send
+        // (e.g. Kind=99), which would otherwise persist a garbage enum that
+        // confuses any future GUI branch on the value.
+        if (!Enum.IsDefined(typeof(BootFailKind), msg.Kind))
+        {
+            await SendErrorAsync(client, msg.RequestId, "invalid_kind",
+                $"Unknown BootFailKind value: {(int)msg.Kind}");
+            return;
+        }
+
         var entry = new BootFailEntry
         {
             BootFailId = Guid.NewGuid().ToString("N"),
