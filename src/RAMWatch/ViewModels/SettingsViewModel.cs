@@ -290,6 +290,14 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private string _saveStatus = "";
 
+    // Preserves the last AppSettings received from the service so fields the
+    // GUI doesn't surface (SchemaVersion, LogDirectory, DebugLogging, git
+    // integration fields) round-trip unchanged through ToSettings instead
+    // of being reset to their type defaults — the service-side ApplyPatch
+    // merges by JSON field presence, and a default-valued field is still
+    // present in the payload, so those omissions silently wiped settings.
+    private AppSettings _lastLoadedSettings = new();
+
     // ── Public API ───────────────────────────────────────────
 
     /// <summary>
@@ -298,6 +306,7 @@ public partial class SettingsViewModel : ObservableObject
     /// </summary>
     public void LoadFromSettings(AppSettings settings)
     {
+        _lastLoadedSettings = settings;
         _suppressAutoSave = true;
         try
         {
@@ -325,30 +334,49 @@ public partial class SettingsViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Builds an AppSettings from current ViewModel values. SchemaVersion is
-    /// preserved as CurrentProtocolVersion — the service owns the canonical copy.
+    /// Builds an AppSettings from current ViewModel values. Starts from the
+    /// last payload received from the service so fields this GUI doesn't
+    /// surface (LogDirectory, DebugLogging, git integration fields,
+    /// SchemaVersion) survive the round-trip. The service's ApplyPatch
+    /// merges by JSON field presence and System.Text.Json emits all
+    /// properties including defaults — a `new()` here would have wiped
+    /// every unsurfaced field on every auto-save.
     /// </summary>
-    public AppSettings ToSettings() => new()
+    public AppSettings ToSettings()
     {
-        StartMinimized           = StartMinimized,
-        MinimizeToTray           = MinimizeToTray,
-        AlwaysOnTop              = AlwaysOnTop,
-        LaunchAtLogon            = LaunchAtLogon,
-        RefreshIntervalSeconds   = RefreshIntervalSeconds,
-        EnableCsvLogging         = EnableCsvLogging,
-        LogRetentionDays         = LogRetentionDays,
-        MaxLogSizeMb             = MaxLogSizeMb,
-        MirrorDirectory          = MirrorDirectory,
-        EnableToastNotifications = EnableToastNotifications,
-        NotifyOnWhea             = NotifyOnWhea,
-        NotifyOnBsod             = NotifyOnBsod,
-        NotifyOnDrift            = NotifyOnDrift,
-        NotifyOnCodeIntegrity    = NotifyOnCodeIntegrity,
-        NotifyOnAppCrash         = NotifyOnAppCrash,
-        NotifyCooldownSeconds    = NotifyCooldownSeconds,
-        Theme                    = Theme,
-        BiosLayout               = BiosLayout,
-    };
+        var src = _lastLoadedSettings;
+        return new AppSettings
+        {
+            // Preserved verbatim from the last service payload.
+            SchemaVersion            = src.SchemaVersion,
+            LogDirectory             = src.LogDirectory,
+            DebugLogging             = src.DebugLogging,
+            EnableGitIntegration     = src.EnableGitIntegration,
+            EnableGitPush            = src.EnableGitPush,
+            GitRemoteRepo            = src.GitRemoteRepo,
+            GitUserDisplayName       = src.GitUserDisplayName,
+
+            // GUI-managed fields.
+            StartMinimized           = StartMinimized,
+            MinimizeToTray           = MinimizeToTray,
+            AlwaysOnTop              = AlwaysOnTop,
+            LaunchAtLogon            = LaunchAtLogon,
+            RefreshIntervalSeconds   = RefreshIntervalSeconds,
+            EnableCsvLogging         = EnableCsvLogging,
+            LogRetentionDays         = LogRetentionDays,
+            MaxLogSizeMb             = MaxLogSizeMb,
+            MirrorDirectory          = MirrorDirectory,
+            EnableToastNotifications = EnableToastNotifications,
+            NotifyOnWhea             = NotifyOnWhea,
+            NotifyOnBsod             = NotifyOnBsod,
+            NotifyOnDrift            = NotifyOnDrift,
+            NotifyOnCodeIntegrity    = NotifyOnCodeIntegrity,
+            NotifyOnAppCrash         = NotifyOnAppCrash,
+            NotifyCooldownSeconds    = NotifyCooldownSeconds,
+            Theme                    = Theme,
+            BiosLayout               = BiosLayout,
+        };
+    }
 
     // ── Commands ─────────────────────────────────────────────
 
