@@ -367,8 +367,17 @@ public static class BiosWmiReader
     internal static string RunPowerShellScript(string script)
         => RunPowerShellCore(script, firstLineOnly: true);
 
+    /// <summary>
+    /// Maximum wall-clock time allowed for a WMI PowerShell invocation.
+    /// WMI occasionally hangs indefinitely on AMD_ACPI queries (previously seen on
+    /// this codebase — commit 9d547f2 addressed one path). If the child doesn't
+    /// produce output within this window, kill it and return the "0" sentinel.
+    /// </summary>
+    private static readonly TimeSpan PowerShellTimeout = TimeSpan.FromSeconds(10);
+
     private static string RunPowerShellCore(string script, bool firstLineOnly)
     {
+        Process? process = null;
         try
         {
             var psi = new ProcessStartInfo("powershell.exe")
@@ -382,14 +391,26 @@ public static class BiosWmiReader
             psi.ArgumentList.Add("-Command");
             psi.ArgumentList.Add(script);
 
-            using var process = Process.Start(psi);
+            process = Process.Start(psi);
             if (process is null) return "0";
 
-            // Read stdout BEFORE WaitForExit to avoid deadlock when the pipe
-            // buffer fills (>4KB). ReadToEnd blocks until the child closes its
-            // stdout handle, which happens at exit — so this naturally waits.
-            string output = process.StandardOutput.ReadToEnd();
-            process.WaitForExit(5000);
+            // Read stdout on a worker so the main thread can enforce a
+            // wall-clock timeout. Plain ReadToEnd() blocks until the child
+            // closes stdout, which never happens if WMI hangs inside the
+            // PowerShell invocation — that would deadlock the caller under
+            // the HardwareReader driver lock.
+            var readTask = Task.Run(() => process.StandardOutput.ReadToEnd());
+
+            if (!readTask.Wait(PowerShellTimeout))
+            {
+                // Child is hung. Kill the process tree; the Kill closes stdout
+                // which lets readTask complete naturally, so it won't leak.
+                try { process.Kill(entireProcessTree: true); } catch { }
+                return "0";
+            }
+
+            string output = readTask.Result;
+            process.WaitForExit(2000);
 
             if (!firstLineOnly) return output.Trim();
             return output.Split('\n', StringSplitOptions.RemoveEmptyEntries)
@@ -397,7 +418,13 @@ public static class BiosWmiReader
         }
         catch
         {
+            // On exception, ensure the child doesn't outlive this method.
+            try { process?.Kill(entireProcessTree: true); } catch { }
             return "0";
+        }
+        finally
+        {
+            process?.Dispose();
         }
     }
 }
