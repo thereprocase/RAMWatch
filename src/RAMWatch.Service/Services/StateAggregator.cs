@@ -358,7 +358,8 @@ public sealed class StateAggregator
         var message = new EventMessage
         {
             Type = "event",
-            Event = evt
+            Event = evt,
+            IsCritical = evt.Severity == EventSeverity.Critical
         };
         string json = MessageSerializer.Serialize(message);
         await _pipeServer.BroadcastAsync(json);

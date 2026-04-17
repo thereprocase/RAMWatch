@@ -262,8 +262,18 @@ public sealed class EventLogMonitor : IDisposable
 
             if (!isHistorical && _historicalScanComplete)
             {
-                if (_lastEventTime.TryGetValue(source.Name, out var lastTime) &&
-                    (DateTime.UtcNow - lastTime).TotalMilliseconds < MinEventIntervalMs)
+                // Critical events (MCE, kernel bugcheck, unexpected shutdown)
+                // bypass the 1s rate limiter. RAMBurn's idle-stability phase
+                // correlates WHEAs against deliberate C-state transitions
+                // within a sub-second window — a coalesce delay would put the
+                // event in the wrong correlation bucket. Non-critical events
+                // still coalesce the same as before.
+                bool isCritical = evt.Severity == EventSeverity.Critical;
+                bool withinCooldown =
+                    _lastEventTime.TryGetValue(source.Name, out var lastTime) &&
+                    (DateTime.UtcNow - lastTime).TotalMilliseconds < MinEventIntervalMs;
+
+                if (!isCritical && withinCooldown)
                 {
                     // Rate-limited — count but don't fire yet.
                     _coalescedCounts[source.Name] =
@@ -271,7 +281,8 @@ public sealed class EventLogMonitor : IDisposable
                 }
                 else
                 {
-                    // Outside the cooldown window — fire, folding in any coalesced count.
+                    // Outside the cooldown window, or a Critical bypass — fire,
+                    // folding in any coalesced count.
                     int coalesced = _coalescedCounts.GetValueOrDefault(source.Name);
                     _coalescedCounts[source.Name] = 0;
                     _lastEventTime[source.Name] = DateTime.UtcNow;
@@ -355,8 +366,14 @@ public sealed class EventLogMonitor : IDisposable
             if (_recentEvents.Count > 500)
                 _recentEvents.RemoveRange(0, _recentEvents.Count - 500);
 
-            if (_lastEventTime.TryGetValue(source.Name, out var lastTime) &&
-                (DateTime.UtcNow - lastTime).TotalMilliseconds < MinEventIntervalMs)
+            // Critical events bypass the rate limiter — mirror of the
+            // production path so the test seam exercises the same behavior.
+            bool isCritical = evt.Severity == EventSeverity.Critical;
+            bool withinCooldown =
+                _lastEventTime.TryGetValue(source.Name, out var lastTime) &&
+                (DateTime.UtcNow - lastTime).TotalMilliseconds < MinEventIntervalMs;
+
+            if (!isCritical && withinCooldown)
             {
                 _coalescedCounts[source.Name] =
                     _coalescedCounts.GetValueOrDefault(source.Name) + 1;

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace RAMWatch.Core.Models;
 
 /// <summary>
@@ -22,6 +24,15 @@ public sealed class StateMessage : IpcMessage
 public sealed class EventMessage : IpcMessage
 {
     public required MonitoredEvent Event { get; init; }
+
+    /// <summary>
+    /// Convenience hot-path flag set to true when <see cref="Event"/>.Severity
+    /// is <see cref="EventSeverity.Critical"/>. Lets clients filter critical
+    /// events without re-classifying severity on every arrival.
+    /// JSON key: "is_critical".
+    /// </summary>
+    [JsonPropertyName("is_critical")]
+    public bool IsCritical { get; init; }
 }
 
 /// <summary>

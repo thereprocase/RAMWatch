@@ -141,8 +141,77 @@ public class EventLogMonitorRateLimiterTests : IDisposable
         Assert.Equal(2, _fired.Count);
     }
 
+    // ── Critical-severity rate-limiter bypass (RAMBurn integration §2.1) ─────
+
+    [Fact]
+    public void CriticalEvent_BypassesRateLimiter_FiresWithinCooldown()
+    {
+        // First event fires and opens the cooldown window.
+        _monitor.InjectLiveEventForTest(_source, MakeEvent("noncritical"));
+        Assert.Single(_fired);
+
+        // A Critical event arriving within the cooldown MUST fire immediately.
+        // This is the RAMBurn Sprint-3 requirement: MCEs must not be delayed
+        // by coalescing, even 1 second is too much for C-state correlation.
+        _monitor.InjectLiveEventForTest(_source, MakeCriticalEvent("mce"));
+
+        Assert.Equal(2, _fired.Count);
+        Assert.Contains("mce", _fired[1].Summary);
+    }
+
+    [Fact]
+    public void CriticalEvents_RapidBurst_AllFire()
+    {
+        // A storm of Critical events (MCE during C-state transition) must
+        // produce one pipe message per kernel event — no coalescing at all.
+        _monitor.InjectLiveEventForTest(_source, MakeCriticalEvent("mce-1"));
+        _monitor.InjectLiveEventForTest(_source, MakeCriticalEvent("mce-2"));
+        _monitor.InjectLiveEventForTest(_source, MakeCriticalEvent("mce-3"));
+
+        Assert.Equal(3, _fired.Count);
+        Assert.Equal("mce-1", _fired[0].Summary);
+        Assert.Equal("mce-2", _fired[1].Summary);
+        Assert.Equal("mce-3", _fired[2].Summary);
+    }
+
+    [Fact]
+    public void CriticalEvent_AfterCoalescedNoncritical_CarriesSuppressedCount()
+    {
+        // Noncritical coalesce: first fires, next two are suppressed.
+        _monitor.InjectLiveEventForTest(_source, MakeEvent("nc-1"));
+        _monitor.InjectLiveEventForTest(_source, MakeEvent("nc-2"));
+        _monitor.InjectLiveEventForTest(_source, MakeEvent("nc-3"));
+        Assert.Single(_fired);
+
+        // A Critical arrives while 2 noncritical events are pending. The
+        // Critical fires, draining the coalesced count into its summary so
+        // the user sees the true preceding volume.
+        _monitor.InjectLiveEventForTest(_source, MakeCriticalEvent("mce"));
+
+        Assert.Equal(2, _fired.Count);
+        Assert.Contains("[+2 suppressed]", _fired[1].Summary);
+        Assert.Contains("mce", _fired[1].Summary);
+    }
+
+    [Fact]
+    public void NoncriticalAfterCritical_StillRateLimited()
+    {
+        // Critical fires and updates _lastEventTime.
+        _monitor.InjectLiveEventForTest(_source, MakeCriticalEvent("mce"));
+        Assert.Single(_fired);
+
+        // A noncritical following the Critical within the cooldown window
+        // still gets coalesced — the bypass applies only to Critical events.
+        _monitor.InjectLiveEventForTest(_source, MakeEvent("followup"));
+
+        Assert.Single(_fired); // Followup suppressed.
+    }
+
     // -------------------------------------------------------------------------
 
     private MonitoredEvent MakeEvent(string summary) =>
         new(DateTime.UtcNow, _source.Name, _source.Category, 17, _source.DefaultSeverity, summary);
+
+    private MonitoredEvent MakeCriticalEvent(string summary) =>
+        new(DateTime.UtcNow, _source.Name, _source.Category, 1, EventSeverity.Critical, summary);
 }

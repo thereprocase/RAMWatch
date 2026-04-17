@@ -41,6 +41,36 @@ public class IpcRoundtripTests
         var evt = Assert.IsType<EventMessage>(result);
         Assert.Equal("WHEA Hardware Errors", evt.Event.Source);
         Assert.Equal(17, evt.Event.EventId);
+        Assert.False(evt.IsCritical);
+    }
+
+    [Fact]
+    public void EventMessage_Critical_SerializesIsCriticalFlag()
+    {
+        // RAMBurn integration §2.1: EventMessage carries an is_critical flag
+        // so clients can filter critical events without re-classifying.
+        var mce = new MonitoredEvent(
+            DateTime.UtcNow,
+            "Machine Check Exception",
+            EventCategory.Hardware,
+            1,
+            EventSeverity.Critical,
+            "Machine Check Exception");
+
+        var msg = new EventMessage
+        {
+            Type = "event",
+            Event = mce,
+            IsCritical = mce.Severity == EventSeverity.Critical
+        };
+
+        string json = MessageSerializer.Serialize(msg);
+        Assert.Contains("\"is_critical\":true", json);
+
+        var result = MessageSerializer.Deserialize(json.TrimEnd('\n'));
+        var evt = Assert.IsType<EventMessage>(result);
+        Assert.True(evt.IsCritical);
+        Assert.Equal(EventSeverity.Critical, evt.Event.Severity);
     }
 
     [Fact]

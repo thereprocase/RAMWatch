@@ -457,16 +457,18 @@ public sealed class RamWatchService : BackgroundService
         var change = _configChangeDetector.DetectChanges(snapshot);
         if (change is not null)
         {
+            var changeEvt = new MonitoredEvent(
+                change.Timestamp,
+                "Config Change",
+                EventCategory.Application,
+                0,
+                EventSeverity.Info,
+                $"Timing configuration changed: {change.Changes.Count} field(s)");
             var changeMsg = new EventMessage
             {
                 Type = "event",
-                Event = new MonitoredEvent(
-                    change.Timestamp,
-                    "Config Change",
-                    EventCategory.Application,
-                    0,
-                    EventSeverity.Info,
-                    $"Timing configuration changed: {change.Changes.Count} field(s)")
+                Event = changeEvt,
+                IsCritical = changeEvt.Severity == EventSeverity.Critical
             };
             await _pipeServer.BroadcastAsync(MessageSerializer.Serialize(changeMsg));
 
@@ -488,16 +490,18 @@ public sealed class RamWatchService : BackgroundService
 
             foreach (var drift in driftEvents)
             {
+                var driftEvt = new MonitoredEvent(
+                    drift.Timestamp,
+                    "Drift Detected",
+                    EventCategory.Application,
+                    0,
+                    EventSeverity.Warning,
+                    $"{drift.TimingName} drifted: expected {drift.ExpectedValue}, got {drift.ActualValue}");
                 var driftMsg = new EventMessage
                 {
                     Type = "event",
-                    Event = new MonitoredEvent(
-                        drift.Timestamp,
-                        "Drift Detected",
-                        EventCategory.Application,
-                        0,
-                        EventSeverity.Warning,
-                        $"{drift.TimingName} drifted: expected {drift.ExpectedValue}, got {drift.ActualValue}")
+                    Event = driftEvt,
+                    IsCritical = driftEvt.Severity == EventSeverity.Critical
                 };
                 await _pipeServer.BroadcastAsync(MessageSerializer.Serialize(driftMsg));
             }
