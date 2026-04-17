@@ -67,9 +67,16 @@ public partial class SettingsViewModel : ObservableObject
 
     private void ScheduleAutoSave()
     {
-        _debounceCts?.Cancel();
-        _debounceCts?.Dispose();
+        // Cancel the previous debounce; defer its Dispose to the worker's
+        // catch block. Disposing here while the captured token is inside
+        // Task.Delay raises ObjectDisposedException rather than the
+        // OperationCanceledException the worker expects — that ODE would
+        // fault the unobserved task and, depending on runtime config,
+        // propagate as UnobservedTaskException. Swap the CTS reference
+        // atomically and let the worker clean up its own.
+        var previous = _debounceCts;
         _debounceCts = new CancellationTokenSource();
+        previous?.Cancel();
         var token = _debounceCts.Token;
 
         _ = Task.Run(async () =>
@@ -83,7 +90,12 @@ public partial class SettingsViewModel : ObservableObject
                         async () => await AutoSaveAsync());
                 }
             }
-            catch (OperationCanceledException) { }
+            catch (OperationCanceledException) { /* expected on re-trigger */ }
+            catch (ObjectDisposedException) { /* previous CTS disposed mid-delay */ }
+            finally
+            {
+                try { previous?.Dispose(); } catch { }
+            }
         }, token);
     }
 

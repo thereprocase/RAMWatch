@@ -58,24 +58,41 @@ public partial class MainWindow : System.Windows.Window
 
     private async void OnLoaded(object sender, System.Windows.RoutedEventArgs e)
     {
-        // Dark title bar on Windows 11 (Frodo warning #9)
-        EnableDarkTitleBar();
-
-        _tray = new TrayIconManager(
-            this,
-            onCopyDigest: () => _viewModel.CopyDigestCommand.Execute(null),
-            onSaveSnapshot: () => Dispatcher.Invoke(ShowSnapshotDialogAndSave));
-        _tray.Initialize();
-
-        // Start minimized to tray if launched with --minimized (autostart)
-        // or if the StartMinimized setting is enabled.
-        bool cliMinimized = Application.Current is App app && app.StartMinimized;
-        if (cliMinimized || _settingsVm.StartMinimized)
+        // async void is unavoidable on WPF Loaded; any unhandled exception
+        // is routed to the Dispatcher's unhandled-exception path and the
+        // tray-resident process dies with no visible window — the user
+        // sees the tray icon disappear. Wrap the entire body so a rogue
+        // exception surfaces in the log and the reconnect loop inside
+        // StartAsync has a chance to recover.
+        try
         {
-            _tray.MinimizeToTray();
-        }
+            // Dark title bar on Windows 11 (Frodo warning #9)
+            EnableDarkTitleBar();
 
-        await _viewModel.StartAsync();
+            _tray = new TrayIconManager(
+                this,
+                onCopyDigest: () => _viewModel.CopyDigestCommand.Execute(null),
+                onSaveSnapshot: () => Dispatcher.Invoke(ShowSnapshotDialogAndSave));
+            _tray.Initialize();
+
+            // Start minimized to tray if launched with --minimized (autostart)
+            // or if the StartMinimized setting is enabled.
+            bool cliMinimized = Application.Current is App app && app.StartMinimized;
+            if (cliMinimized || _settingsVm.StartMinimized)
+            {
+                _tray.MinimizeToTray();
+            }
+
+            await _viewModel.StartAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MainWindow.OnLoaded] unhandled: {ex}");
+            // Don't rethrow — the reconnect machinery inside StartAsync
+            // handles its own loop errors, and any exception that escapes
+            // here means the window couldn't even start. The alternative
+            // (process termination) is strictly worse for the user.
+        }
     }
 
     private async void OnClosing(object? sender, CancelEventArgs e)

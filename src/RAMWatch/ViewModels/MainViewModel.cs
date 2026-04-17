@@ -33,7 +33,12 @@ public partial class MainViewModel : ObservableObject
     // Per-source ring buffer of recent events. Seeded on initial state push from
     // ServiceState.RecentEvents, then appended in ApplyEvent. Each source is
     // capped so a noisy source can't grow without bound.
-    private readonly Dictionary<string, List<MonitoredEvent>> _eventsBySource = new();
+    //
+    // Queue&lt;T&gt; — Enqueue + Dequeue-on-overflow is O(1). The prior List&lt;T&gt;
+    // with RemoveRange(0, ...) shifted every element on each append once
+    // the cap was reached; under a WHEA storm that was 49 entries shifted
+    // per event under _eventsLock on the UI-bound hot path.
+    private readonly Dictionary<string, Queue<MonitoredEvent>> _eventsBySource = new();
     private readonly Lock _eventsLock = new();
     private const int EventsPerSourceCap = 50;
     private bool _eventsSeeded;
@@ -463,8 +468,8 @@ public partial class MainViewModel : ObservableObject
     {
         lock (_eventsLock)
         {
-            if (_eventsBySource.TryGetValue(sourceName, out var list))
-                return list.ToList();
+            if (_eventsBySource.TryGetValue(sourceName, out var queue))
+                return queue.ToList();
         }
         return Array.Empty<MonitoredEvent>();
     }
@@ -473,14 +478,14 @@ public partial class MainViewModel : ObservableObject
     {
         lock (_eventsLock)
         {
-            if (!_eventsBySource.TryGetValue(evt.Source, out var list))
+            if (!_eventsBySource.TryGetValue(evt.Source, out var queue))
             {
-                list = new List<MonitoredEvent>();
-                _eventsBySource[evt.Source] = list;
+                queue = new Queue<MonitoredEvent>(EventsPerSourceCap);
+                _eventsBySource[evt.Source] = queue;
             }
-            list.Add(evt);
-            if (list.Count > EventsPerSourceCap)
-                list.RemoveRange(0, list.Count - EventsPerSourceCap);
+            queue.Enqueue(evt);
+            while (queue.Count > EventsPerSourceCap)
+                queue.Dequeue();
         }
     }
 
@@ -493,14 +498,14 @@ public partial class MainViewModel : ObservableObject
             _eventsBySource.Clear();
             foreach (var evt in events)
             {
-                if (!_eventsBySource.TryGetValue(evt.Source, out var list))
+                if (!_eventsBySource.TryGetValue(evt.Source, out var queue))
                 {
-                    list = new List<MonitoredEvent>();
-                    _eventsBySource[evt.Source] = list;
+                    queue = new Queue<MonitoredEvent>(EventsPerSourceCap);
+                    _eventsBySource[evt.Source] = queue;
                 }
-                list.Add(evt);
-                if (list.Count > EventsPerSourceCap)
-                    list.RemoveRange(0, list.Count - EventsPerSourceCap);
+                queue.Enqueue(evt);
+                while (queue.Count > EventsPerSourceCap)
+                    queue.Dequeue();
             }
         }
     }

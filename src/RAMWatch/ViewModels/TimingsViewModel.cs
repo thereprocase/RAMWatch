@@ -268,11 +268,14 @@ public partial class TimingsViewModel : ObservableObject
             : $"Layout: {vendor}";
 
         // Build dynamic groups from the vendor layout.
-        // Skip the rebuild when timing integers haven't changed — voltages
-        // update as flat properties above, but the group rows (timing ints)
-        // rarely change between polls. This avoids 8+ CollectionChanged
-        // notifications per 30-second state push during steady state.
-        var timingKey = $"{snapshot.CL}-{snapshot.RCDRD}-{snapshot.RP}-{snapshot.RAS}-{snapshot.RC}-{snapshot.CWL}-{snapshot.RFC}-{snapshot.RDRDSCL}-{snapshot.WRWRSCL}-{vendor}";
+        // Skip the rebuild when nothing a row depends on has changed —
+        // timing integers, vendor, OR the designation map. The map fingerprint
+        // is folded in so that changing a Manual/Auto designation in Settings
+        // invalidates the cache; without it, the ● indicator next to a newly
+        // Auto-marked timing would stay stale until something else in the
+        // key changed (which on a steady boot means "never until reboot").
+        int desigFingerprint = designations is null ? 0 : ComputeDesignationFingerprint(designations);
+        var timingKey = $"{snapshot.CL}-{snapshot.RCDRD}-{snapshot.RP}-{snapshot.RAS}-{snapshot.RC}-{snapshot.CWL}-{snapshot.RFC}-{snapshot.RDRDSCL}-{snapshot.WRWRSCL}-{vendor}-{desigFingerprint}";
         if (timingKey != _lastTimingKey)
         {
             _lastTimingKey = timingKey;
@@ -297,6 +300,22 @@ public partial class TimingsViewModel : ObservableObject
         }
 
         HasTimings = true;
+    }
+
+    /// <summary>
+    /// Order-independent fingerprint of a designation map. Folds every
+    /// (field, designation) pair into a single int so the timing-display
+    /// cache key can detect Manual↔Auto flips even when timings themselves
+    /// don't change.
+    /// </summary>
+    private static int ComputeDesignationFingerprint(IReadOnlyDictionary<string, string> map)
+    {
+        int acc = 0;
+        foreach (var kvp in map)
+        {
+            acc ^= HashCode.Combine(kvp.Key, kvp.Value);
+        }
+        return acc;
     }
 
     private void ComputeColumns()
