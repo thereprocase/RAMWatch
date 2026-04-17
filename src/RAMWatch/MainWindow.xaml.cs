@@ -194,6 +194,24 @@ public partial class MainWindow : System.Windows.Window
         Close();
     }
 
+    /// <summary>
+    /// Raise, un-hide, un-minimize, and focus the main window. Called by
+    /// App when a second-instance launch signals us via the cross-process
+    /// show event. Preserves the user's AlwaysOnTop choice by restoring
+    /// the Topmost value after the force-to-front toggle.
+    /// </summary>
+    internal void ShowAndActivate()
+    {
+        Show();
+        if (WindowState == System.Windows.WindowState.Minimized)
+            WindowState = System.Windows.WindowState.Normal;
+        Activate();
+        bool wasTopmost = Topmost;
+        Topmost = true;
+        Topmost = wasTopmost;
+        Focus();
+    }
+
     // ── DPI-responsive default size ───────────────────────────
 
     /// <summary>
