@@ -45,6 +45,25 @@ public sealed class AppSettings
         try
         {
             var full = Path.GetFullPath(path);
+            // Resolve reparse points (symlinks, junctions) so a junction whose
+            // target is a UNC share or a system directory can't slip past the
+            // prefix checks below. Only applies if the path already exists;
+            // non-existent paths fall through to the string-level checks.
+            if (Directory.Exists(full))
+            {
+                try
+                {
+                    var info = new DirectoryInfo(full);
+                    var final = info.ResolveLinkTarget(returnFinalTarget: true);
+                    if (final is not null) full = final.FullName;
+                }
+                catch
+                {
+                    // If we can't resolve the reparse target, refuse to act
+                    // on it rather than trusting the unresolved path.
+                    return false;
+                }
+            }
             // Reject UNC paths — the service should never write to a network share.
             if (full.StartsWith(@"\\")) return false;
             // GetFullPath resolves ".." but the result should never still contain it.
