@@ -55,8 +55,18 @@ public sealed class GitCommitter : IAsyncDisposable
         _runProcess = processRunner;
         RepoPath    = repoPath ?? DataDirectory.HistoryRepoPath;
 
-        _channel = Channel.CreateUnbounded<GitCommitRequest>(
-            new UnboundedChannelOptions { SingleReader = true });
+        // Bounded so a drift storm + slow git (large CHANGELOG, slow disk)
+        // can't pile up GitCommitRequest objects — each references a full
+        // TimingSnapshot + designation map + validation list (~2 KB). An
+        // unbounded channel would hold every request in memory until the
+        // single-reader drain catches up. DropOldest preserves the latest
+        // state, which is what matters for CURRENT.md / timings.json.
+        _channel = Channel.CreateBounded<GitCommitRequest>(
+            new BoundedChannelOptions(1000)
+            {
+                SingleReader = true,
+                FullMode     = BoundedChannelFullMode.DropOldest,
+            });
 
         IsAvailable = CheckToolOnPath("git");
         CanPush     = CheckToolOnPath("gh");

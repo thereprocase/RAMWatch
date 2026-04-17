@@ -5,6 +5,11 @@ namespace RAMWatch.Service.Services;
 /// (Dropbox, OneDrive, Synology Drive, etc.). Never blocks the primary
 /// write path. Timeout at 5 seconds per copy — sync services can lock
 /// files during indexing, and we cannot stall the service waiting.
+///
+/// A SemaphoreSlim caps in-flight copies. Under an event storm plus a
+/// slow mirror (Dropbox reindex, OneDrive offline, USB stick), the prior
+/// implementation would spawn hundreds of concurrent FileStream-holding
+/// tasks before the circuit breaker engaged.
 /// </summary>
 public sealed class MirrorLogger
 {
@@ -13,6 +18,13 @@ public sealed class MirrorLogger
 
     private const int TimeoutMs = 5000;
     private const int MaxConsecutiveFailures = 10;
+
+    // Max concurrent copies. Small by design: mirroring is best-effort and
+    // one-in-flight per target is enough for the typical 30-60s event
+    // cadence. When the semaphore is full we drop the new copy rather than
+    // queue it, so a slow mirror cannot grow a backlog behind the service.
+    private const int MaxConcurrentCopies = 4;
+    private readonly SemaphoreSlim _slots = new(MaxConcurrentCopies, MaxConcurrentCopies);
 
     public MirrorLogger(string mirrorDirectory)
     {
@@ -23,12 +35,22 @@ public sealed class MirrorLogger
 
     /// <summary>
     /// Copy a file to the mirror directory. Fire-and-forget — failures
-    /// are logged locally but never propagated to the caller.
+    /// are logged locally but never propagated to the caller. Drops the
+    /// copy if the in-flight semaphore is full; the CSV is already safe
+    /// locally and the mirror will catch up on the next event.
     /// </summary>
     public void EnqueueCopy(string sourceFile)
     {
         if (!IsEnabled) return;
         if (_consecutiveFailures >= MaxConsecutiveFailures) return;
+
+        if (!_slots.Wait(0))
+        {
+            // All copy slots busy — skip this one rather than pile up. A
+            // slow mirror doesn't get to block indefinitely or grow the
+            // task list behind the producer.
+            return;
+        }
 
         _ = CopyWithTimeoutAsync(sourceFile);
     }
@@ -61,6 +83,10 @@ public sealed class MirrorLogger
         {
             // Network drive offline, permission denied, etc.
             Interlocked.Increment(ref _consecutiveFailures);
+        }
+        finally
+        {
+            _slots.Release();
         }
     }
 

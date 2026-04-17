@@ -105,6 +105,17 @@ public sealed class CsvLogger : IDisposable
     private void RotateFile(string date)
     {
         _writer?.Dispose();
+
+        // Running retention on every date change keeps log volume bounded
+        // on long-running sessions. RunRetention is idempotent and fast
+        // (directory scan + a few deletes); amortised across a 24h day it's
+        // negligible. Without this, a service running 30+ days accumulates
+        // CSVs past MaxLogSizeMb because retention only ran at startup.
+        if (!string.IsNullOrEmpty(_currentDate))
+        {
+            try { RunRetention(); } catch { /* Retention is best-effort. */ }
+        }
+
         _currentDate = date;
         _currentFilePath = Path.Combine(_logDirectory, $"events_{date}.csv");
 
