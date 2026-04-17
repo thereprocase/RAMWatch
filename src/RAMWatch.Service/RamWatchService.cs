@@ -639,13 +639,10 @@ public sealed class RamWatchService : BackgroundService
                     using var doc = JsonDocument.Parse(line);
                     if (doc.RootElement.TryGetProperty("settings", out var settingsPatch))
                     {
+                        // ApplyPatch merges by JSON field presence and clamps
+                        // every numeric before persisting — no further
+                        // clamping needed at the handler.
                         _settings.ApplyPatch(settingsPatch);
-                        // Re-clamp numerics that live above the settings layer
-                        // (ApplyPatch accepts any int; clamp after merge so the
-                        // persisted value is sane).
-                        var cur = _settings.Current;
-                        cur.RefreshIntervalSeconds = Math.Clamp(cur.RefreshIntervalSeconds, 5, 3600);
-                        _settings.Update(cur);
                     }
                 }
                 catch (JsonException)

@@ -184,6 +184,35 @@ public class SettingsTests : IDisposable
     }
 
     [Fact]
+    public void ApplyPatch_ClampsNumerics_ToSaneRanges()
+    {
+        var mgr = new SettingsManager(_settingsPath);
+        mgr.Load();
+
+        using var doc = System.Text.Json.JsonDocument.Parse(
+            """{"logRetentionDays":0,"maxLogSizeMb":-1,"notifyCooldownSeconds":9999999}""");
+        mgr.ApplyPatch(doc.RootElement);
+
+        // Bounds: 1–3650 / 1–10000 / 0–86400
+        Assert.Equal(1, mgr.Current.LogRetentionDays);
+        Assert.Equal(1, mgr.Current.MaxLogSizeMb);
+        Assert.Equal(86_400, mgr.Current.NotifyCooldownSeconds);
+    }
+
+    [Fact]
+    public void Load_CorruptNumerics_AreClamped()
+    {
+        File.WriteAllText(_settingsPath,
+            """{"schemaVersion":1,"logRetentionDays":0,"maxLogSizeMb":-5}""");
+
+        var mgr = new SettingsManager(_settingsPath);
+        var loaded = mgr.Load();
+
+        Assert.True(loaded.LogRetentionDays >= 1);
+        Assert.True(loaded.MaxLogSizeMb >= 1);
+    }
+
+    [Fact]
     public void ApplyPatch_BadValueForKnownField_KeepsCurrent()
     {
         var mgr = new SettingsManager(_settingsPath);

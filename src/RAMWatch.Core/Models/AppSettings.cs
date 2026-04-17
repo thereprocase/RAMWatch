@@ -15,6 +15,25 @@ public sealed class AppSettings
         string.IsNullOrEmpty(repo) || ValidRepoPattern.IsMatch(repo);
 
     /// <summary>
+    /// Clamp every numeric field into a sane range. Applied after load and
+    /// before save so a malformed settings.json (or an adversarial IPC
+    /// update) can't drive retention to zero, log size to a terabyte, or
+    /// toast cooldown to a negative value that skips the rate limiter.
+    /// </summary>
+    public void ClampNumerics()
+    {
+        RefreshIntervalSeconds = Math.Clamp(RefreshIntervalSeconds, 5, 3600);
+        // Retention: min 1 day (avoid deleting today's log on next startup),
+        // max ~10 years (arbitrary ceiling so AddDays math can't overflow).
+        LogRetentionDays = Math.Clamp(LogRetentionDays, 1, 3650);
+        // Log size: min 1 MB (avoid immediate eviction), max 10 GB.
+        MaxLogSizeMb = Math.Clamp(MaxLogSizeMb, 1, 10_000);
+        // Toast cooldown: 0 = no rate limit, cap at 1 day to keep the rate
+        // limiter's time arithmetic in a normal range.
+        NotifyCooldownSeconds = Math.Clamp(NotifyCooldownSeconds, 0, 86_400);
+    }
+
+    /// <summary>
     /// Validate a user-supplied data path before the LocalSystem service acts on it.
     /// Empty/null is accepted (caller uses the default path instead).
     /// Rejects UNC paths, paths that still contain ".." after full resolution,

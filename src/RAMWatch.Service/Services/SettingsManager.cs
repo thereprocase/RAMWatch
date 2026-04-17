@@ -52,6 +52,11 @@ public sealed class SettingsManager
                 _current = new AppSettings();
             }
 
+            // A settings.json written by an earlier version (or hand-edited)
+            // may hold out-of-range numerics. Clamp before returning so every
+            // consumer sees sane values.
+            _current.ClampNumerics();
+
             return _current;
         }
     }
@@ -123,6 +128,11 @@ public sealed class SettingsManager
             {
                 ApplyField(merged, prop);
             }
+
+            // Clamp before persisting so a patch that sets LogRetentionDays=0
+            // (would nuke every CSV on next startup retention) or
+            // MaxLogSizeMb=0 (evicts every row) can't reach disk.
+            merged.ClampNumerics();
 
             _current = merged;
             Save(_current);
