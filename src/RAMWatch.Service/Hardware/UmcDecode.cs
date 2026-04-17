@@ -210,21 +210,35 @@ public sealed class UmcDecode
         uint reg264 = ReadSmn(chOffset | 0x50264);
 
         uint rfcReg;
-        bool usedFallback = false;
-        if (reg260 != reg264)
+        bool bugDetected = false;
+
+        if (reg260 == TrfcBugValue)
         {
-            if (reg260 == TrfcBugValue)
+            // 0x50260 shows the ComboAM4v2PI 1.2.0.x sentinel. Always flag
+            // the bug, even if 0x50264 also reads the same magic (decoding
+            // the magic bitfield as tRFC yields garbage values like 312/48/8).
+            bugDetected = true;
+            if (reg264 != TrfcBugValue)
             {
                 rfcReg = reg264;
-                usedFallback = true;
             }
             else
             {
-                rfcReg = reg260;
+                // Both registers return the sentinel — there is no good
+                // value to surface. Leave RFC/RFC2/RFC4 at zero and let
+                // the flag tell the UI to render "unreadable" instead of
+                // a decoded magic-number bitfield.
+                s.RFC = 0;
+                s.RFC2 = 0;
+                s.RFC4 = 0;
+                s.TrfcReadbackBugDetected = true;
+                return;
             }
         }
         else
         {
+            // Normal path. reg260 is trusted; reg264 is the backup copy
+            // and is expected to match when the AGESA isn't buggy.
             rfcReg = reg260;
         }
 
@@ -236,7 +250,7 @@ public sealed class UmcDecode
         // rather than silently showing values derived from the workaround
         // register. Set here rather than cleared so a later channel that
         // also triggers the fallback doesn't un-set the flag.
-        if (usedFallback) s.TrfcReadbackBugDetected = true;
+        if (bugDetected) s.TrfcReadbackBugDetected = true;
     }
 
     private void ReadMisc(uint chOffset, TimingSnapshot s)

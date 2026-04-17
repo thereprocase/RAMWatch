@@ -398,14 +398,23 @@ public static class BiosWmiReader
             // wall-clock timeout. Plain ReadToEnd() blocks until the child
             // closes stdout, which never happens if WMI hangs inside the
             // PowerShell invocation — that would deadlock the caller under
-            // the HardwareReader driver lock.
-            var readTask = Task.Run(() => process.StandardOutput.ReadToEnd());
+            // the HardwareReader driver lock. The inner try/catch observes
+            // any exception the worker throws (including ObjectDisposedException
+            // when we Kill and the finally block disposes the process) so
+            // the task never faults as unobserved.
+            var readTask = Task.Run(() =>
+            {
+                try { return process.StandardOutput.ReadToEnd(); }
+                catch { return ""; }
+            });
 
             if (!readTask.Wait(PowerShellTimeout))
             {
                 // Child is hung. Kill the process tree; the Kill closes stdout
-                // which lets readTask complete naturally, so it won't leak.
+                // which lets readTask complete naturally. Wait briefly so the
+                // read worker observes the close before finally-dispose runs.
                 try { process.Kill(entireProcessTree: true); } catch { }
+                try { readTask.Wait(2000); } catch { }
                 return "0";
             }
 

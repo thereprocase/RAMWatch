@@ -1373,7 +1373,7 @@ public sealed class RamWatchService : BackgroundService
         // out-of-range values that a malformed or malicious client could send
         // (e.g. Kind=99), which would otherwise persist a garbage enum that
         // confuses any future GUI branch on the value.
-        if (!Enum.IsDefined(typeof(BootFailKind), msg.Kind))
+        if (!Enum.IsDefined<BootFailKind>(msg.Kind))
         {
             await SendErrorAsync(client, msg.RequestId, "invalid_kind",
                 $"Unknown BootFailKind value: {(int)msg.Kind}");

@@ -71,7 +71,6 @@ public sealed class SettingsManager
     {
         lock (_lock)
         {
-            _current = settings;
             string json = JsonSerializer.Serialize(settings, RamWatchJsonContext.Default.AppSettings);
 
             string dir = Path.GetDirectoryName(_path)!;
@@ -88,6 +87,10 @@ public sealed class SettingsManager
                 try { File.Delete(tempPath); } catch { }
                 throw;
             }
+
+            // Commit the in-memory swap only after disk write succeeds so
+            // _current and the persisted file can never diverge on failure.
+            _current = settings;
         }
     }
 
@@ -136,8 +139,12 @@ public sealed class SettingsManager
             // MaxLogSizeMb=0 (evicts every row) can't reach disk.
             merged.ClampNumerics();
 
+            // Save first, then commit the in-memory swap. On disk failure
+            // (disk full, ACL denied) Save throws and _current keeps the
+            // pre-patch value — otherwise memory would silently diverge
+            // from disk and the next service restart would revert.
+            Save(merged);
             _current = merged;
-            Save(_current);
         }
     }
 
