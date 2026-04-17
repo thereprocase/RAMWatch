@@ -629,10 +629,38 @@ public sealed class RamWatchService : BackgroundService
                         }));
                     break;
                 }
-                // Clamp numeric fields to sane ranges before persisting.
-                update.Settings.RefreshIntervalSeconds =
-                    Math.Clamp(update.Settings.RefreshIntervalSeconds, 5, 3600);
-                _settings.Update(update.Settings);
+                // Re-parse the raw line so we know which fields the client
+                // actually sent. System.Text.Json's typed deserialize can't
+                // distinguish "field absent" from "field set to default";
+                // applying update.Settings wholesale would wipe every field
+                // a partial-update client forgot to include.
+                try
+                {
+                    using var doc = JsonDocument.Parse(line);
+                    if (doc.RootElement.TryGetProperty("settings", out var settingsPatch))
+                    {
+                        _settings.ApplyPatch(settingsPatch);
+                        // Re-clamp numerics that live above the settings layer
+                        // (ApplyPatch accepts any int; clamp after merge so the
+                        // persisted value is sane).
+                        var cur = _settings.Current;
+                        cur.RefreshIntervalSeconds = Math.Clamp(cur.RefreshIntervalSeconds, 5, 3600);
+                        _settings.Update(cur);
+                    }
+                }
+                catch (JsonException)
+                {
+                    await client.SendAsync(MessageSerializer.Serialize(
+                        new ResponseMessage
+                        {
+                            Type = "response",
+                            RequestId = update.RequestId,
+                            Status = "error",
+                            Code = "invalid_payload",
+                            Message = "Settings payload could not be parsed"
+                        }));
+                    break;
+                }
                 await client.SendAsync(MessageSerializer.Serialize(
                     new ResponseMessage
                     {

@@ -86,15 +86,115 @@ public sealed class SettingsManager
 
     /// <summary>
     /// Apply a partial settings update (from GUI via pipe).
-    /// Merges non-default values, saves atomically.
+    /// Overwrites the in-memory settings with the caller-supplied object
+    /// wholesale. Prefer <see cref="ApplyPatch"/> for IPC-originated updates
+    /// so fields absent from the client payload aren't silently reset to
+    /// their JSON defaults.
     /// </summary>
     public void Update(AppSettings incoming)
     {
         lock (_lock)
         {
-            // For Phase 1, just replace wholesale. Phase 3 can add merge logic.
             _current = incoming;
             Save(_current);
         }
+    }
+
+    /// <summary>
+    /// Merge a JSON patch into the current settings. Only properties present
+    /// in <paramref name="patch"/> are overwritten; everything else keeps
+    /// its current value. Unknown property names are ignored for forward
+    /// compatibility with newer client versions.
+    ///
+    /// Reason: System.Text.Json's typed deserialize can't distinguish
+    /// "field absent from payload" from "field present with default value".
+    /// A GUI that sends only RefreshIntervalSeconds would otherwise wipe
+    /// GitRemoteRepo, MirrorDirectory, retention settings, etc.
+    /// </summary>
+    public void ApplyPatch(JsonElement patch)
+    {
+        if (patch.ValueKind != JsonValueKind.Object) return;
+
+        lock (_lock)
+        {
+            var merged = Clone(_current);
+
+            foreach (var prop in patch.EnumerateObject())
+            {
+                ApplyField(merged, prop);
+            }
+
+            _current = merged;
+            Save(_current);
+        }
+    }
+
+    private static AppSettings Clone(AppSettings src) => new()
+    {
+        SchemaVersion            = src.SchemaVersion,
+        StartMinimized           = src.StartMinimized,
+        MinimizeToTray           = src.MinimizeToTray,
+        AlwaysOnTop              = src.AlwaysOnTop,
+        LaunchAtLogon            = src.LaunchAtLogon,
+        RefreshIntervalSeconds   = src.RefreshIntervalSeconds,
+        EnableCsvLogging         = src.EnableCsvLogging,
+        LogDirectory             = src.LogDirectory,
+        LogRetentionDays         = src.LogRetentionDays,
+        MaxLogSizeMb             = src.MaxLogSizeMb,
+        MirrorDirectory          = src.MirrorDirectory,
+        EnableToastNotifications = src.EnableToastNotifications,
+        NotifyOnWhea             = src.NotifyOnWhea,
+        NotifyOnBsod             = src.NotifyOnBsod,
+        NotifyOnDrift            = src.NotifyOnDrift,
+        NotifyOnCodeIntegrity    = src.NotifyOnCodeIntegrity,
+        NotifyOnAppCrash         = src.NotifyOnAppCrash,
+        NotifyCooldownSeconds    = src.NotifyCooldownSeconds,
+        Theme                    = src.Theme,
+        DebugLogging             = src.DebugLogging,
+        BiosLayout               = src.BiosLayout,
+        EnableGitIntegration     = src.EnableGitIntegration,
+        EnableGitPush            = src.EnableGitPush,
+        GitRemoteRepo            = src.GitRemoteRepo,
+        GitUserDisplayName       = src.GitUserDisplayName,
+    };
+
+    private static void ApplyField(AppSettings target, JsonProperty prop)
+    {
+        // camelCase names match RamWatchJsonContext's PropertyNamingPolicy.
+        // A malformed value for a known key is ignored rather than throwing,
+        // so one bad field doesn't abandon the rest of the patch.
+        try
+        {
+            switch (prop.Name)
+            {
+                case "schemaVersion":            target.SchemaVersion            = prop.Value.GetInt32();   break;
+                case "startMinimized":           target.StartMinimized           = prop.Value.GetBoolean(); break;
+                case "minimizeToTray":           target.MinimizeToTray           = prop.Value.GetBoolean(); break;
+                case "alwaysOnTop":              target.AlwaysOnTop              = prop.Value.GetBoolean(); break;
+                case "launchAtLogon":            target.LaunchAtLogon            = prop.Value.GetBoolean(); break;
+                case "refreshIntervalSeconds":   target.RefreshIntervalSeconds   = prop.Value.GetInt32();   break;
+                case "enableCsvLogging":         target.EnableCsvLogging         = prop.Value.GetBoolean(); break;
+                case "logDirectory":             target.LogDirectory             = prop.Value.GetString() ?? ""; break;
+                case "logRetentionDays":         target.LogRetentionDays         = prop.Value.GetInt32();   break;
+                case "maxLogSizeMb":             target.MaxLogSizeMb             = prop.Value.GetInt32();   break;
+                case "mirrorDirectory":          target.MirrorDirectory          = prop.Value.GetString() ?? ""; break;
+                case "enableToastNotifications": target.EnableToastNotifications = prop.Value.GetBoolean(); break;
+                case "notifyOnWhea":             target.NotifyOnWhea             = prop.Value.GetBoolean(); break;
+                case "notifyOnBsod":             target.NotifyOnBsod             = prop.Value.GetBoolean(); break;
+                case "notifyOnDrift":            target.NotifyOnDrift            = prop.Value.GetBoolean(); break;
+                case "notifyOnCodeIntegrity":    target.NotifyOnCodeIntegrity    = prop.Value.GetBoolean(); break;
+                case "notifyOnAppCrash":         target.NotifyOnAppCrash         = prop.Value.GetBoolean(); break;
+                case "notifyCooldownSeconds":    target.NotifyCooldownSeconds    = prop.Value.GetInt32();   break;
+                case "theme":                    target.Theme                    = prop.Value.GetString() ?? ""; break;
+                case "debugLogging":             target.DebugLogging             = prop.Value.GetBoolean(); break;
+                case "biosLayout":               target.BiosLayout               = prop.Value.GetString() ?? ""; break;
+                case "enableGitIntegration":     target.EnableGitIntegration     = prop.Value.GetBoolean(); break;
+                case "enableGitPush":            target.EnableGitPush            = prop.Value.GetBoolean(); break;
+                case "gitRemoteRepo":            target.GitRemoteRepo            = prop.Value.GetString() ?? ""; break;
+                case "gitUserDisplayName":       target.GitUserDisplayName       = prop.Value.GetString() ?? ""; break;
+                // Unknown keys ignored — forward compatibility with future client fields.
+            }
+        }
+        catch { /* bad value for a known field: ignore, keep current */ }
     }
 }

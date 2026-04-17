@@ -141,4 +141,60 @@ public class SettingsTests : IDisposable
         var settings = new AppSettings();
         Assert.Equal(1, settings.SchemaVersion);
     }
+
+    [Fact]
+    public void ApplyPatch_PartialPayload_PreservesUnsetFields()
+    {
+        // Establish non-default state across several fields.
+        var mgr = new SettingsManager(_settingsPath);
+        mgr.Save(new AppSettings
+        {
+            RefreshIntervalSeconds = 45,
+            GitRemoteRepo          = "alice/ram",
+            MirrorDirectory        = @"C:\ProgramData\RAMWatch\mirror",
+            LogRetentionDays       = 30,
+            EnableGitIntegration   = true,
+        });
+
+        // Client sends a patch that only changes RefreshIntervalSeconds.
+        using var doc = System.Text.Json.JsonDocument.Parse(
+            """{"refreshIntervalSeconds":120}""");
+        mgr.ApplyPatch(doc.RootElement);
+
+        var after = mgr.Current;
+        Assert.Equal(120, after.RefreshIntervalSeconds);
+        // These must NOT have been wiped to their defaults.
+        Assert.Equal("alice/ram", after.GitRemoteRepo);
+        Assert.Equal(@"C:\ProgramData\RAMWatch\mirror", after.MirrorDirectory);
+        Assert.Equal(30, after.LogRetentionDays);
+        Assert.True(after.EnableGitIntegration);
+    }
+
+    [Fact]
+    public void ApplyPatch_UnknownKey_Ignored()
+    {
+        var mgr = new SettingsManager(_settingsPath);
+        mgr.Load();
+
+        using var doc = System.Text.Json.JsonDocument.Parse(
+            """{"someFutureField":true,"refreshIntervalSeconds":30}""");
+        mgr.ApplyPatch(doc.RootElement);
+
+        Assert.Equal(30, mgr.Current.RefreshIntervalSeconds);
+    }
+
+    [Fact]
+    public void ApplyPatch_BadValueForKnownField_KeepsCurrent()
+    {
+        var mgr = new SettingsManager(_settingsPath);
+        mgr.Save(new AppSettings { RefreshIntervalSeconds = 45 });
+
+        // String where int is expected — one bad field shouldn't abandon the patch.
+        using var doc = System.Text.Json.JsonDocument.Parse(
+            """{"refreshIntervalSeconds":"not-a-number","theme":"light"}""");
+        mgr.ApplyPatch(doc.RootElement);
+
+        Assert.Equal(45, mgr.Current.RefreshIntervalSeconds);   // unchanged
+        Assert.Equal("light", mgr.Current.Theme);               // applied
+    }
 }
