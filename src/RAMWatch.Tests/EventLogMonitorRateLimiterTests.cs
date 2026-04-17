@@ -113,6 +113,34 @@ public class EventLogMonitorRateLimiterTests : IDisposable
         Assert.Contains("[+1 suppressed]", _fired[2].Summary);
     }
 
+    [Fact]
+    public void DuplicateRecordId_IsDedupedWithinSameLog()
+    {
+        // Windows can re-deliver the same event across watcher reconnects or during
+        // the historical-to-live handoff. Dedup by (LogName, RecordId) prevents
+        // double-counting the ErrorSource count and inflating the recent-events list.
+        _monitor.InjectLiveEventForTest(_source, MakeEvent("evt"), recordId: 12345L);
+        _monitor.InjectLiveEventForTest(_source, MakeEvent("evt-dup"), recordId: 12345L);
+
+        Assert.Single(_fired);
+
+        var source = _monitor.GetErrorSources().First(s => s.Name == _source.Name);
+        Assert.Equal(1, source.Count);
+    }
+
+    [Fact]
+    public void SameRecordId_DifferentLogs_BothCounted()
+    {
+        // RecordId is per-channel. Two different logs may coincidentally use the
+        // same numeric RecordId — dedup must be scoped by (LogName, RecordId).
+        var other = EventLogMonitor.WatchedSources.First(s => s.LogName != _source.LogName);
+
+        _monitor.InjectLiveEventForTest(_source, MakeEvent("same-id-on-log-A"), recordId: 99L);
+        _monitor.InjectLiveEventForTest(other,   MakeEvent("same-id-on-log-B"), recordId: 99L);
+
+        Assert.Equal(2, _fired.Count);
+    }
+
     // -------------------------------------------------------------------------
 
     private MonitoredEvent MakeEvent(string summary) =>

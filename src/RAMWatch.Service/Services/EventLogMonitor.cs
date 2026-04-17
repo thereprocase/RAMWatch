@@ -17,6 +17,12 @@ public sealed class EventLogMonitor : IDisposable
     private readonly List<MonitoredEvent> _recentEvents = [];
     private readonly Dictionary<string, DateTime> _lastEventTime = new();
     private readonly Dictionary<string, int> _coalescedCounts = new();
+    // Dedup by (LogName, RecordId) to prevent double-counting when Windows
+    // re-delivers events after a watcher reconnect, or when the historical
+    // scan races with the live watcher's subscription window. RecordId is
+    // monotonic per channel; a second delivery of the same id is a duplicate.
+    private readonly HashSet<(string, long)> _seenRecordIds = new();
+    private const int MaxDedupCacheSize = 10000;
     private const int MinEventIntervalMs = 1000;
     private DateTime _bootTime;
     private bool _historicalScanComplete;
@@ -224,6 +230,21 @@ public sealed class EventLogMonitor : IDisposable
 
         lock (_lock)
         {
+            // Dedup by (LogName, RecordId). RecordId is a 64-bit monotonic
+            // identifier per channel; a repeat means Windows re-delivered
+            // the same event (watcher reconnect, or historical/live overlap).
+            if (record.RecordId is long recordId)
+            {
+                if (!_seenRecordIds.Add((source.LogName, recordId)))
+                    return;
+
+                // Bound the cache. On overflow, clearing is pragmatic — we
+                // accept the small risk of one duplicate slipping through
+                // right after the reset in exchange for O(1) memory.
+                if (_seenRecordIds.Count > MaxDedupCacheSize)
+                    _seenRecordIds.Clear();
+            }
+
             if (_errorSources.TryGetValue(source.Name, out var current))
             {
                 var lastSeen = timestamp > (current.LastSeen ?? DateTime.MinValue)
@@ -297,7 +318,7 @@ public sealed class EventLogMonitor : IDisposable
     /// Sets <c>_historicalScanComplete</c> to true so the rate limiter is active.
     /// Only callable by RAMWatch.Tests (InternalsVisibleTo).
     /// </summary>
-    internal void InjectLiveEventForTest(WatchedSource source, MonitoredEvent evt)
+    internal void InjectLiveEventForTest(WatchedSource source, MonitoredEvent evt, long? recordId = null)
     {
         bool shouldFire = false;
         MonitoredEvent? coalescedEvt = null;
@@ -306,6 +327,16 @@ public sealed class EventLogMonitor : IDisposable
         {
             // Ensure historical scan is marked complete so the rate-limiter path runs.
             _historicalScanComplete = true;
+
+            // Mirror the dedup block in RecordEvent so tests can exercise it.
+            if (recordId is long id)
+            {
+                if (!_seenRecordIds.Add((source.LogName, id)))
+                    return;
+
+                if (_seenRecordIds.Count > MaxDedupCacheSize)
+                    _seenRecordIds.Clear();
+            }
 
             if (_errorSources.TryGetValue(source.Name, out var current))
             {
