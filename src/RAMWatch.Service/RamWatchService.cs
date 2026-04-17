@@ -53,6 +53,14 @@ public sealed class RamWatchService : BackgroundService
     // racing dispose of the pipe server, CSV loggers, or hardware reader.
     private volatile bool _shuttingDown;
 
+    // Rate limit for RequestTimingRefresh. A misbehaving client looping the
+    // message at wire speed would drive per-request hardware reads + state
+    // broadcasts, saturating a core and starving the warm/hot loops.
+    // Holds DateTime.UtcNow.Ticks of the last accepted refresh.
+    private long _lastTimingRefreshTicks;
+    private static readonly long MinTimingRefreshIntervalTicks =
+        TimeSpan.FromSeconds(1).Ticks;
+
     // Boot baseline — rolling 50-boot event count history for normal/elevated coloring
     private BootBaselineJournal? _baselineJournal;
 
@@ -767,6 +775,25 @@ public sealed class RamWatchService : BackgroundService
             // Timing refresh — external clients (e.g., RAMBurn) can request
             // an immediate cold-tier re-read after a stress test completes.
             case RequestTimingRefreshMessage refresh:
+            {
+                long now = DateTime.UtcNow.Ticks;
+                long prev = Interlocked.Read(ref _lastTimingRefreshTicks);
+                if (now - prev < MinTimingRefreshIntervalTicks)
+                {
+                    // Too soon since the last refresh — a client loop would
+                    // otherwise pin the hardware reader behind its lock.
+                    await client.SendAsync(MessageSerializer.Serialize(
+                        new ResponseMessage
+                        {
+                            Type = "response",
+                            RequestId = refresh.RequestId,
+                            Status = "error",
+                            Code = "rate_limited",
+                            Message = "Timing refresh requested too soon; minimum interval is 1s"
+                        }));
+                    break;
+                }
+                Interlocked.Exchange(ref _lastTimingRefreshTicks, now);
                 await ReadTimingsAsync();
                 await _aggregator!.BroadcastStateAsync();
                 await client.SendAsync(MessageSerializer.Serialize(
@@ -777,6 +804,7 @@ public sealed class RamWatchService : BackgroundService
                         Status = "ok"
                     }));
                 break;
+            }
 
             default:
                 _logger.LogDebug("Unhandled message type: {Type}", message.Type);
