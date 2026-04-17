@@ -12,8 +12,11 @@ public static class CommitMessageBuilder
     /// <summary>
     /// Sanitize user-supplied string fields: strip leading # (prevents markdown
     /// heading injection in CHANGELOG.md), replace newlines, cap length.
+    /// Exposed internally so IPC handlers can apply the same scrub at the
+    /// trust boundary before data flows into snapshot labels, validation
+    /// results, and the git commit pipeline.
     /// </summary>
-    private static string Sanitize(string? s, int maxLen = 64)
+    internal static string Sanitize(string? s, int maxLen = 64)
     {
         if (string.IsNullOrEmpty(s)) return "";
         string clean = s.TrimStart('#').Replace('\n', ' ').Replace('\r', ' ').Trim();

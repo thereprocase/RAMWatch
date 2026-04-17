@@ -870,6 +870,15 @@ public sealed class RamWatchService : BackgroundService
             return;
         }
 
+        // Sanitize user-supplied strings at the trust boundary. These flow
+        // into the snapshot label, validation result, and ultimately the git
+        // commit message + CHANGELOG.md. Without sanitization, a client
+        // can inject newlines to fake CHANGELOG sections or grow the file
+        // unbounded via a large MetricUnit.
+        string safeTestTool   = CommitMessageBuilder.Sanitize(msg.TestTool,   maxLen: 128);
+        string safeMetricName = CommitMessageBuilder.Sanitize(msg.MetricName, maxLen: 64);
+        string safeMetricUnit = CommitMessageBuilder.Sanitize(msg.MetricUnit, maxLen: 16);
+
         // Auto-save a snapshot labeled with the test result so it appears
         // in the Snapshots comparison dropdown with a meaningful name.
         string? linkedSnapshotId = msg.ActiveSnapshotId;
@@ -877,9 +886,10 @@ public sealed class RamWatchService : BackgroundService
         {
             string passText = msg.Passed ? "PASS" : "FAIL";
             string metric = msg.MetricValue > 0
-                ? $"{msg.MetricValue:G4}{msg.MetricUnit}"
+                ? $"{msg.MetricValue:G4}{safeMetricUnit}"
                 : "";
-            string label = $"{msg.TestTool} {metric} {passText}".Trim();
+            string label = $"{safeTestTool} {metric} {passText}".Trim();
+            if (label.Length > 256) label = label[..256];
             var snapshot = _currentTimings.WithIdAndLabel(Guid.NewGuid().ToString("N"), label);
             _snapshotJournal.Save(snapshot);
             linkedSnapshotId = snapshot.SnapshotId;
@@ -890,10 +900,10 @@ public sealed class RamWatchService : BackgroundService
         {
             Timestamp = DateTime.UtcNow,
             BootId = _bootId,
-            TestTool = msg.TestTool is { Length: > 128 } t ? t[..128] : msg.TestTool,
-            MetricName = msg.MetricName,
+            TestTool = safeTestTool,
+            MetricName = safeMetricName,
             MetricValue = msg.MetricValue,
-            MetricUnit = msg.MetricUnit,
+            MetricUnit = safeMetricUnit,
             Passed = msg.Passed,
             ErrorCount = msg.ErrorCount,
             DurationMinutes = msg.DurationMinutes,
