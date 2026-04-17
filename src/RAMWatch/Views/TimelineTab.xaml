@@ -19,10 +19,13 @@
              The "Start new config" flow inline-expands to a TextBox + Start/Cancel
              (IsNamingEra) so we don't need a modal dialog for a one-field input.
           ═════════════════════════════════════════════════════════════════ -->
+        <!-- Hero element — a returning user's eye lands here first to see
+             "what am I testing right now?" Padding and type scale bumped up
+             from the surrounding 12pt/6px baseline. -->
         <Border Grid.Row="0"
-                Margin="0,0,0,6"
-                CornerRadius="2"
-                Padding="10,6">
+                Margin="0,0,0,8"
+                CornerRadius="3"
+                Padding="12,9">
             <Border.Style>
                 <Style TargetType="Border">
                     <!-- Default: neutral (no-era state). -->
@@ -56,31 +59,33 @@
                         </Style>
                     </StackPanel.Style>
 
-                    <Ellipse Width="8" Height="8"
+                    <Ellipse Width="10" Height="10"
                              Fill="{StaticResource StatusGreen}"
                              VerticalAlignment="Center"
-                             Margin="0,0,8,0" />
+                             Margin="0,0,10,0" />
                     <TextBlock Text="Testing: "
                                Foreground="{StaticResource TextSecondary}"
                                FontFamily="{StaticResource UIFont}"
-                               FontSize="12"
+                               FontSize="14"
                                VerticalAlignment="Center" />
                     <TextBlock Text="{Binding ActiveEraName}"
                                Foreground="{StaticResource TextPrimary}"
                                FontFamily="{StaticResource UIFont}"
-                               FontWeight="SemiBold"
-                               FontSize="12"
+                               FontWeight="Bold"
+                               FontSize="14"
                                VerticalAlignment="Center" />
                     <TextBlock Text=" — "
                                Foreground="{StaticResource TextSecondary}"
                                FontFamily="{StaticResource UIFont}"
                                FontSize="12"
-                               VerticalAlignment="Center" />
+                               VerticalAlignment="Center"
+                               Margin="0,2,0,0" />
                     <TextBlock Text="{Binding ActiveEraStartText}"
                                Foreground="{StaticResource TextSecondary}"
                                FontFamily="{StaticResource UIFont}"
                                FontSize="12"
-                               VerticalAlignment="Center" />
+                               VerticalAlignment="Center"
+                               Margin="0,2,0,0" />
                     <Button Content="Start new"
                             Command="{Binding StartNextEraCommand}"
                             Style="{StaticResource DarkButton}"
@@ -224,13 +229,17 @@
             </Grid>
         </Border>
 
-        <!-- Section header + type filters -->
+        <!-- Section header + log-test button + type filters.
+             Log Test Result lives here (not on the global action bar) because
+             tests file under the active era — the button wants to sit near
+             the banner that shows what era they'll attach to. -->
         <DockPanel Grid.Row="1">
             <TextBlock Text="TIMELINE"
                        Style="{StaticResource SectionHeader}"
                        DockPanel.Dock="Left" />
-            <StackPanel Orientation="Horizontal"
-                        HorizontalAlignment="Right"
+
+            <StackPanel DockPanel.Dock="Right"
+                        Orientation="Horizontal"
                         VerticalAlignment="Center"
                         Margin="0,0,0,2">
                 <CheckBox Content="Snap" IsChecked="{Binding ShowSnapshot}"
@@ -244,6 +253,21 @@
                           ToolTip="Auto memory retraining between boots. Noisy — off by default." />
                 <CheckBox Content="Drift" IsChecked="{Binding ShowDrift}"
                           Foreground="{StaticResource StatusRed}" FontSize="10" />
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,2">
+                <Button Content="Log test result"
+                        Style="{StaticResource DarkButton}"
+                        Command="{Binding DataContext.LogValidationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                        Padding="10,2"
+                        FontSize="11"
+                        AutomationProperties.Name="Log test result"
+                        ToolTip="Log a stress-test pass or fail under the current tuning config." />
+                <TextBlock Text="{Binding DataContext.ValidationConfirmation, RelativeSource={RelativeSource AncestorType=Window}}"
+                           Foreground="{StaticResource StatusGreen}"
+                           FontSize="11"
+                           VerticalAlignment="Center"
+                           Margin="8,0,0,0" />
             </StackPanel>
         </DockPanel>
 

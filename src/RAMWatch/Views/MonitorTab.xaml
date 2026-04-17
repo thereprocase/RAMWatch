@@ -36,12 +36,26 @@
         <!-- Error Monitor header. Glyph conveys the section's data tier —
              everything below is a live push from Windows Event Log, not a
              periodic scan. -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal">
-            <controls:ProvenanceGlyph SensorKey="EventMonitor" DisplayName="Error Monitor"
-                                      VerticalAlignment="Center" Margin="0,0,6,0" />
-            <TextBlock Text="ERROR MONITOR"
-                       Style="{StaticResource SectionHeader}" />
-        </StackPanel>
+        <DockPanel Grid.Row="0">
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                <controls:ProvenanceGlyph SensorKey="EventMonitor" DisplayName="Error Monitor"
+                                          VerticalAlignment="Center" Margin="0,0,6,0" />
+                <TextBlock Text="ERROR MONITOR"
+                           Style="{StaticResource SectionHeader}" />
+            </StackPanel>
+            <!-- Discoverability hint — the error rows are interactive but
+                 double-click has no visual tell on its own. A faint subtitle
+                 on the section header tells a returning user the count is a
+                 live link into the decoded details. -->
+            <TextBlock Text="Double-click a row for decoded details"
+                       DockPanel.Dock="Right"
+                       Foreground="{StaticResource TextDisabled}"
+                       FontFamily="{StaticResource UIFont}"
+                       FontSize="10"
+                       FontStyle="Italic"
+                       VerticalAlignment="Center"
+                       Margin="0,0,0,2" />
+        </DockPanel>
 
         <!-- Error source table — grouped by severity tier (Stability / System).
              CanContentScroll=False forces pixel-based scrolling which measures columns
@@ -99,9 +113,12 @@
                 </GroupStyle>
             </DataGrid.GroupStyle>
 
-            <!-- Override default WPF blue row selection highlight -->
+            <!-- Override default WPF blue row selection highlight. Hand cursor
+                 signals to a returning user that rows are interactive — without
+                 it, double-click-for-detail is undiscoverable. -->
             <DataGrid.RowStyle>
                 <Style TargetType="DataGridRow">
+                    <Setter Property="Cursor" Value="Hand" />
                     <Style.Triggers>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter Property="Background" Value="{StaticResource BgHover}" />
@@ -110,6 +127,7 @@
                         <!-- Dim zero-count rows so "nothing happened" is instantly visible -->
                         <DataTrigger Binding="{Binding CountSeverity}" Value="None">
                             <Setter Property="Opacity" Value="0.5" />
+                            <Setter Property="Cursor" Value="Arrow" />
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>

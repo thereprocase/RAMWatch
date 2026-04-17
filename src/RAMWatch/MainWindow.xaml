@@ -149,30 +149,20 @@
         <!-- Separator -->
         <Border Grid.Row="3" Height="1" Background="{StaticResource BgAccent}" />
 
-        <!-- Action bar -->
+        <!-- Action bar. Holds only globally-meaningful verbs — "copy the
+             whole-app digest to clipboard" and "force a state refresh." Per-tab
+             verbs (Log Test Result, Save Snapshot) live on the tabs that know
+             what they act on, so a user on Settings isn't being asked to log
+             a test result for nothing. -->
         <Border Grid.Row="4" Padding="16,8">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <!-- Log Test Result + confirmation label on the left -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal">
-                    <Button Content="Log Test Result"
-                            Style="{StaticResource DarkButton}"
-                            Command="{Binding LogValidationCommand}"
-                            AutomationProperties.Name="Log Test Result"
-                            Margin="0,0,8,0" />
-                    <TextBlock Text="{Binding ValidationConfirmation}"
-                               Foreground="{StaticResource StatusGreen}"
-                               FontSize="11"
-                               VerticalAlignment="Center" />
-                </StackPanel>
-
                 <!-- Copy + Refresh on the right -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
                     <Button Content="Copy to Clipboard"
                             Style="{StaticResource DarkButton}"
                             Command="{Binding CopyToClipboardCommand}"

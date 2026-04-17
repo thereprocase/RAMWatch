@@ -52,8 +52,16 @@ public partial class MainWindow : System.Windows.Window
         InputBindings.Add(new KeyBinding(new RelayCommand(() => MainTabControl.SelectedIndex = 3), Key.D4, ModifierKeys.Control));
         InputBindings.Add(new KeyBinding(new RelayCommand(() => MainTabControl.SelectedIndex = 4), Key.D5, ModifierKeys.Control));
         InputBindings.Add(new KeyBinding(new RelayCommand(() => MainTabControl.SelectedIndex = 5), Key.D6, ModifierKeys.Control));
-        // Ctrl+S — show snapshot naming dialog then save
-        InputBindings.Add(new KeyBinding(new RelayCommand(ShowSnapshotDialogAndSave), Key.S, ModifierKeys.Control));
+        // Ctrl+S — show snapshot naming dialog then save. Guard against
+        // the era-naming TextBox: Window-level InputBindings fire even when
+        // a TextBox inside the window has focus, so Ctrl+S mid-type on the
+        // Timeline banner would pop the snapshot dialog on top of the era
+        // naming TextBox. Skip the shortcut while IsNamingEra is true.
+        InputBindings.Add(new KeyBinding(new RelayCommand(() =>
+        {
+            if (_viewModel.Timeline.IsNamingEra) return;
+            ShowSnapshotDialogAndSave();
+        }), Key.S, ModifierKeys.Control));
     }
 
     private async void OnLoaded(object sender, System.Windows.RoutedEventArgs e)
