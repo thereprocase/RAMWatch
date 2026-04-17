@@ -162,6 +162,12 @@ public partial class TimingsViewModel : ObservableObject
     [ObservableProperty]
     private string _biosLayoutLabel = "";
 
+    // True when the UMC decoder detected the AGESA ComboAM4v2PI 1.2.0.x
+    // tRFC readback magic-value (0x21060138) on reg260 — displayed tRFC/tRFC2/tRFC4
+    // values are zeroed because the hardware returns garbage, not actual timings.
+    [ObservableProperty]
+    private bool _trfcReadbackBugDetected;
+
     // ── Dynamic timing groups ────────────────────────────────
     // Built from the vendor BIOS layout — replaces the old per-field properties
     // for the timing section between Clocks and Voltages.
@@ -221,11 +227,14 @@ public partial class TimingsViewModel : ObservableObject
         {
             HasTimings = false;
             PrimaryTimingsLabel = "";
+            TrfcReadbackBugDetected = false;
             TimingDisplayGroups.Clear();
             LeftColumnGroups = [];
             RightColumnGroups = [];
             return;
         }
+
+        TrfcReadbackBugDetected = snapshot.TrfcReadbackBugDetected;
 
         // Primary timings summary label — "CL16-20-20-42" format used in snapshot names.
         PrimaryTimingsLabel = $"CL{snapshot.CL}-{snapshot.RCDRD}-{snapshot.RP}-{snapshot.RAS}";

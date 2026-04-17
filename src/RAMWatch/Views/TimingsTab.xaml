@@ -218,6 +218,43 @@
                     </TextBlock.Style>
                 </TextBlock>
 
+                <!-- tRFC readback bug banner. Visible only when the UMC decoder
+                     detected the ComboAM4v2PI 1.2.0.x magic value on reg260; in
+                     that state tRFC/tRFC2/tRFC4 have been zeroed because hardware
+                     reads return garbage rather than actual timing values. -->
+                <Border Background="#33FFB300"
+                        BorderBrush="{StaticResource StatusAmber}"
+                        BorderThickness="1"
+                        CornerRadius="2"
+                        Padding="8,4"
+                        Margin="0,0,0,6">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding TrfcReadbackBugDetected}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#x26A0;"
+                                   Foreground="{StaticResource StatusAmber}"
+                                   FontFamily="{StaticResource UIFont}"
+                                   FontSize="14"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0" />
+                        <TextBlock Foreground="{StaticResource TextPrimary}"
+                                   FontFamily="{StaticResource UIFont}"
+                                   FontSize="12"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Center">
+                            <Run Text="tRFC readback bug active on this AGESA — displayed RFC values are unreliable and shown as 0." />
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
                 <!-- Two-column masonry layout.
                      Each column is an independent StackPanel so groups pack tight
                      with no row alignment forced across columns (fixes wasted space
