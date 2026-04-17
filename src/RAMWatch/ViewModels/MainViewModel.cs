@@ -88,6 +88,14 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _lastUpdateText = "Updated: --";
 
+    // Composed from the service's SystemInfoReader output (CPU codename,
+    // BIOS version, AGESA version) once a state push arrives. Shown on the
+    // status header above the tab control so users can see the board the
+    // service locked onto without leaving the Monitor tab. Blank until the
+    // service sends its first state message with a populated TimingSnapshot.
+    [ObservableProperty]
+    private string _systemInfoText = "";
+
     [ObservableProperty]
     private string _driverStatus = "unknown";
 
@@ -611,6 +619,17 @@ public partial class MainViewModel : ObservableObject
         UptimeText = FormatUptime(systemUptime);
         LastUpdateText = $"Updated: {state.Timestamp.ToLocalTime():HH:mm:ss}";
         DriverStatus = state.DriverStatus;
+
+        // Board/CPU/BIOS line for the status header. Empty strings are
+        // skipped so the "  |  " separators don't leave dangling bars.
+        if (state.Timings is { } st)
+        {
+            var parts = new List<string>();
+            if (!string.IsNullOrWhiteSpace(st.CpuCodename))   parts.Add(st.CpuCodename);
+            if (!string.IsNullOrWhiteSpace(st.BiosVersion))   parts.Add($"BIOS {st.BiosVersion}");
+            if (!string.IsNullOrWhiteSpace(st.AgesaVersion))  parts.Add($"AGESA {st.AgesaVersion}");
+            SystemInfoText = string.Join("  |  ", parts);
+        }
 
         // Resolved board vendor — set before the Timings call below so the
         // Settings tab can also display it.

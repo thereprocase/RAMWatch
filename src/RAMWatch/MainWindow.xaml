@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:RAMWatch.ViewModels"
         xmlns:views="clr-namespace:RAMWatch.Views"
+        xmlns:controls="clr-namespace:RAMWatch.Controls"
         Title="RAMWatch v0.1.0"
         Icon="app.ico"
         Width="520" Height="720"
@@ -89,6 +90,27 @@
                     <Run Text="  |  " />
                     <Run Text="{Binding LastUpdateText, Mode=OneWay}" />
                 </TextBlock>
+
+                <!-- System info line. Static glyph — board/CPU/BIOS strings
+                     captured once at service startup. Collapsed until the
+                     service sends a populated TimingSnapshot. -->
+                <StackPanel Orientation="Horizontal" Margin="22,2,0,0">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding SystemInfoText}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+                    <controls:ProvenanceGlyph SensorKey="SystemInfo" DisplayName="System"
+                                              VerticalAlignment="Center" Margin="0,0,6,0" />
+                    <TextBlock Text="{Binding SystemInfoText, Mode=OneWay}"
+                               Style="{StaticResource SecondaryText}"
+                               VerticalAlignment="Center" />
+                </StackPanel>
             </StackPanel>
         </Border>
 

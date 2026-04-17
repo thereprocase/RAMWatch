@@ -81,6 +81,9 @@ public static class SensorProvenanceRegistry
     private const string SrcSvi2        = "SVI2 registers";
     private const string SrcUmc         = "UMC registers";
     private const string SrcBiosWmi     = "BIOS AMD_ACPI WMI";
+    private const string SrcEventLog    = "Windows Event Log";
+    private const string SrcCbsLog      = "CBS.log tail";
+    private const string SrcRegistry    = "Windows registry + WMI";
 
     // Canned detail strings keep the tooltip voice consistent across tiles.
     private const string DetMeasTemp =
@@ -144,6 +147,27 @@ public static class SensorProvenanceRegistry
         ["AddrCmdDrvStren"] = SensorProvenanceInfo.Static(SrcBiosWmi, DetStatSignal),
         ["CsOdtCmdDrvStren"] = SensorProvenanceInfo.Static(SrcBiosWmi, DetStatSignal),
         ["CkeDrvStren"]     = SensorProvenanceInfo.Static(SrcBiosWmi, DetStatSignal),
+
+        // ── Non-sensor surfaces (section headers, info lines) ────
+        // Event Monitor table is a live push feed; the row counts update
+        // in real time as Windows delivers EventLogWatcher callbacks.
+        ["EventMonitor"] = SensorProvenanceInfo.Measured(
+            SrcEventLog,
+            "Every row below is a live push from Windows Event Log. Counts update in real time via EventLogWatcher kernel callbacks — zero CPU between events."),
+
+        // Integrity panel blends CBS.log tail (warm-polled) with SFC/DISM
+        // on-demand outputs; classify as Reported since the dominant tier
+        // is periodic polling of a filesystem log.
+        ["Integrity"] = SensorProvenanceInfo.Reported(
+            SrcCbsLog,
+            "Component-based servicing (CBS) log is scanned every warm tick (30–60s). SFC/DISM results appear here only when you run them manually."),
+
+        // Board / CPU / BIOS line — read once from the registry + WMI at
+        // service startup; goes stale only if the user flashes BIOS
+        // without rebooting (rare, deferred).
+        ["SystemInfo"] = SensorProvenanceInfo.Static(
+            SrcRegistry,
+            "CPU codename, BIOS version, and AGESA version captured once at service startup from HKLM\\HARDWARE\\DESCRIPTION\\System\\BIOS. Stale only if you flash BIOS without rebooting."),
     };
 
     /// <summary>

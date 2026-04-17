@@ -36,6 +36,9 @@ public class SensorProvenanceTests
     [InlineData("AddrCmdDrvStren", Provenance.Static,   "BIOS AMD_ACPI WMI")]
     [InlineData("CsOdtCmdDrvStren",Provenance.Static,   "BIOS AMD_ACPI WMI")]
     [InlineData("CkeDrvStren",     Provenance.Static,   "BIOS AMD_ACPI WMI")]
+    [InlineData("EventMonitor",    Provenance.Measured, "Windows Event Log")]
+    [InlineData("Integrity",       Provenance.Reported, "CBS.log tail")]
+    [InlineData("SystemInfo",      Provenance.Static,   "Windows registry + WMI")]
     public void Registry_For_ReturnsExpectedTier(string key, Provenance expectedTier, string expectedSource)
     {
         var info = SensorProvenanceRegistry.For(key);

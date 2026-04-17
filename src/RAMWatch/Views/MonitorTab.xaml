@@ -1,6 +1,7 @@
 <UserControl x:Class="RAMWatch.Views.MonitorTab"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:RAMWatch.Controls">
 
     <UserControl.Resources>
         <!-- Group the error source collection by IsStability so stability sources
@@ -32,10 +33,15 @@
             <RowDefinition Height="Auto" />   <!-- Integrity panel -->
         </Grid.RowDefinitions>
 
-        <!-- Error Monitor header -->
-        <TextBlock Grid.Row="0"
-                   Text="ERROR MONITOR"
-                   Style="{StaticResource SectionHeader}" />
+        <!-- Error Monitor header. Glyph conveys the section's data tier —
+             everything below is a live push from Windows Event Log, not a
+             periodic scan. -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal">
+            <controls:ProvenanceGlyph SensorKey="EventMonitor" DisplayName="Error Monitor"
+                                      VerticalAlignment="Center" Margin="0,0,6,0" />
+            <TextBlock Text="ERROR MONITOR"
+                       Style="{StaticResource SectionHeader}" />
+        </StackPanel>
 
         <!-- Error source table — grouped by severity tier (Stability / System).
              CanContentScroll=False forces pixel-based scrolling which measures columns
@@ -205,10 +211,15 @@
             </DataGrid.Columns>
         </DataGrid>
 
-        <!-- Integrity header -->
-        <TextBlock Grid.Row="3"
-                   Text="INTEGRITY"
-                   Style="{StaticResource SectionHeader}" />
+        <!-- Integrity header. Glyph conveys the section's data tier — CBS.log
+             is polled every warm tick (30–60s); SFC/DISM rows only appear
+             when the user has run those tools. -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal">
+            <controls:ProvenanceGlyph SensorKey="Integrity" DisplayName="Integrity"
+                                      VerticalAlignment="Center" Margin="0,0,6,0" />
+            <TextBlock Text="INTEGRITY"
+                       Style="{StaticResource SectionHeader}" />
+        </StackPanel>
 
         <!-- Integrity panel -->
         <Border Grid.Row="4"
