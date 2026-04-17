@@ -47,6 +47,12 @@ public sealed class RamWatchService : BackgroundService
     // Timestamp of service readiness — used to compute uptime in the stop event.
     private DateTime _serviceStartedAt;
 
+    // Shutdown barrier. Set to true at the top of StopAsync before any
+    // component is disposed. Callback paths that run on arbitrary threads
+    // (EventLogWatcher, PeriodicTimer) check this and bail out rather than
+    // racing dispose of the pipe server, CSV loggers, or hardware reader.
+    private volatile bool _shuttingDown;
+
     // Boot baseline — rolling 50-boot event count history for normal/elevated coloring
     private BootBaselineJournal? _baselineJournal;
 
@@ -242,14 +248,24 @@ public sealed class RamWatchService : BackgroundService
         if (_baselineJournal is not null && _eventLog is not null)
             _baselineJournal.RecordBoot(_bootId, _eventLog.GetErrorSources());
 
-        // Emit a stop marker so CSV readers can see the service shut down cleanly
-        // (rather than inferring shutdown from log silence).
+        // Emit the stop marker BEFORE flipping the shutdown barrier so it
+        // flows through the normal event path (CSV + mirror + broadcast).
         var uptime = _serviceStartedAt == default
             ? TimeSpan.Zero
             : DateTime.UtcNow - _serviceStartedAt;
         EmitLifecycleEvent(
             EventSeverity.Info,
             $"Service stopping. Uptime: {(int)uptime.TotalHours:D2}:{uptime.Minutes:D2}:{uptime.Seconds:D2}.");
+
+        // Flip the shutdown barrier. Callback threads entering OnEventDetected
+        // after this point early-return before touching any disposed service.
+        _shuttingDown = true;
+
+        // Unsubscribe from EventLog callbacks and give any in-flight callbacks
+        // a brief window to notice the barrier before we dispose what they use.
+        if (_eventLog is not null)
+            _eventLog.EventDetected -= OnEventDetected;
+        await Task.Delay(50, CancellationToken.None);
 
         _eventLog?.Dispose();
         _csvLogger?.Dispose();
@@ -511,33 +527,59 @@ public sealed class RamWatchService : BackgroundService
 
     private void OnEventDetected(MonitoredEvent evt)
     {
-        // For hardware events (WHEA, bugcheck, etc.), capture a thermal/power
-        // snapshot at the moment of the event. Direct SMN reads take ~5μs —
-        // fast enough for the EventLogWatcher callback thread.
-        if (evt.Category == EventCategory.Hardware && _hardwareReader is { IsAvailable: true })
+        // Shutdown barrier — the EventLogWatcher callback runs on an
+        // arbitrary thread pool thread. If StopAsync has begun, the
+        // hardware reader / CSV loggers / pipe server may be mid-dispose;
+        // any attempt to touch them would throw ObjectDisposedException
+        // from inside a callback the .NET runtime can't recover from.
+        if (_shuttingDown) return;
+
+        try
         {
-            try
+            // For hardware events (WHEA, bugcheck, etc.), capture a thermal/power
+            // snapshot at the moment of the event. Direct SMN reads take ~5μs —
+            // fast enough for the EventLogWatcher callback thread.
+            if (evt.Category == EventCategory.Hardware && _hardwareReader is { IsAvailable: true })
             {
-                var vitals = _hardwareReader.ReadThermalPower();
-                if (vitals is not null)
-                    evt = evt with { Vitals = vitals };
+                try
+                {
+                    var vitals = _hardwareReader.ReadThermalPower();
+                    if (vitals is not null)
+                        evt = evt with { Vitals = vitals };
+                }
+                catch { /* Non-fatal — event continues without vitals */ }
             }
-            catch { /* Non-fatal — event continues without vitals */ }
-        }
 
-        // Log to CSV
-        if (_settings.Current.EnableCsvLogging && _csvLogger is not null)
+            // Log to CSV
+            if (_settings.Current.EnableCsvLogging && _csvLogger is not null)
+            {
+                _csvLogger.LogEvent(evt, _bootId);
+
+                // Fire-and-forget copy to mirror directory (Dropbox, OneDrive, etc.)
+                var currentPath = _csvLogger.CurrentFilePath;
+                if (!string.IsNullOrEmpty(currentPath))
+                    _mirrorLogger?.EnqueueCopy(currentPath);
+            }
+
+            // Broadcast to connected GUI clients. Attach a continuation so a
+            // disposed-pipe exception during shutdown is observed and logged
+            // rather than escalating to an UnobservedTaskException.
+            var broadcast = _aggregator?.BroadcastEventAsync(evt);
+            if (broadcast is not null)
+            {
+                _ = broadcast.ContinueWith(
+                    t => _logger.LogDebug(t.Exception, "BroadcastEventAsync failed (likely shutdown)"),
+                    TaskContinuationOptions.OnlyOnFaulted);
+            }
+        }
+        catch (ObjectDisposedException)
         {
-            _csvLogger.LogEvent(evt, _bootId);
-
-            // Fire-and-forget copy to mirror directory (Dropbox, OneDrive, etc.)
-            var currentPath = _csvLogger.CurrentFilePath;
-            if (!string.IsNullOrEmpty(currentPath))
-                _mirrorLogger?.EnqueueCopy(currentPath);
+            // Shutdown race narrowly won by dispose — the _shuttingDown check
+            // above closes the window for callbacks arriving after dispose
+            // starts, but a callback already in flight when the flag flips
+            // can still reach here. Swallow silently; the event is lost but
+            // the service doesn't crash.
         }
-
-        // Broadcast to connected GUI clients
-        _ = _aggregator?.BroadcastEventAsync(evt);
     }
 
     private async Task OnClientMessage(string line, ConnectedClient client)
