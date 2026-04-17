@@ -375,6 +375,35 @@ public static class BiosWmiReader
     /// </summary>
     private static readonly TimeSpan PowerShellTimeout = TimeSpan.FromSeconds(10);
 
+    /// <summary>
+    /// Wait for a read task with a wall-clock timeout. On timeout, invoke the
+    /// supplied kill action (which in production closes the child's stdout so
+    /// the ReadToEnd worker returns), wait up to 2s for the worker to observe
+    /// the close, and signal failure. Extracted as an internal method so the
+    /// timeout + kill contract is exercisable without a live powershell.exe.
+    /// </summary>
+    /// <returns>
+    /// True and the read task's result when the task completes within the
+    /// timeout; false and an empty string when the timeout fires.
+    /// </returns>
+    internal static bool TryReadWithTimeout(
+        Task<string> readTask,
+        Action killProcess,
+        TimeSpan timeout,
+        out string output)
+    {
+        if (readTask.Wait(timeout))
+        {
+            output = readTask.Result;
+            return true;
+        }
+
+        try { killProcess(); } catch { }
+        try { readTask.Wait(TimeSpan.FromSeconds(2)); } catch { }
+        output = "";
+        return false;
+    }
+
     private static string RunPowerShellCore(string script, bool firstLineOnly)
     {
         Process? process = null;
@@ -408,17 +437,16 @@ public static class BiosWmiReader
                 catch { return ""; }
             });
 
-            if (!readTask.Wait(PowerShellTimeout))
+            var localProcess = process;
+            if (!TryReadWithTimeout(
+                    readTask,
+                    killProcess: () => { try { localProcess.Kill(entireProcessTree: true); } catch { } },
+                    timeout: PowerShellTimeout,
+                    out string output))
             {
-                // Child is hung. Kill the process tree; the Kill closes stdout
-                // which lets readTask complete naturally. Wait briefly so the
-                // read worker observes the close before finally-dispose runs.
-                try { process.Kill(entireProcessTree: true); } catch { }
-                try { readTask.Wait(2000); } catch { }
                 return "0";
             }
 
-            string output = readTask.Result;
             process.WaitForExit(2000);
 
             if (!firstLineOnly) return output.Trim();

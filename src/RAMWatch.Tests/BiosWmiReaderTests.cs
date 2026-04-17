@@ -182,4 +182,75 @@ public class BiosWmiReaderTests
         // Must not throw. VDimm is 0 (not found) or a plausible voltage.
         Assert.True(result.VDimm == 0.0 || (result.VDimm >= 0.3 && result.VDimm <= 2.5));
     }
+
+    // ── Timeout helper ──────────────────────────────────────────────────────
+    // These exercise the wall-clock timeout path lifted out of RunPowerShellCore.
+    // WMI's AMD_ACPI queries have hung indefinitely on real boxes under the
+    // HardwareReader driver lock; the in-process helper below is what stops
+    // that from taking the service with it. Kept close to the source contract
+    // (completes → true + value, doesn't complete → kill + false + "").
+
+    [Fact]
+    public void TryReadWithTimeout_TaskCompletesBeforeTimeout_ReturnsResultWithoutKilling()
+    {
+        var completed = Task.FromResult("1350,675,2500,0,0,0,0,0,0,0,0,0,0,0");
+        bool killCalled = false;
+
+        bool ok = BiosWmiReader.TryReadWithTimeout(
+            completed,
+            killProcess: () => killCalled = true,
+            timeout: TimeSpan.FromSeconds(1),
+            out string output);
+
+        Assert.True(ok);
+        Assert.False(killCalled);
+        Assert.Equal("1350,675,2500,0,0,0,0,0,0,0,0,0,0,0", output);
+    }
+
+    [Fact]
+    public void TryReadWithTimeout_TaskBlocksPastTimeout_InvokesKillAndReturnsFalse()
+    {
+        // TCS never completes on its own. killProcess simulates production's
+        // Kill → stdout-closed → ReadToEnd-returns path by completing the TCS.
+        var tcs = new TaskCompletionSource<string>();
+        int killCalls = 0;
+
+        bool ok = BiosWmiReader.TryReadWithTimeout(
+            tcs.Task,
+            killProcess: () =>
+            {
+                Interlocked.Increment(ref killCalls);
+                tcs.TrySetResult("(interrupted)");
+            },
+            timeout: TimeSpan.FromMilliseconds(150),
+            out string output);
+
+        Assert.False(ok);
+        Assert.Equal(1, killCalls);
+        // Output must be the timeout sentinel ("") even though the TCS
+        // eventually yielded a result after kill — the caller needs to see
+        // failure, not the post-kill garbage.
+        Assert.Equal("", output);
+    }
+
+    [Fact]
+    public void TryReadWithTimeout_KillThrowing_StillReturnsFalseWithEmptyOutput()
+    {
+        // Production wraps Kill in try/catch because Kill can race with child
+        // exit and throw InvalidOperationException. This check asserts the
+        // helper doesn't propagate that exception and still surfaces failure.
+        var tcs = new TaskCompletionSource<string>();
+
+        bool ok = BiosWmiReader.TryReadWithTimeout(
+            tcs.Task,
+            killProcess: () => throw new InvalidOperationException("kill raced exit"),
+            timeout: TimeSpan.FromMilliseconds(100),
+            out string output);
+
+        Assert.False(ok);
+        Assert.Equal("", output);
+        // tcs left uncompleted — the helper's post-kill Wait(2s) fires its own
+        // timeout and the test returns cleanly. The tcs is garbage-collected
+        // when the test method exits; nothing observes it.
+    }
 }
