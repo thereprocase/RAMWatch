@@ -258,6 +258,15 @@ public sealed class SmuDecode : IDisposable
         if ((raw & 0xFF00u) != 0) return;
 
         uint vid = (raw >> 16) & 0xFF;
+
+        // VID=0 decodes to 1.55V via the standard formula. A live CPU plane
+        // should never legitimately read VID=0 (that would be an alarm-level
+        // voltage near the damage threshold, and idle planes operate in the
+        // 0x40–0xA0 range). Treat it as the all-zero-read sentinel from a
+        // transient SMN issue rather than reporting a plausible-looking
+        // 1.55V value that would trip every voltage safety threshold.
+        if (vid == 0) return;
+
         double voltage = VidToVoltage(vid);
 
         // Plausibility: desktop Zen 2/3 voltages are typically 0.9–1.3 V.
