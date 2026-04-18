@@ -83,9 +83,20 @@ public sealed class PipeClient : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Last exception observed inside <see cref="ReadLinesAsync"/>. Set on
+    /// any non-cancellation failure before the stream yields break. Callers
+    /// that need to distinguish a clean end-of-stream from a read failure can
+    /// check this after the enumerable completes. Cleared at the start of
+    /// each <see cref="ReadLinesAsync"/> call.
+    /// </summary>
+    public Exception? LastReadException { get; private set; }
+
     public async IAsyncEnumerable<string> ReadLinesAsync(
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
+        LastReadException = null;
+
         if (_reader is null)
             yield break;
 
@@ -97,7 +108,14 @@ public sealed class PipeClient : IAsyncDisposable
                 line = await _reader.ReadLineAsync(ct);
             }
             catch (OperationCanceledException) { yield break; }
-            catch { yield break; }
+            catch (Exception ex)
+            {
+                // Read failed for reasons other than cancellation. Surface the
+                // cause via LastReadException so the caller can log/reconnect
+                // with full context instead of a silent stream end.
+                LastReadException = ex;
+                yield break;
+            }
 
             if (line is null)
                 yield break;

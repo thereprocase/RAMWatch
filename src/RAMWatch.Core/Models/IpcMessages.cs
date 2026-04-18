@@ -48,6 +48,16 @@ public sealed class ThermalUpdateMessage : IpcMessage
     public double VCore { get; init; }
     /// <summary>SVI2 VSoC — shifts with fabric load.</summary>
     public double VSoc { get; init; }
+
+    /// <summary>
+    /// ID of the active timing snapshot at capture time. Lets consumers
+    /// correlate thermal deltas to the OC fingerprint in effect when the
+    /// reading was taken, even across subsequent timing changes.
+    /// Null when no active snapshot is known (e.g. pre-boot-capture window).
+    /// JSON key: "snapshot_id".
+    /// </summary>
+    [JsonPropertyName("snapshot_id")]
+    public string? SnapshotId { get; init; }
 }
 
 public sealed class ResponseMessage : IpcMessage
