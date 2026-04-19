@@ -8,14 +8,10 @@
     <Grid Margin="8,8,8,0">
 
         <!-- No-driver overlay — visible when HasTimings is false -->
-        <TextBlock Text="Timing display requires PawnIO driver"
-                   Foreground="{StaticResource TextDisabled}"
-                   FontFamily="{StaticResource UIFont}"
-                   FontSize="12"
-                   HorizontalAlignment="Center"
-                   VerticalAlignment="Center">
-            <TextBlock.Style>
-                <Style TargetType="TextBlock">
+        <StackPanel HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+            <StackPanel.Style>
+                <Style TargetType="StackPanel">
                     <Setter Property="Visibility" Value="Collapsed" />
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding HasTimings}" Value="False">
@@ -23,8 +19,29 @@
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>
-            </TextBlock.Style>
-        </TextBlock>
+            </StackPanel.Style>
+            <TextBlock Text="Timing display requires PawnIO driver"
+                       Foreground="{StaticResource TextDisabled}"
+                       FontFamily="{StaticResource UIFont}"
+                       FontSize="12"
+                       HorizontalAlignment="Center" />
+            <TextBlock FontFamily="{StaticResource UIFont}"
+                       FontSize="11"
+                       HorizontalAlignment="Center"
+                       Margin="0,6,0,0">
+                <Hyperlink NavigateUri="https://pawnio.eu/"
+                           RequestNavigate="OnHyperlinkRequestNavigate"
+                           Foreground="{StaticResource InteractiveBlue}">
+                    What's PawnIO? (install page)
+                </Hyperlink>
+            </TextBlock>
+            <TextBlock Text="Signed kernel driver used to read AMD UMC registers."
+                       Foreground="{StaticResource TextDisabled}"
+                       FontFamily="{StaticResource UIFont}"
+                       FontSize="10"
+                       HorizontalAlignment="Center"
+                       Margin="0,4,0,0" />
+        </StackPanel>
 
         <!-- Timing grid — visible only when HasTimings is true -->
         <ScrollViewer VerticalScrollBarVisibility="Auto"

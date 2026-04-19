@@ -120,6 +120,14 @@
                                Style="{StaticResource SecondaryText}"
                                VerticalAlignment="Center" />
                 </StackPanel>
+
+                <!-- Provenance legend strip. Persistent reference for the
+                     three-axis glyphs scattered across the tabs — shape,
+                     fill, border ring. Kept compact so it doesn't dominate
+                     the header; readers who already know the vocabulary
+                     can ignore it. -->
+                <controls:DotLegend Margin="22,6,0,0"
+                                    HorizontalAlignment="Left" />
             </StackPanel>
         </Border>
 
