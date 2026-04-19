@@ -68,6 +68,8 @@ public class SettingsViewModelReflectionTests
         AlwaysOnTop              = true,
         LaunchAtLogon            = true,
         RefreshIntervalSeconds   = 123,   // inside clamp range 5..3600
+        HotTierSeconds           = 7,     // inside 1..30, distinct from default 3
+        ClockTickSeconds         = 2,     // inside 1..10, distinct from default 1
         EnableCsvLogging         = false,
         LogDirectory             = @"D:\custom\logs",
         LogRetentionDays         = 45,    // inside 1..3650

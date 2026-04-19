@@ -23,6 +23,11 @@ public sealed class AppSettings
     public void ClampNumerics()
     {
         RefreshIntervalSeconds = Math.Clamp(RefreshIntervalSeconds, 5, 3600);
+        // Hot tier: 1–30s. Below 1s saturates the SMN; above 30s feels stale.
+        HotTierSeconds = Math.Clamp(HotTierSeconds, 1, 30);
+        // Clock tick: 1–10s. 1Hz is the natural "seconds counter" rhythm;
+        // above 10s the uptime display visibly stutters.
+        ClockTickSeconds = Math.Clamp(ClockTickSeconds, 1, 10);
         // Retention: min 1 day (avoid deleting today's log on next startup),
         // max ~10 years (arbitrary ceiling so AddDays math can't overflow).
         LogRetentionDays = Math.Clamp(LogRetentionDays, 1, 3650);
@@ -91,8 +96,13 @@ public sealed class AppSettings
     public bool AlwaysOnTop { get; set; }
     public bool LaunchAtLogon { get; set; }
 
-    // Monitoring
+    // Monitoring — three-tier polling.
+    //   Warm  — full timing re-read + state broadcast. Honors B7 file I/O.
+    //   Hot   — thermals + SVI2 voltages. Direct SMN reads, ~sub-ms.
+    //   Clock — GUI uptime / freshness tick. Pure presentation, no I/O.
     public int RefreshIntervalSeconds { get; set; } = 60;
+    public int HotTierSeconds { get; set; } = 3;
+    public int ClockTickSeconds { get; set; } = 1;
 
     // Logging
     public bool EnableCsvLogging { get; set; } = true;

@@ -65,24 +65,77 @@
                 <Border Background="{StaticResource BgPanel}"
                         CornerRadius="0,0,2,2"
                         Padding="12,8">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="Refresh interval"
-                                   Foreground="{StaticResource TextPrimary}"
-                                   VerticalAlignment="Center"
-                                   Margin="0,0,8,0" />
-                        <TextBox Width="60"
-                                 Text="{Binding RefreshIntervalSeconds, UpdateSourceTrigger=PropertyChanged}"
-                                 PreviewTextInput="NumericOnly_PreviewTextInput"
-                                 Background="{StaticResource BgAccent}"
-                                 Foreground="{StaticResource TextPrimary}"
-                                 BorderThickness="0"
-                                 Padding="6,3"
-                                 FontFamily="{StaticResource MonoFont}"
-                                 VerticalAlignment="Center" />
-                        <TextBlock Text="seconds"
-                                   Foreground="{StaticResource TextSecondary}"
-                                   VerticalAlignment="Center"
-                                   Margin="6,0,0,0" />
+                    <StackPanel>
+                        <!-- Warm: full timing read + state broadcast. -->
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,2,0,4">
+                            <TextBlock Text="Warm refresh"
+                                       Foreground="{StaticResource TextPrimary}"
+                                       VerticalAlignment="Center"
+                                       Width="110" />
+                            <TextBox Width="60"
+                                     Text="{Binding RefreshIntervalSeconds, UpdateSourceTrigger=PropertyChanged}"
+                                     PreviewTextInput="NumericOnly_PreviewTextInput"
+                                     Background="{StaticResource BgAccent}"
+                                     Foreground="{StaticResource TextPrimary}"
+                                     BorderThickness="0"
+                                     Padding="6,3"
+                                     FontFamily="{StaticResource MonoFont}"
+                                     VerticalAlignment="Center" />
+                            <TextBlock Text="seconds — full timing read + state broadcast (5–3600)"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       VerticalAlignment="Center"
+                                       FontSize="11"
+                                       Margin="6,0,0,0" />
+                        </StackPanel>
+
+                        <!-- Hot: thermals + SVI2 voltages. -->
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,2,0,4">
+                            <TextBlock Text="Hot refresh"
+                                       Foreground="{StaticResource TextPrimary}"
+                                       VerticalAlignment="Center"
+                                       Width="110" />
+                            <TextBox Width="60"
+                                     Text="{Binding HotTierSeconds, UpdateSourceTrigger=PropertyChanged}"
+                                     PreviewTextInput="NumericOnly_PreviewTextInput"
+                                     Background="{StaticResource BgAccent}"
+                                     Foreground="{StaticResource TextPrimary}"
+                                     BorderThickness="0"
+                                     Padding="6,3"
+                                     FontFamily="{StaticResource MonoFont}"
+                                     VerticalAlignment="Center" />
+                            <TextBlock Text="seconds — thermals + SVI2 voltages (1–30)"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       VerticalAlignment="Center"
+                                       FontSize="11"
+                                       Margin="6,0,0,0" />
+                        </StackPanel>
+
+                        <!-- Clock: GUI-side uptime / freshness tick. -->
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,2,0,4">
+                            <TextBlock Text="Clock tick"
+                                       Foreground="{StaticResource TextPrimary}"
+                                       VerticalAlignment="Center"
+                                       Width="110" />
+                            <TextBox Width="60"
+                                     Text="{Binding ClockTickSeconds, UpdateSourceTrigger=PropertyChanged}"
+                                     PreviewTextInput="NumericOnly_PreviewTextInput"
+                                     Background="{StaticResource BgAccent}"
+                                     Foreground="{StaticResource TextPrimary}"
+                                     BorderThickness="0"
+                                     Padding="6,3"
+                                     FontFamily="{StaticResource MonoFont}"
+                                     VerticalAlignment="Center" />
+                            <TextBlock Text="seconds — uptime/updated counters (1–10, paused when hidden)"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       VerticalAlignment="Center"
+                                       FontSize="11"
+                                       Margin="6,0,0,0" />
+                        </StackPanel>
+
+                        <TextBlock Text="Cold-tier timings re-read on boot and on demand (Refresh button)."
+                                   Foreground="{StaticResource TextDisabled}"
+                                   FontSize="10"
+                                   Margin="0,6,0,0" />
                     </StackPanel>
                 </Border>
             </Expander>

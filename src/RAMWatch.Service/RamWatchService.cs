@@ -234,7 +234,8 @@ public sealed class RamWatchService : BackgroundService
         // COLD (boot + trigger): UMC timings, WMI (already done above)
         try
         {
-            var hotTimer = new PeriodicTimer(TimeSpan.FromSeconds(3));
+            var hotInterval = TimeSpan.FromSeconds(_settings.Current.HotTierSeconds);
+            var hotTimer = new PeriodicTimer(hotInterval);
             var warmInterval = TimeSpan.FromSeconds(_settings.Current.RefreshIntervalSeconds);
             var warmTimer = new PeriodicTimer(warmInterval);
 

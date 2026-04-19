@@ -127,6 +127,12 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private int _refreshIntervalSeconds = 60;
 
+    [ObservableProperty]
+    private int _hotTierSeconds = 3;
+
+    [ObservableProperty]
+    private int _clockTickSeconds = 1;
+
     // ── Logging ──────────────────────────────────────────────
 
     [ObservableProperty]
@@ -327,6 +333,8 @@ public partial class SettingsViewModel : ObservableObject
         AlwaysOnTop              = settings.AlwaysOnTop;
         LaunchAtLogon            = settings.LaunchAtLogon;
         RefreshIntervalSeconds   = settings.RefreshIntervalSeconds;
+        HotTierSeconds           = settings.HotTierSeconds;
+        ClockTickSeconds         = settings.ClockTickSeconds;
         EnableCsvLogging         = settings.EnableCsvLogging;
         LogRetentionDays         = settings.LogRetentionDays;
         MaxLogSizeMb             = settings.MaxLogSizeMb;
@@ -374,6 +382,8 @@ public partial class SettingsViewModel : ObservableObject
             AlwaysOnTop              = AlwaysOnTop,
             LaunchAtLogon            = LaunchAtLogon,
             RefreshIntervalSeconds   = RefreshIntervalSeconds,
+            HotTierSeconds           = HotTierSeconds,
+            ClockTickSeconds         = ClockTickSeconds,
             EnableCsvLogging         = EnableCsvLogging,
             LogRetentionDays         = LogRetentionDays,
             MaxLogSizeMb             = MaxLogSizeMb,

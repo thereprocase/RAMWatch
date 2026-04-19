@@ -156,6 +156,8 @@ public sealed class SettingsManager
         AlwaysOnTop              = src.AlwaysOnTop,
         LaunchAtLogon            = src.LaunchAtLogon,
         RefreshIntervalSeconds   = src.RefreshIntervalSeconds,
+        HotTierSeconds           = src.HotTierSeconds,
+        ClockTickSeconds         = src.ClockTickSeconds,
         EnableCsvLogging         = src.EnableCsvLogging,
         LogDirectory             = src.LogDirectory,
         LogRetentionDays         = src.LogRetentionDays,
@@ -192,6 +194,8 @@ public sealed class SettingsManager
                 case "alwaysOnTop":              target.AlwaysOnTop              = prop.Value.GetBoolean(); break;
                 case "launchAtLogon":            target.LaunchAtLogon            = prop.Value.GetBoolean(); break;
                 case "refreshIntervalSeconds":   target.RefreshIntervalSeconds   = prop.Value.GetInt32();   break;
+                case "hotTierSeconds":           target.HotTierSeconds           = prop.Value.GetInt32();   break;
+                case "clockTickSeconds":         target.ClockTickSeconds         = prop.Value.GetInt32();   break;
                 case "enableCsvLogging":         target.EnableCsvLogging         = prop.Value.GetBoolean(); break;
                 case "logDirectory":             target.LogDirectory             = prop.Value.GetString() ?? ""; break;
                 case "logRetentionDays":         target.LogRetentionDays         = prop.Value.GetInt32();   break;
