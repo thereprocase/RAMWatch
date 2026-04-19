@@ -243,19 +243,19 @@
                         VerticalAlignment="Center"
                         Margin="0,0,0,2">
                 <CheckBox Content="Snap" IsChecked="{Binding ShowSnapshot}"
-                          Foreground="{StaticResource StatusGreen}" FontSize="10" Margin="0,0,6,0" />
+                          Foreground="{StaticResource StatusGreen}" FontSize="11" Margin="0,0,6,0" />
                 <CheckBox Content="Pass" IsChecked="{Binding ShowPass}"
-                          Foreground="{StaticResource StatusGreen}" FontSize="10" Margin="0,0,6,0" />
+                          Foreground="{StaticResource StatusGreen}" FontSize="11" Margin="0,0,6,0" />
                 <CheckBox Content="Fail" IsChecked="{Binding ShowFail}"
-                          Foreground="{StaticResource StatusRed}" FontSize="10" Margin="0,0,6,0" />
+                          Foreground="{StaticResource StatusRed}" FontSize="11" Margin="0,0,6,0" />
                 <CheckBox Content="Change" IsChecked="{Binding ShowMajorChange}"
-                          Foreground="{StaticResource InteractiveBlue}" FontSize="10" Margin="0,0,6,0"
+                          Foreground="{StaticResource InteractiveBlue}" FontSize="11" Margin="0,0,6,0"
                           ToolTip="Deliberate tuning changes — primary timings, voltages, clocks, controller mode." />
                 <CheckBox Content="Retrain" IsChecked="{Binding ShowChange}"
-                          Foreground="{StaticResource StatusAmber}" FontSize="10" Margin="0,0,6,0"
+                          Foreground="{StaticResource StatusAmber}" FontSize="11" Margin="0,0,6,0"
                           ToolTip="Auto memory retraining of secondary timings. Coalesced per boot. Noisy — off by default." />
                 <CheckBox Content="Drift" IsChecked="{Binding ShowDrift}"
-                          Foreground="{StaticResource StatusRed}" FontSize="10" />
+                          Foreground="{StaticResource StatusRed}" FontSize="11" />
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,2">
