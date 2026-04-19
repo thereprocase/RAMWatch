@@ -846,7 +846,8 @@ public sealed class RamWatchService : BackgroundService
             validations,
             drifts,
             _designations,
-            historyCount: 0); // Snapshot journal count — wire when snapshot persistence lands
+            historyCount: 0, // Snapshot journal count — wire when snapshot persistence lands
+            recentChanges: state.RecentChanges);
 
         await client.SendAsync(MessageSerializer.Serialize(
             new DigestResponseMessage

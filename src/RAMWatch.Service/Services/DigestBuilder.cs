@@ -23,6 +23,13 @@ public static class DigestBuilder
     /// <param name="drifts">Recent drift events detected across boots.</param>
     /// <param name="designations">Manual/auto designation map, or null if unavailable.</param>
     /// <param name="historyCount">Total number of timing snapshots on record.</param>
+    /// <param name="recentChanges">
+    /// Optional list of detected config changes (oldest-first, typically 5).
+    /// When provided, a "Recent changes" section lists Major changes
+    /// individually (with before→after) and rolls Minor per-boot retrains
+    /// into a single "N retrains touched: …" line. When null or empty
+    /// the section is omitted.
+    /// </param>
     /// <returns>Digest text, ready for clipboard.</returns>
     public static string BuildDigest(
         ServiceState state,
@@ -31,7 +38,8 @@ public static class DigestBuilder
         List<ValidationResult> recentValidations,
         List<DriftEvent> drifts,
         DesignationMap? designations,
-        int historyCount)
+        int historyCount,
+        List<ConfigChange>? recentChanges = null)
     {
         var sb = new StringBuilder(2048);
         var now = DateTime.Now;
@@ -69,6 +77,13 @@ public static class DigestBuilder
         // Validation history
         AppendValidationHistory(sb, recentValidations, current);
         sb.AppendLine();
+
+        // Recent config changes — omitted entirely when null/empty.
+        if (recentChanges is { Count: > 0 })
+        {
+            AppendRecentChangesSection(sb, recentChanges);
+            sb.AppendLine();
+        }
 
         // Error summary
         AppendErrorSection(sb, state);
@@ -392,6 +407,77 @@ public static class DigestBuilder
             return v.ActiveSnapshotId != null ? $"snap:{v.ActiveSnapshotId[..Math.Min(8, v.ActiveSnapshotId.Length)]}" : "";
 
         return $"{current.CL}-{current.RCDRD}-{current.RP}-{current.RAS} tRFC{current.RFC}";
+    }
+
+    /// <summary>
+    /// Renders the "Recent changes" section. Major changes (primary timings,
+    /// voltages, clocks, controller mode) list individually with before→after
+    /// deltas so the AI reader can see what the tuner actually moved. Minor
+    /// changes (secondary timings, PHY retrain, signal integrity) coalesce
+    /// per-boot into a single "N retrains touched: fieldList" line —
+    /// per-boot PHY/RTL ticks are noise the AI doesn't need to reason about.
+    ///
+    /// <paramref name="recentChanges"/> must be non-empty — the caller skips
+    /// the whole section when the list is null or empty.
+    /// </summary>
+    private static void AppendRecentChangesSection(StringBuilder sb, List<ConfigChange> recentChanges)
+    {
+        sb.AppendLine("Recent changes:");
+
+        // Group Minor changes by BootId so a boot full of retrain ticks
+        // collapses to one line.
+        var minorByBoot = new Dictionary<string, List<ConfigChange>>(StringComparer.Ordinal);
+        var majors      = new List<ConfigChange>();
+        foreach (var c in recentChanges)
+        {
+            if (ChangeSeverityClassifier.Classify(c) == ChangeSeverity.Major)
+            {
+                majors.Add(c);
+                continue;
+            }
+            if (!minorByBoot.TryGetValue(c.BootId, out var list))
+            {
+                list = [];
+                minorByBoot[c.BootId] = list;
+            }
+            list.Add(c);
+        }
+
+        // Interleave Major rows (each its own line) and one Minor line per
+        // boot, ordered newest-first by latest timestamp in the group.
+        var rows = new List<(DateTime At, string Text)>();
+
+        foreach (var c in majors)
+        {
+            var deltas = string.Join(", ", c.Changes.Select(kv =>
+                $"{kv.Key} {kv.Value.Before}→{kv.Value.After}"));
+            rows.Add((c.Timestamp, $"  [major] {FormatTimestamp(c.Timestamp)} — {deltas}"));
+        }
+
+        foreach (var (bootId, list) in minorByBoot)
+        {
+            var latest   = list.Max(x => x.Timestamp);
+            var fieldSet = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var c in list)
+                foreach (var k in c.Changes.Keys)
+                    fieldSet.Add(k);
+            int count = list.Count;
+            var fields = string.Join(", ", fieldSet);
+            string text = count == 1
+                ? $"  [retrain] {FormatTimestamp(latest)} — {fields}"
+                : $"  [retrain] {FormatTimestamp(latest)} — {count} retrains, {fieldSet.Count} field(s): {fields}";
+            rows.Add((latest, text));
+        }
+
+        rows.Sort((a, b) => b.At.CompareTo(a.At));
+        foreach (var (_, text) in rows)
+            sb.AppendLine(text);
+    }
+
+    private static string FormatTimestamp(DateTime utc)
+    {
+        var local = utc.Kind == DateTimeKind.Utc ? utc.ToLocalTime() : utc;
+        return local.ToString("MM/dd HH:mm");
     }
 
     private static void AppendErrorSection(StringBuilder sb, ServiceState state)

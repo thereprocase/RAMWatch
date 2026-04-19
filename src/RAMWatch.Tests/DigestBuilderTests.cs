@@ -514,4 +514,149 @@ public class DigestBuilderTests
         Assert.Contains("PHYRDL_A", digest);
         Assert.Contains("training", digest);
     }
+
+    // -----------------------------------------------------------------------
+    // RecentChanges section
+    // -----------------------------------------------------------------------
+
+    private static ConfigChange MakeChange(
+        string  changeId,
+        string  bootId,
+        DateTime at,
+        params (string Field, string Before, string After)[] deltas)
+    {
+        var dict = new Dictionary<string, TimingDelta>(StringComparer.Ordinal);
+        foreach (var d in deltas)
+            dict[d.Field] = new TimingDelta(d.Before, d.After);
+        return new ConfigChange
+        {
+            ChangeId  = changeId,
+            Timestamp = at,
+            BootId    = bootId,
+            Changes   = dict,
+        };
+    }
+
+    [Fact]
+    public void Digest_OmitsRecentChangesSection_WhenNullOrEmpty()
+    {
+        var state   = MakeState();
+        var current = MakeSnapshot();
+
+        string withNull = DigestBuilder.BuildDigest(
+            state, current, lkg: null,
+            recentValidations: new(), drifts: new(), designations: null,
+            historyCount: 0, recentChanges: null);
+        string withEmpty = DigestBuilder.BuildDigest(
+            state, current, lkg: null,
+            recentValidations: new(), drifts: new(), designations: null,
+            historyCount: 0, recentChanges: new List<ConfigChange>());
+
+        Assert.DoesNotContain("Recent changes:", withNull);
+        Assert.DoesNotContain("Recent changes:", withEmpty);
+    }
+
+    [Fact]
+    public void Digest_RecentChanges_MajorListedWithBeforeAfter()
+    {
+        var state   = MakeState();
+        var current = MakeSnapshot();
+        var at      = new DateTime(2026, 4, 19, 18, 0, 0, DateTimeKind.Utc);
+        var changes = new List<ConfigChange>
+        {
+            MakeChange("c1", "boot01", at, ("CL", "16", "15"), ("VSoc", "1.10", "1.15")),
+        };
+
+        string digest = DigestBuilder.BuildDigest(
+            state, current, lkg: null,
+            recentValidations: new(), drifts: new(), designations: null,
+            historyCount: 0, recentChanges: changes);
+
+        Assert.Contains("Recent changes:", digest);
+        Assert.Contains("[major]", digest);
+        Assert.Contains("CL 16→15", digest);
+        Assert.Contains("VSoc 1.10→1.15", digest);
+        Assert.DoesNotContain("[retrain]", digest);
+    }
+
+    [Fact]
+    public void Digest_RecentChanges_MinorCoalescedPerBoot()
+    {
+        var state   = MakeState();
+        var current = MakeSnapshot();
+        var t0      = new DateTime(2026, 4, 19, 12, 0, 0, DateTimeKind.Utc);
+        var changes = new List<ConfigChange>
+        {
+            // Three minor changes all in boot01 — must coalesce to one line.
+            MakeChange("c1", "boot01", t0.AddMinutes(1), ("PHYRDL_A", "28", "30")),
+            MakeChange("c2", "boot01", t0.AddMinutes(2), ("RRDS", "7", "8")),
+            MakeChange("c3", "boot01", t0.AddMinutes(3), ("PHYRDL_A", "30", "29")),
+            // One minor change in boot02 — its own coalesced line.
+            MakeChange("c4", "boot02", t0.AddHours(1), ("ProcODT", "48", "40")),
+        };
+
+        string digest = DigestBuilder.BuildDigest(
+            state, current, lkg: null,
+            recentValidations: new(), drifts: new(), designations: null,
+            historyCount: 0, recentChanges: changes);
+
+        Assert.Contains("Recent changes:", digest);
+
+        // Exactly two [retrain] lines — one per boot. Using Split keeps the
+        // count independent of formatting drift elsewhere in the section.
+        int retrainLines = digest.Split('\n').Count(l => l.Contains("[retrain]"));
+        Assert.Equal(2, retrainLines);
+
+        // Coalesced boot01 line shows the retrain count + deduped field set.
+        Assert.Contains("3 retrains, 2 field(s)", digest);
+        Assert.Contains("PHYRDL_A", digest);
+        Assert.Contains("RRDS", digest);
+    }
+
+    [Fact]
+    public void Digest_RecentChanges_MajorAndMinor_BothPresent()
+    {
+        var state   = MakeState();
+        var current = MakeSnapshot();
+        var t0      = new DateTime(2026, 4, 19, 12, 0, 0, DateTimeKind.Utc);
+        var changes = new List<ConfigChange>
+        {
+            MakeChange("c1", "boot01", t0.AddMinutes(1), ("PHYRDL_A", "28", "30")),
+            MakeChange("c2", "boot01", t0.AddMinutes(5), ("VDimm", "1.40", "1.42")),
+            MakeChange("c3", "boot02", t0.AddMinutes(60), ("RRDS", "7", "8")),
+        };
+
+        string digest = DigestBuilder.BuildDigest(
+            state, current, lkg: null,
+            recentValidations: new(), drifts: new(), designations: null,
+            historyCount: 0, recentChanges: changes);
+
+        Assert.Contains("[major]", digest);
+        Assert.Contains("VDimm 1.40→1.42", digest);
+        Assert.Contains("[retrain]", digest);
+    }
+
+    [Fact]
+    public void Digest_RecentChanges_SingleMinorChange_NoCountWording()
+    {
+        var state   = MakeState();
+        var current = MakeSnapshot();
+        var changes = new List<ConfigChange>
+        {
+            MakeChange("c1", "boot01",
+                new DateTime(2026, 4, 19, 18, 0, 0, DateTimeKind.Utc),
+                ("ProcODT", "48", "40")),
+        };
+
+        string digest = DigestBuilder.BuildDigest(
+            state, current, lkg: null,
+            recentValidations: new(), drifts: new(), designations: null,
+            historyCount: 0, recentChanges: changes);
+
+        Assert.Contains("[retrain]", digest);
+        Assert.Contains("ProcODT", digest);
+        // A one-change boot shouldn't read "1 retrains, 1 field(s)" —
+        // the coalesced wording only makes sense with multiple entries.
+        Assert.DoesNotContain("1 retrains", digest);
+    }
 }
