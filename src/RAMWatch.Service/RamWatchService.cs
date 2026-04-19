@@ -482,8 +482,11 @@ public sealed class RamWatchService : BackgroundService
             });
         }
 
-        // Detect drift in auto-trained timings.
-        var driftEvents = _driftDetector.CheckForDrift(snapshot, designations);
+        // Detect drift in auto-trained timings. Gate on cold-boot completion
+        // so the startup window (where readers stamp in sequence) isn't
+        // misread as drift.
+        var driftEvents = _driftDetector.CheckForDrift(
+            snapshot, designations, _aggregator.GetColdBootStatus());
         if (driftEvents.Count > 0)
         {
             _aggregator.AddDriftEvents(driftEvents);

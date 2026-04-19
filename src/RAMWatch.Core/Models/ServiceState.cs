@@ -92,4 +92,13 @@ public sealed class ServiceState
     /// Null when no events have been recorded yet.
     /// </summary>
     public List<MonitoredEvent>? RecentEvents { get; init; }
+
+    /// <summary>
+    /// True once every cold-tier reader has produced its first result, false
+    /// during the startup window before all readers have finished, null on
+    /// pre-tracking servers. Consumers (drift detection, stale-tuning-button
+    /// gating on peer clients like RAMBurn) treat null as ungated so older
+    /// servers keep working.
+    /// </summary>
+    public bool? ColdBootComplete { get; init; }
 }

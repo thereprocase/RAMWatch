@@ -51,6 +51,14 @@ public sealed class StateAggregator
     // UMC address map — read once at startup, cached.
     private List<AddressMapConfig>? _addressMap;
 
+    // Cold-boot stamps — first-success UTC per cold-tier reader.
+    // Stays null until that reader produces a non-null result, after which
+    // it never moves. Drift detection and peer clients gate on IsComplete so
+    // the startup window isn't misread as drift.
+    private DateTime? _timingsStampedUtc;
+    private DateTime? _dimmsStampedUtc;
+    private DateTime? _addressMapStampedUtc;
+
     // Phase 3 — current-boot drift events, accumulated here so they survive
     // until the next periodic state push.
     private readonly List<DriftEvent> _currentBootDrift = new();
@@ -91,6 +99,11 @@ public sealed class StateAggregator
         {
             _currentTimings = timings;
             _driverStatus = driverStatus;
+            // First non-null timing snapshot marks UMC/SMU/BIOS-WMI cold-tier
+            // done. Subsequent calls don't advance the stamp — the data is
+            // boot-time; freshness is tracked separately on the GUI side.
+            if (timings is not null && _timingsStampedUtc is null)
+                _timingsStampedUtc = DateTime.UtcNow;
         }
     }
 
@@ -170,7 +183,12 @@ public sealed class StateAggregator
     public void ReadDimmInfo()
     {
         var dimms = Hardware.DimmReader.ReadDimms();
-        lock (_lock) { _dimms = dimms; }
+        lock (_lock)
+        {
+            _dimms = dimms;
+            if (dimms is not null && _dimmsStampedUtc is null)
+                _dimmsStampedUtc = DateTime.UtcNow;
+        }
     }
 
     /// <summary>
@@ -178,7 +196,29 @@ public sealed class StateAggregator
     /// </summary>
     public void SetAddressMap(List<AddressMapConfig>? addressMap)
     {
-        lock (_lock) { _addressMap = addressMap; }
+        lock (_lock)
+        {
+            _addressMap = addressMap;
+            if (addressMap is not null && _addressMapStampedUtc is null)
+                _addressMapStampedUtc = DateTime.UtcNow;
+        }
+    }
+
+    /// <summary>
+    /// Snapshot of which cold-tier readers have produced their first result.
+    /// Safe to call from any thread; never blocks on downstream services.
+    /// </summary>
+    public ColdBootStatus GetColdBootStatus()
+    {
+        lock (_lock)
+        {
+            return new ColdBootStatus
+            {
+                TimingsStampedUtc    = _timingsStampedUtc,
+                DimmsStampedUtc      = _dimmsStampedUtc,
+                AddressMapStampedUtc = _addressMapStampedUtc,
+            };
+        }
     }
 
     public void MarkReady()
@@ -208,6 +248,7 @@ public sealed class StateAggregator
         LiveKernelReportSummary? liveKernelReports;
         List<DimmInfo>? dimms;
         List<AddressMapConfig>? addressMap;
+        ColdBootStatus coldBootStatus;
 
         lock (_lock)
         {
@@ -228,6 +269,12 @@ public sealed class StateAggregator
             liveKernelReports    = _liveKernelReports;
             dimms                = _dimms;
             addressMap           = _addressMap;
+            coldBootStatus       = new ColdBootStatus
+            {
+                TimingsStampedUtc    = _timingsStampedUtc,
+                DimmsStampedUtc      = _dimmsStampedUtc,
+                AddressMapStampedUtc = _addressMapStampedUtc,
+            };
         }
 
         // Step 2: call methods that acquire their own locks OUTSIDE _lock.
@@ -299,7 +346,8 @@ public sealed class StateAggregator
             AddressMap = addressMap,
             // Seed the GUI's per-source event buffer on connect. EventLogMonitor
             // owns its own lock; called outside _lock to avoid nesting.
-            RecentEvents = GetRecentEventsForState()
+            RecentEvents = GetRecentEventsForState(),
+            ColdBootComplete = coldBootStatus.IsComplete
         };
     }
 

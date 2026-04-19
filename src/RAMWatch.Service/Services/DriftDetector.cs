@@ -64,12 +64,30 @@ public sealed class DriftDetector : IDisposable
     /// Only timings designated Auto participate. Returns one DriftEvent per
     /// drifted timing. After checking, appends the current boot to the window
     /// and persists.
+    ///
+    /// When <paramref name="coldBoot"/> is supplied and reports
+    /// <see cref="ColdBootStatus.IsComplete"/> is false, the check is skipped
+    /// entirely — no events returned, no window update. The startup window
+    /// before every cold-tier reader has stamped can legitimately carry
+    /// partial data that would misread as drift; the caller is expected to
+    /// call again once cold-boot completes. Pass null (the default) to keep
+    /// legacy behaviour for tests and callers that don't track cold-boot.
     /// </summary>
-    public List<DriftEvent> CheckForDrift(TimingSnapshot current, DesignationMap designations)
+    public List<DriftEvent> CheckForDrift(
+        TimingSnapshot current,
+        DesignationMap designations,
+        ColdBootStatus? coldBoot = null)
     {
         lock (_lock)
         {
             var events = new List<DriftEvent>();
+
+            // Cold-boot gate: the design says "cold reads never drift." If
+            // the readers haven't all stamped, we can't reason about drift
+            // yet. Skip the whole check — don't even update the window, so
+            // the next complete read produces a clean comparison.
+            if (coldBoot is not null && !coldBoot.IsComplete)
+                return events;
 
             // Incomplete hardware read — SMU PM table hasn't populated yet.
             // Don't update the window; wait for a complete read so the rolling

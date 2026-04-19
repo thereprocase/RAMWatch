@@ -368,6 +368,68 @@ public class DriftDetectorTests : IDisposable
     }
 
     [Fact]
+    public void ColdBootIncomplete_DriftCheckSkipped_WindowUnchanged()
+    {
+        // During the startup window, cold-tier readers stamp in sequence.
+        // A drift check fired before all three stamps would misread the
+        // transient state as drift. Gate must suppress both the event list
+        // and the window append.
+        using var detector = new DriftDetector(_tempDir);
+        SeedBoots(detector, 20, cl: 11);
+
+        int windowBefore = detector.GetWindow().Count;
+
+        var partial = new ColdBootStatus
+        {
+            TimingsStampedUtc    = DateTime.UtcNow,
+            DimmsStampedUtc      = null,            // still pending
+            AddressMapStampedUtc = DateTime.UtcNow,
+        };
+
+        var events = detector.CheckForDrift(
+            MakeSnapshot("boot_current", cl: 99), AutoCL(), partial);
+
+        Assert.Empty(events);
+        Assert.Equal(windowBefore, detector.GetWindow().Count);
+    }
+
+    [Fact]
+    public void ColdBootComplete_DriftCheckProceeds()
+    {
+        // All stamps present → detector operates normally.
+        using var detector = new DriftDetector(_tempDir);
+        SeedBoots(detector, 20, cl: 11);
+
+        var complete = new ColdBootStatus
+        {
+            TimingsStampedUtc    = DateTime.UtcNow,
+            DimmsStampedUtc      = DateTime.UtcNow,
+            AddressMapStampedUtc = DateTime.UtcNow,
+        };
+
+        var events = detector.CheckForDrift(
+            MakeSnapshot("boot_current", cl: 99), AutoCL(), complete);
+
+        Assert.Single(events);
+        Assert.Equal(11, events[0].ExpectedValue);
+        Assert.Equal(99, events[0].ActualValue);
+    }
+
+    [Fact]
+    public void ColdBootNullParam_PreservesLegacyBehavior()
+    {
+        // Callers that don't track cold-boot (tests, older code paths)
+        // pass null and get the original, non-gated behaviour.
+        using var detector = new DriftDetector(_tempDir);
+        SeedBoots(detector, 20, cl: 11);
+
+        var events = detector.CheckForDrift(
+            MakeSnapshot("boot_current", cl: 99), AutoCL(), coldBoot: null);
+
+        Assert.Single(events);
+    }
+
+    [Fact]
     public void IncompleteRead_FclkZero_NoWindowPollution()
     {
         // An SMU PM table read during cold-tier warm-up can produce a snapshot
