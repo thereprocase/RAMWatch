@@ -1,0 +1,89 @@
+<UserControl x:Class="RAMWatch.Controls.DotLegend"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!--
+        Three-axis legend for the status dots. One compact row, three columns,
+        each explaining one encoding channel the glyphs use. Colours match the
+        frozen brushes in ProvenanceGlyph exactly so the legend and the live
+        dots are visually identical.
+
+        Swatches are drawn as plain primitives (Ellipse / Path / Rectangle)
+        rather than ProvenanceGlyph instances because the glyph reads its
+        freshness from the live observer — we need fixed samples here.
+    -->
+    <UserControl.Resources>
+        <!-- Fills: Measured at the three freshness levels, plus grey for Static. -->
+        <SolidColorBrush x:Key="LegendMeasuredLive" Color="#4ADE80" />
+        <SolidColorBrush x:Key="LegendMeasuredWarm" Color="#2E8E56" />
+        <SolidColorBrush x:Key="LegendMeasuredCold" Color="#1B4D30" />
+        <SolidColorBrush x:Key="LegendStaticLive"   Color="#9CA3AF" />
+
+        <!-- Status ring colours. -->
+        <SolidColorBrush x:Key="LegendPass"  Color="#4ADE80" />
+        <SolidColorBrush x:Key="LegendWarn"  Color="#FBBF24" />
+        <SolidColorBrush x:Key="LegendCrit"  Color="#EF4444" />
+
+        <Style x:Key="LegendLabel" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextDisabled}" />
+            <Setter Property="FontFamily" Value="{StaticResource UIFont}" />
+            <Setter Property="FontSize"   Value="10" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin"     Value="4,0,12,0" />
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+
+        <!-- Column 1: Shape → Provenance -->
+        <StackPanel Orientation="Horizontal">
+            <Ellipse Width="8" Height="8" Fill="{StaticResource LegendMeasuredLive}"
+                     VerticalAlignment="Center" />
+            <TextBlock Text="measured"  Style="{StaticResource LegendLabel}" />
+            <Path Fill="{StaticResource LegendMeasuredLive}"
+                  Data="M 4,0 L 8,4 L 4,8 L 0,4 Z"
+                  Width="8" Height="8" VerticalAlignment="Center" />
+            <TextBlock Text="derived"   Style="{StaticResource LegendLabel}" />
+            <Rectangle Width="8" Height="8" Fill="{StaticResource LegendStaticLive}"
+                       VerticalAlignment="Center" />
+            <TextBlock Text="unknown"   Style="{StaticResource LegendLabel}" />
+        </StackPanel>
+
+        <!-- Vertical separator -->
+        <Rectangle Width="1" Height="12" Fill="{StaticResource TextDisabled}"
+                   Margin="2,0,8,0" Opacity="0.4" VerticalAlignment="Center" />
+
+        <!-- Column 2: Fill saturation → Freshness -->
+        <StackPanel Orientation="Horizontal">
+            <Ellipse Width="8" Height="8" Fill="{StaticResource LegendMeasuredLive}"
+                     VerticalAlignment="Center" />
+            <TextBlock Text="live"      Style="{StaticResource LegendLabel}" />
+            <Ellipse Width="8" Height="8" Fill="{StaticResource LegendMeasuredWarm}"
+                     VerticalAlignment="Center" />
+            <TextBlock Text="warm"      Style="{StaticResource LegendLabel}" />
+            <Ellipse Width="8" Height="8" Fill="{StaticResource LegendMeasuredCold}"
+                     VerticalAlignment="Center" />
+            <TextBlock Text="cold"      Style="{StaticResource LegendLabel}" />
+        </StackPanel>
+
+        <!-- Vertical separator -->
+        <Rectangle Width="1" Height="12" Fill="{StaticResource TextDisabled}"
+                   Margin="2,0,8,0" Opacity="0.4" VerticalAlignment="Center" />
+
+        <!-- Column 3: Border ring → Status -->
+        <StackPanel Orientation="Horizontal">
+            <Ellipse Width="8" Height="8" Fill="Transparent"
+                     Stroke="{StaticResource LegendPass}" StrokeThickness="1"
+                     VerticalAlignment="Center" />
+            <TextBlock Text="pass"      Style="{StaticResource LegendLabel}" />
+            <Ellipse Width="8" Height="8" Fill="Transparent"
+                     Stroke="{StaticResource LegendWarn}" StrokeThickness="1"
+                     VerticalAlignment="Center" />
+            <TextBlock Text="warn"      Style="{StaticResource LegendLabel}" />
+            <Ellipse Width="8" Height="8" Fill="Transparent"
+                     Stroke="{StaticResource LegendCrit}" StrokeThickness="1"
+                     VerticalAlignment="Center" />
+            <TextBlock Text="crit"      Style="{StaticResource LegendLabel}" />
+        </StackPanel>
+
+    </StackPanel>
+</UserControl>

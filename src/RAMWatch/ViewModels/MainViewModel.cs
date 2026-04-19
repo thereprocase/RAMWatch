@@ -110,6 +110,14 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private string _driverStatus = "unknown";
 
+    // Cold-boot completion flag from the service. True means every cold-tier
+    // reader has stamped and the data is stable; false means the service is
+    // still within the startup window. Defaults to true so pre-tracking
+    // servers (null on the wire) and the pre-connect state don't flash the
+    // banner — only an explicit false from the service hides tuning
+    // affordances.
+    [ObservableProperty]
+    private bool _coldBootComplete = true;
 
     // Resolved board vendor from the service — e.g. "MSI", "ASUS". Empty when not yet received.
     // Used to populate the "detected:" label in Settings and to drive TimingsTab layout.
@@ -670,6 +678,11 @@ public partial class MainViewModel : ObservableObject
         LastUpdateText = $"Updated:{stamp.ToLocalTime():HH:mm:ss}";
         TickClock();
         DriverStatus = state.DriverStatus;
+
+        // Null wire value means an older service that doesn't track cold-boot;
+        // treat those as ungated so the banner stays hidden for legacy
+        // deployments.
+        ColdBootComplete = state.ColdBootComplete ?? true;
 
         // Board/CPU/BIOS line for the status header. Empty strings are
         // skipped so the "  |  " separators don't leave dangling bars.

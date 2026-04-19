@@ -79,6 +79,18 @@ public partial class TimingsViewModel : ObservableObject
     [ObservableProperty]
     private string _vsocDisplay = "—";
 
+    // Threshold-derived status for the VCore and VSoC glyphs. None until a
+    // sample arrives; thereafter Pass / Warn / Crit from community-standard
+    // X3D bands. Sourced from docs memo project_voltage_tuning_state.md —
+    // VCore is a Ryzen X3D voltage-limited part so the safe band is
+    // tighter than on non-X3D Zen 3; VSoC has a well-established wall at
+    // 1.20 V where degradation kicks in.
+    [ObservableProperty]
+    private StatusLevel _vcoreStatus = StatusLevel.None;
+
+    [ObservableProperty]
+    private StatusLevel _vsocStatus = StatusLevel.None;
+
     [ObservableProperty]
     private string _vcoreDisplay = "—";
 
@@ -268,6 +280,22 @@ public partial class TimingsViewModel : ObservableObject
         // (as opposed to "—" which reads as "no hardware reads at all").
         VsocDisplay     = snapshot.VSoc     > 0 ? $"{snapshot.VSoc:F4}"     : "N/A";
         VcoreDisplay    = snapshot.VCore    > 0 ? $"{snapshot.VCore:F4}"    : "N/A";
+
+        // Gate the status bands on an actual reading — a zero-reading rail
+        // means the SVI2 plane isn't reporting yet (startup or unsupported
+        // hardware). Drawing Pass on a not-yet-read sensor would be a false
+        // all-clear.
+        VcoreStatus = snapshot.VCore <= 0
+            ? StatusLevel.None
+            : snapshot.VCore <= 1.35 ? StatusLevel.Pass
+            : snapshot.VCore <= 1.40 ? StatusLevel.Warn
+            : StatusLevel.Crit;
+
+        VsocStatus = snapshot.VSoc <= 0
+            ? StatusLevel.None
+            : snapshot.VSoc <= 1.15 ? StatusLevel.Pass
+            : snapshot.VSoc <= 1.20 ? StatusLevel.Warn
+            : StatusLevel.Crit;
         VdimmDisplay    = snapshot.VDimm    > 0 ? $"{snapshot.VDimm:F4}"    : "N/A";
         VddpDisplay     = snapshot.VDDP     > 0 ? $"{snapshot.VDDP:F4}"     : "N/A";
         VddgIodDisplay  = snapshot.VDDG_IOD > 0 ? $"{snapshot.VDDG_IOD:F4}" : "N/A";

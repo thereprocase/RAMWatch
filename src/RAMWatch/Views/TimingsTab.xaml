@@ -377,6 +377,7 @@
 
                         <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal">
                             <controls:ProvenanceGlyph SensorKey="Vcore" DisplayName="VCore"
+                                                      Status="{Binding VcoreStatus}"
                                                       VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="VCore"
                                        Foreground="{StaticResource TextSecondary}"
@@ -385,6 +386,7 @@
                         </StackPanel>
                         <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal">
                             <controls:ProvenanceGlyph SensorKey="Vsoc" DisplayName="VSoC"
+                                                      Status="{Binding VsocStatus}"
                                                       VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="VSoC"
                                        Foreground="{StaticResource TextSecondary}"

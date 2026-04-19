@@ -26,12 +26,44 @@
 
     <Grid Margin="8,8,8,0">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />   <!-- Section header -->
+            <RowDefinition Height="Auto" />   <!-- Cold-boot-pending banner (collapsed when ready) -->
+            <RowDefinition Height="Auto" />   <!-- Section header + three-axis legend -->
             <RowDefinition Height="Auto" />   <!-- Error table (auto-sized, not star) -->
             <RowDefinition Height="*" />      <!-- Spacer — pushes integrity to bottom -->
             <RowDefinition Height="Auto" />   <!-- Integrity section header -->
             <RowDefinition Height="Auto" />   <!-- Integrity panel -->
         </Grid.RowDefinitions>
+
+        <!-- Cold-boot banner. Visible only while the service is still inside
+             the startup window (ColdBootComplete=false); pre-tracking servers
+             send null which the VM maps to true → banner stays hidden. The
+             message is informational, not alarming — it tells the user why
+             certain tuning affordances may be dimmed on other tabs. -->
+        <Border Grid.Row="0"
+                Background="#33FFB300"
+                BorderBrush="{StaticResource StatusAmber}"
+                BorderThickness="1"
+                CornerRadius="2"
+                Padding="8,4"
+                Margin="0,0,0,6"
+                Visibility="{Binding ColdBootComplete,
+                                     Converter={StaticResource BoolToVisibility},
+                                     ConverterParameter=Invert}">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="&#x26A0;"
+                           Foreground="{StaticResource StatusAmber}"
+                           FontFamily="{StaticResource UIFont}"
+                           FontSize="14"
+                           VerticalAlignment="Center"
+                           Margin="0,0,8,0" />
+                <TextBlock Foreground="{StaticResource TextPrimary}"
+                           FontFamily="{StaticResource UIFont}"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           VerticalAlignment="Center"
+                           Text="Cold-boot readers still loading — hardware state will finish populating shortly. Drift detection and peer tuning actions are gated until the sweep completes." />
+            </StackPanel>
+        </Border>
 
         <!-- Error Monitor header. Glyph conveys the section's data tier —
              everything below is a live push from Windows Event Log, not a
@@ -45,7 +77,7 @@
              TextBlocks override SectionHeader's Margin="0,4,0,2" so the
              label's visual baseline lines up with the vertically-centered
              glyph instead of sitting below it. -->
-        <DockPanel Grid.Row="0" LastChildFill="False">
+        <DockPanel Grid.Row="1" LastChildFill="False">
             <StackPanel Orientation="Horizontal"
                         DockPanel.Dock="Left"
                         VerticalAlignment="Center">
@@ -56,21 +88,29 @@
                            VerticalAlignment="Center"
                            Margin="0" />
             </StackPanel>
-            <TextBlock Text="Double-click a row for decoded details"
-                       DockPanel.Dock="Right"
-                       Foreground="{StaticResource TextDisabled}"
-                       FontFamily="{StaticResource UIFont}"
-                       FontSize="10"
-                       FontStyle="Italic"
-                       VerticalAlignment="Center"
-                       Margin="0" />
+            <!-- Right-docked column: three-axis legend above a subtitle hint.
+                 Legend explains the dot encoding used across every tab; the
+                 subtitle retains the "double-click a row" hint that was here
+                 before. -->
+            <StackPanel DockPanel.Dock="Right"
+                        VerticalAlignment="Center"
+                        HorizontalAlignment="Right">
+                <controls:DotLegend HorizontalAlignment="Right" />
+                <TextBlock Text="Double-click a row for decoded details"
+                           Foreground="{StaticResource TextDisabled}"
+                           FontFamily="{StaticResource UIFont}"
+                           FontSize="10"
+                           FontStyle="Italic"
+                           HorizontalAlignment="Right"
+                           Margin="0,2,0,0" />
+            </StackPanel>
         </DockPanel>
 
         <!-- Error source table — grouped by severity tier (Stability / System).
              CanContentScroll=False forces pixel-based scrolling which measures columns
              correctly when GroupStyle is active (virtualized scrolling breaks column widths). -->
         <DataGrid x:Name="ErrorGrid"
-                  Grid.Row="1"
+                  Grid.Row="2"
                   Style="{StaticResource DarkDataGrid}"
                   ItemsSource="{Binding Source={StaticResource GroupedErrorSources}}"
                   ColumnHeaderStyle="{StaticResource DarkColumnHeader}"
@@ -247,7 +287,7 @@
              the header dot sat at x=0 and the row dots at x=8, visibly
              stepped. Label Margin="0" overrides SectionHeader's default
              top/bottom to keep the glyph on the text's vertical centre. -->
-        <StackPanel Grid.Row="3" Orientation="Horizontal"
+        <StackPanel Grid.Row="4" Orientation="Horizontal"
                     VerticalAlignment="Center"
                     Margin="8,0,0,0">
             <controls:ProvenanceGlyph SensorKey="Integrity" DisplayName="Integrity"
@@ -259,7 +299,7 @@
         </StackPanel>
 
         <!-- Integrity panel -->
-        <Border Grid.Row="4"
+        <Border Grid.Row="5"
                 Background="{StaticResource BgPanel}"
                 CornerRadius="2"
                 Padding="8,4"
