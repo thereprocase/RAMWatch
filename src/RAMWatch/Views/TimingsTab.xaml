@@ -189,6 +189,7 @@
 
                         <StackPanel Grid.Column="0" Orientation="Horizontal">
                             <controls:ProvenanceGlyph SensorKey="CpuTemp" DisplayName="Tctl"
+                                                      Status="{Binding CpuTempStatus}"
                                                       VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="Tctl"
                                        Foreground="{StaticResource TextSecondary}"
@@ -413,6 +414,7 @@
                         <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal">
                             <controls:ProvenanceGlyph SensorKey="Vdimm" DisplayName="VDIMM"
                                                       SensorValue="{Binding Vdimm}"
+                                                      Status="{Binding VdimmStatus}"
                                                       VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="VDIMM"
                                        Foreground="{StaticResource TextSecondary}"
@@ -422,6 +424,7 @@
 
                         <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal">
                             <controls:ProvenanceGlyph SensorKey="Vddp" DisplayName="VDDP"
+                                                      Status="{Binding VddpStatus}"
                                                       VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="VDDP"
                                        Foreground="{StaticResource TextSecondary}"
@@ -430,6 +433,7 @@
                         </StackPanel>
                         <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal">
                             <controls:ProvenanceGlyph SensorKey="VddgIod" DisplayName="VDDG IOD"
+                                                      Status="{Binding VddgIodStatus}"
                                                       VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="VDDG I"
                                        Foreground="{StaticResource TextSecondary}"
@@ -438,6 +442,7 @@
                         </StackPanel>
                         <StackPanel Grid.Row="1" Grid.Column="2" Orientation="Horizontal">
                             <controls:ProvenanceGlyph SensorKey="VddgCcd" DisplayName="VDDG CCD"
+                                                      Status="{Binding VddgCcdStatus}"
                                                       VerticalAlignment="Center" Margin="0,0,4,0" />
                             <TextBlock Text="VDDG C"
                                        Foreground="{StaticResource TextSecondary}"

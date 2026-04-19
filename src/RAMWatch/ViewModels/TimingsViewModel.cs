@@ -91,6 +91,25 @@ public partial class TimingsViewModel : ObservableObject
     [ObservableProperty]
     private StatusLevel _vsocStatus = StatusLevel.None;
 
+    // Additional rail-specific status bindings. Thresholds live in
+    // Services/VoltageThresholds.cs; see that file for source citations.
+    [ObservableProperty]
+    private StatusLevel _vdimmStatus = StatusLevel.None;
+
+    [ObservableProperty]
+    private StatusLevel _vddpStatus = StatusLevel.None;
+
+    [ObservableProperty]
+    private StatusLevel _vddgIodStatus = StatusLevel.None;
+
+    [ObservableProperty]
+    private StatusLevel _vddgCcdStatus = StatusLevel.None;
+
+    // Thermal status — rings the Tctl glyph red above Tj_max minus a
+    // small headroom, amber in the throttle-warning band.
+    [ObservableProperty]
+    private StatusLevel _cpuTempStatus = StatusLevel.None;
+
     [ObservableProperty]
     private string _vcoreDisplay = "—";
 
@@ -284,18 +303,14 @@ public partial class TimingsViewModel : ObservableObject
         // Gate the status bands on an actual reading — a zero-reading rail
         // means the SVI2 plane isn't reporting yet (startup or unsupported
         // hardware). Drawing Pass on a not-yet-read sensor would be a false
-        // all-clear.
-        VcoreStatus = snapshot.VCore <= 0
-            ? StatusLevel.None
-            : snapshot.VCore <= 1.35 ? StatusLevel.Pass
-            : snapshot.VCore <= 1.40 ? StatusLevel.Warn
-            : StatusLevel.Crit;
+        // all-clear. Thresholds live in Services/VoltageThresholds.cs.
+        VcoreStatus    = VoltageThresholds.Vcore(snapshot.VCore);
+        VsocStatus     = VoltageThresholds.Vsoc(snapshot.VSoc);
+        VdimmStatus    = VoltageThresholds.Vdimm(snapshot.VDimm);
+        VddpStatus     = VoltageThresholds.Vddp(snapshot.VDDP);
+        VddgIodStatus  = VoltageThresholds.VddgIod(snapshot.VDDG_IOD);
+        VddgCcdStatus  = VoltageThresholds.VddgCcd(snapshot.VDDG_CCD);
 
-        VsocStatus = snapshot.VSoc <= 0
-            ? StatusLevel.None
-            : snapshot.VSoc <= 1.15 ? StatusLevel.Pass
-            : snapshot.VSoc <= 1.20 ? StatusLevel.Warn
-            : StatusLevel.Crit;
         VdimmDisplay    = snapshot.VDimm    > 0 ? $"{snapshot.VDimm:F4}"    : "N/A";
         VddpDisplay     = snapshot.VDDP     > 0 ? $"{snapshot.VDDP:F4}"     : "N/A";
         VddgIodDisplay  = snapshot.VDDG_IOD > 0 ? $"{snapshot.VDDG_IOD:F4}" : "N/A";
@@ -552,6 +567,7 @@ public partial class TimingsViewModel : ObservableObject
         {
             HasThermal = false;
             CpuTempDisplay = "—";
+            CpuTempStatus = StatusLevel.None;
             SocketPowerDisplay = "—";
             PptDisplay = "—";
             return;
@@ -560,6 +576,7 @@ public partial class TimingsViewModel : ObservableObject
         HasThermal = true;
 
         CpuTempDisplay = tp.CpuTempC > 0 ? $"{tp.CpuTempC:F1}°C" : "—";
+        CpuTempStatus  = ThermalThresholds.CpuTemp(tp.CpuTempC);
 
         SocketPowerDisplay = tp.SocketPowerW > 0 ? $"{tp.SocketPowerW:F1}W" : "—";
 
