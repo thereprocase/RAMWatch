@@ -35,18 +35,27 @@
 
         <!-- Error Monitor header. Glyph conveys the section's data tier —
              everything below is a live push from Windows Event Log, not a
-             periodic scan. -->
-        <DockPanel Grid.Row="0">
-            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+             periodic scan.
+
+             LastChildFill="False" is load-bearing: with the default (True),
+             the last child ignores its Dock value and fills the remaining
+             row width, which made the subtitle left-align flush against
+             "MONITOR" instead of docking to the right edge.
+
+             TextBlocks override SectionHeader's Margin="0,4,0,2" so the
+             label's visual baseline lines up with the vertically-centered
+             glyph instead of sitting below it. -->
+        <DockPanel Grid.Row="0" LastChildFill="False">
+            <StackPanel Orientation="Horizontal"
+                        DockPanel.Dock="Left"
+                        VerticalAlignment="Center">
                 <controls:ProvenanceGlyph SensorKey="EventMonitor" DisplayName="Error Monitor"
                                           VerticalAlignment="Center" Margin="0,0,6,0" />
                 <TextBlock Text="ERROR MONITOR"
-                           Style="{StaticResource SectionHeader}" />
+                           Style="{StaticResource SectionHeader}"
+                           VerticalAlignment="Center"
+                           Margin="0" />
             </StackPanel>
-            <!-- Discoverability hint — the error rows are interactive but
-                 double-click has no visual tell on its own. A faint subtitle
-                 on the section header tells a returning user the count is a
-                 live link into the decoded details. -->
             <TextBlock Text="Double-click a row for decoded details"
                        DockPanel.Dock="Right"
                        Foreground="{StaticResource TextDisabled}"
@@ -54,7 +63,7 @@
                        FontSize="10"
                        FontStyle="Italic"
                        VerticalAlignment="Center"
-                       Margin="0,0,0,2" />
+                       Margin="0" />
         </DockPanel>
 
         <!-- Error source table — grouped by severity tier (Stability / System).
@@ -231,12 +240,22 @@
 
         <!-- Integrity header. Glyph conveys the section's data tier — CBS.log
              is polled every warm tick (30–60s); SFC/DISM rows only appear
-             when the user has run those tools. -->
-        <StackPanel Grid.Row="3" Orientation="Horizontal">
+             when the user has run those tools.
+
+             Margin left of 8 aligns the header glyph with the CBS.log row
+             glyph inside the panel below (Border.Padding="8,4"). Without it
+             the header dot sat at x=0 and the row dots at x=8, visibly
+             stepped. Label Margin="0" overrides SectionHeader's default
+             top/bottom to keep the glyph on the text's vertical centre. -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal"
+                    VerticalAlignment="Center"
+                    Margin="8,0,0,0">
             <controls:ProvenanceGlyph SensorKey="Integrity" DisplayName="Integrity"
                                       VerticalAlignment="Center" Margin="0,0,6,0" />
             <TextBlock Text="INTEGRITY"
-                       Style="{StaticResource SectionHeader}" />
+                       Style="{StaticResource SectionHeader}"
+                       VerticalAlignment="Center"
+                       Margin="0" />
         </StackPanel>
 
         <!-- Integrity panel -->

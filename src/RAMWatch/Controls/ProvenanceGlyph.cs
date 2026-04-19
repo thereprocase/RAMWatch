@@ -22,8 +22,17 @@ public sealed class ProvenanceGlyph : FrameworkElement
     // Green "measured" is a contract: a theme must never be able to turn
     // it red. Palette mirrors Tailwind green-400 / amber-400 / gray-400.
 
+    // All three "data-tier" brushes stay in the green family so dot colour
+    // no longer collides with the status-border semantics (amber = warn,
+    // red = crit). Saturation drops as the data tier cools: Measured is a
+    // bright live green, Reported a muted polled green, Static a grey-green
+    // on the edge of disengaged. Shape still carries the provenance
+    // distinction; colour now carries "is everything OK" at a glance.
+    // Full design: docs/STATUS-DOT-LEGEND-DESIGN.md (freshness via fill
+    // saturation, status via border ring) — the one-line fix here is a
+    // stop-gap until the Freshness/Status DPs land.
     private static readonly SolidColorBrush MeasuredBrush = Freeze(Color.FromRgb(0x4A, 0xDE, 0x80));
-    private static readonly SolidColorBrush ReportedBrush = Freeze(Color.FromRgb(0xFB, 0xBF, 0x24));
+    private static readonly SolidColorBrush ReportedBrush = Freeze(Color.FromRgb(0x4A, 0x7A, 0x5A));
     private static readonly SolidColorBrush StaticBrush   = Freeze(Color.FromRgb(0x9C, 0xA3, 0xAF));
     private static readonly SolidColorBrush UnknownBrush  = StaticBrush;
 
