@@ -82,12 +82,21 @@
                     </TextBlock>
                 </StackPanel>
 
-                <!-- Metadata line -->
-                <TextBlock Style="{StaticResource SecondaryText}" Margin="22,4,0,0">
+                <!-- Metadata line. Rendered in MonoFont so a ticking "Now:"
+                     clock doesn't reflow the rest of the line every second —
+                     variable-width digits in the proportional UIFont were
+                     the entire source of the per-tick wiggle, not the tick
+                     rate. Fixed-width glyphs mean "07:52:23" and "07:52:28"
+                     occupy identical pixel columns. -->
+                <TextBlock Style="{StaticResource SecondaryText}"
+                           FontFamily="{StaticResource MonoFont}"
+                           Margin="22,4,0,0">
                     <Run Text="{Binding BootTimeText, Mode=OneWay}" />
-                    <Run Text="  |  " />
+                    <Run Text="|" />
                     <Run Text="{Binding UptimeText, Mode=OneWay}" />
-                    <Run Text="  |  " />
+                    <Run Text="|Now:" />
+                    <Run Text="{Binding ClockText, Mode=OneWay}" />
+                    <Run Text="|" />
                     <Run Text="{Binding LastUpdateText, Mode=OneWay}" />
                 </TextBlock>
 

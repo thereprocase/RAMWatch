@@ -4,6 +4,8 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
+using System.Windows.Threading;
 using RAMWatch.Core.Models;
 using RAMWatch.ViewModels;
 using RAMWatch.Views;
@@ -17,6 +19,19 @@ public partial class MainWindow : System.Windows.Window
     private TrayIconManager? _tray;
     private bool _minimizeToTray = true;
     private bool _quitting;
+
+    // Live-tick clock for the status header. Hooked into
+    // CompositionTarget.Rendering (the WPF compositor loop) instead of a
+    // DispatcherTimer, because the dispatcher queue is hammered by
+    // synchronous Dispatcher.Invoke calls from the pipe reader during
+    // every state/event/thermal push. A Background-priority timer gets
+    // starved by those bursts and the tick clumps — "one... three...
+    // four-five-six-seven... nine". CompositionTarget.Rendering fires per
+    // frame on the UI thread and can't be starved the same way. We throttle
+    // internally to 1Hz by tracking the last-rendered second, so per-frame
+    // cost is a single integer compare plus a branch. Subscription is gated
+    // on IsVisibleChanged so a minimised / tray-resident window pays zero.
+    private int _lastClockSecond = -1;
 
     public MainWindow()
     {
@@ -42,6 +57,10 @@ public partial class MainWindow : System.Windows.Window
 
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         _settingsVm.PropertyChanged += OnSettingsPropertyChanged;
+
+        // Clock tick plumbing. Subscribe/unsubscribe on IsVisibleChanged so
+        // a hidden or tray-resident window pays nothing at all.
+        IsVisibleChanged += OnIsVisibleChanged;
 
         // Keyboard shortcuts (Critical fix #2)
         InputBindings.Add(new KeyBinding(_viewModel.CopyToClipboardCommand, Key.C, ModifierKeys.Control));
@@ -170,6 +189,38 @@ public partial class MainWindow : System.Windows.Window
             Topmost = _settingsVm.AlwaysOnTop;
         if (e.PropertyName == nameof(SettingsViewModel.MinimizeToTray))
             _minimizeToTray = _settingsVm.MinimizeToTray;
+        // ClockTickSeconds is a no-op for the Now clock now that it rides the
+        // composition loop — the throttle is always a fresh second. Retain
+        // the setting for future use (sub-second tick, 5s low-power mode).
+    }
+
+    private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (IsVisible)
+        {
+            // Render an up-to-date clock immediately so the user never sees
+            // a stale value until the next frame.
+            _lastClockSecond = -1;
+            _viewModel.TickClock();
+            CompositionTarget.Rendering -= OnCompositionRendering;
+            CompositionTarget.Rendering += OnCompositionRendering;
+        }
+        else
+        {
+            CompositionTarget.Rendering -= OnCompositionRendering;
+        }
+    }
+
+    private void OnCompositionRendering(object? sender, EventArgs e)
+    {
+        // Throttle: only touch observable properties when the wall-clock
+        // second changes. Per-frame cost when the second is unchanged is
+        // one DateTime.Now, one int compare, one branch — cheaper than any
+        // timer-based approach would be when it does fire.
+        int second = DateTime.Now.Second;
+        if (second == _lastClockSecond) return;
+        _lastClockSecond = second;
+        _viewModel.TickClock();
     }
 
     /// <summary>

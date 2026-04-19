@@ -80,13 +80,24 @@ public partial class MainViewModel : ObservableObject
     private string _statusDetail = "";
 
     [ObservableProperty]
-    private string _bootTimeText = "Boot: --";
+    private string _bootTimeText = "Boot:--";
 
     [ObservableProperty]
-    private string _uptimeText = "Up: --";
+    private string _uptimeText = "Up:--";
 
     [ObservableProperty]
-    private string _lastUpdateText = "Updated: --";
+    private string _lastUpdateText = "Updated:--";
+
+    // Live wall-clock, distinct from LastUpdateText so the user can see a
+    // ticking "now" next to a fixed "last data push" and tell at a glance
+    // whether the service is still feeding us.
+    [ObservableProperty]
+    private string _clockText = "--:--:--";
+
+    // Raw anchors for the live-tick counters. UptimeText is recomputed from
+    // _bootTimeUtc on each TickClock(); ClockText is just DateTime.Now.
+    // LastUpdateText is set once per push and left alone between ticks.
+    private DateTime _bootTimeUtc;
 
     // Composed from the service's SystemInfoReader output (CPU codename,
     // BIOS version, AGESA version) once a state push arrives. Shown on the
@@ -651,12 +662,13 @@ public partial class MainViewModel : ObservableObject
             StatusColor = "Red";
         }
 
-        BootTimeText = $"Boot: {state.BootTime.ToLocalTime():MM/dd HH:mm}";
+        BootTimeText = $"Boot:{state.BootTime.ToLocalTime():MM/dd HH:mm}";
         // System uptime from BootTime — the service uptime field tracks how long
         // the service process has been running, which is not what users care about here.
-        var systemUptime = DateTime.UtcNow - state.BootTime;
-        UptimeText = FormatUptime(systemUptime);
-        LastUpdateText = $"Updated: {state.Timestamp.ToLocalTime():HH:mm:ss}";
+        _bootTimeUtc = state.BootTime;
+        var stamp = state.Timestamp == default ? DateTime.UtcNow : state.Timestamp;
+        LastUpdateText = $"Updated:{stamp.ToLocalTime():HH:mm:ss}";
+        TickClock();
         DriverStatus = state.DriverStatus;
 
         // Board/CPU/BIOS line for the status header. Empty strings are
@@ -773,7 +785,9 @@ public partial class MainViewModel : ObservableObject
                 StatusColor = "Red";
             }
 
-            LastUpdateText = $"Updated: {DateTime.Now:HH:mm:ss}";
+            var stamp = evt.Timestamp == default ? DateTime.UtcNow : evt.Timestamp;
+            LastUpdateText = $"Updated:{stamp.ToLocalTime():HH:mm:ss}";
+            TickClock();
         });
 
         // Send toast notification if enabled and not rate-limited.
@@ -788,7 +802,27 @@ public partial class MainViewModel : ObservableObject
     {
         _currentThermalPower = msg.ThermalPower;
         Application.Current?.Dispatcher.Invoke(() =>
-            Timings.LoadThermalPower(msg.ThermalPower));
+        {
+            Timings.LoadThermalPower(msg.ThermalPower);
+            LastUpdateText = $"Updated:{DateTime.Now:HH:mm:ss}";
+            TickClock();
+        });
+    }
+
+    /// <summary>
+    /// Advances the live-tick strings: uptime (from boot anchor) and the
+    /// wall-clock. LastUpdateText is NOT recomputed here — it reflects the
+    /// time of the last real data push and stays put until the next one.
+    /// Called from the MainWindow's DispatcherTimer while visible, and from
+    /// each incoming message so the header is accurate the instant a push
+    /// lands. UI thread only.
+    /// </summary>
+    public void TickClock()
+    {
+        if (_bootTimeUtc != default)
+            UptimeText = FormatUptime(DateTime.UtcNow - _bootTimeUtc);
+
+        ClockText = DateTime.Now.ToString("HH:mm:ss");
     }
 
     /// <summary>
@@ -984,10 +1018,10 @@ public partial class MainViewModel : ObservableObject
     private static string FormatUptime(TimeSpan uptime)
     {
         if (uptime.TotalDays >= 1)
-            return $"Up: {(int)uptime.TotalDays}d {uptime.Hours}h {uptime.Minutes}m";
+            return $"Up:{(int)uptime.TotalDays}d{uptime.Hours}h{uptime.Minutes}m";
         if (uptime.TotalHours >= 1)
-            return $"Up: {(int)uptime.TotalHours}h {uptime.Minutes}m";
-        return $"Up: {uptime.Minutes}m {uptime.Seconds}s";
+            return $"Up:{(int)uptime.TotalHours}h{uptime.Minutes}m";
+        return $"Up:{uptime.Minutes}m{uptime.Seconds}s";
     }
 
     private static string FormatCheckStatus(IntegrityCheckStatus status)
