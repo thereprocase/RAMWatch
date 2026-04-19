@@ -25,6 +25,13 @@ public sealed class ProvenanceObserver
         public int Count;
         public double Min = double.PositiveInfinity;
         public double Max = double.NegativeInfinity;
+
+        // Last value we accepted, and when it arrived. LastChangeUtc only
+        // advances on an actual delta — repeating the same value keeps the
+        // timestamp pinned to the first time that value appeared. Freshness
+        // tracks whether the sensor is moving, not whether it's being polled.
+        public double LastValue = double.NaN;
+        public DateTime LastChangeUtc = DateTime.MinValue;
     }
 
     private readonly Dictionary<string, Obs> _map = new();
@@ -52,9 +59,35 @@ public sealed class ProvenanceObserver
             obs.Count++;
             if (value < obs.Min) obs.Min = value;
             if (value > obs.Max) obs.Max = value;
+
+            // First sample or actual value change — advance the change
+            // timestamp. A UMC readback that returns the same integer every
+            // warm tick stays anchored to its first observation, so the
+            // glyph correctly dims to Cold instead of pulsing Live on every
+            // redundant poll.
+            bool changed = double.IsNaN(obs.LastValue) || obs.LastValue != value;
+            if (changed)
+            {
+                obs.LastValue = value;
+                obs.LastChangeUtc = DateTime.UtcNow;
+            }
         }
 
         SensorUpdated?.Invoke(key);
+    }
+
+    /// <summary>
+    /// Last time the recorded value for <paramref name="key"/> actually
+    /// changed, or null if no value has been recorded. Freshness-bucketing
+    /// callers use this with <see cref="FreshnessComputer.Compute"/>.
+    /// </summary>
+    public DateTime? GetLastChangeUtc(string key)
+    {
+        lock (_lock)
+        {
+            if (!_map.TryGetValue(key, out var obs)) return null;
+            return obs.LastChangeUtc == DateTime.MinValue ? null : obs.LastChangeUtc;
+        }
     }
 
     /// <summary>
