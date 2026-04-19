@@ -142,6 +142,16 @@
                             <Setter Property="TextAlignment" Value="Right" />
                             <Setter Property="Padding" Value="0,0,6,0" />
                             <Setter Property="VerticalAlignment" Value="Center" />
+                            <Setter Property="ToolTip" Value="Tightest value this timing has ever posted (not necessarily stable)." />
+                            <Style.Triggers>
+                                <!-- UntestedWarning: BestPosted is tighter than anything
+                                     that has ever passed a stability test. Amber signals
+                                     "you may not be able to hold this." -->
+                                <DataTrigger Binding="{Binding UntestedWarning}" Value="True">
+                                    <Setter Property="Foreground" Value="{StaticResource StatusAmber}" />
+                                    <Setter Property="ToolTip" Value="Posted tighter than your tightest validated run — untested territory." />
+                                </DataTrigger>
+                            </Style.Triggers>
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
