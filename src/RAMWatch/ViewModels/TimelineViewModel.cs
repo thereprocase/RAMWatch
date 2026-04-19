@@ -342,12 +342,30 @@ public partial class TimelineViewModel : ObservableObject
             ActiveEraId         = "";
             ActiveEraStartText  = "";
 
-            // "Recent ConfigChange and no active era" → the user likely
-            // just booted into a new BIOS config and should name it.
-            bool recent =
-                state.RecentChanges is { Count: > 0 } &&
-                (DateTime.UtcNow - state.RecentChanges[0].Timestamp) < TimeSpan.FromHours(2);
-            HasUnnamedConfig = recent;
+            // "Recent Major ConfigChange and no active era" → the user
+            // likely just booted into a new BIOS config and should name
+            // it. Minor retrain-only deltas don't trigger the nudge;
+            // otherwise the prompt would fire every boot as PHY/RTL/etc
+            // re-tick, and the user would learn to ignore it.
+            //
+            // state.RecentChanges is returned by ConfigChangeDetector
+            // chronological (oldest first, capped at 5). Scan the whole
+            // list — the list is tiny so an O(n) check is fine.
+            var threshold = DateTime.UtcNow - TimeSpan.FromHours(2);
+            bool recentMajor = false;
+            if (state.RecentChanges is { Count: > 0 })
+            {
+                foreach (var c in state.RecentChanges)
+                {
+                    if (c.Timestamp >= threshold &&
+                        ChangeSeverityClassifier.Classify(c) == ChangeSeverity.Major)
+                    {
+                        recentMajor = true;
+                        break;
+                    }
+                }
+            }
+            HasUnnamedConfig = recentMajor;
         }
 
         var entries = new List<TimelineEntry>();
