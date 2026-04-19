@@ -248,9 +248,12 @@
                           Foreground="{StaticResource StatusGreen}" FontSize="10" Margin="0,0,6,0" />
                 <CheckBox Content="Fail" IsChecked="{Binding ShowFail}"
                           Foreground="{StaticResource StatusRed}" FontSize="10" Margin="0,0,6,0" />
+                <CheckBox Content="Change" IsChecked="{Binding ShowMajorChange}"
+                          Foreground="{StaticResource InteractiveBlue}" FontSize="10" Margin="0,0,6,0"
+                          ToolTip="Deliberate tuning changes — primary timings, voltages, clocks, controller mode." />
                 <CheckBox Content="Retrain" IsChecked="{Binding ShowChange}"
                           Foreground="{StaticResource StatusAmber}" FontSize="10" Margin="0,0,6,0"
-                          ToolTip="Auto memory retraining between boots. Noisy — off by default." />
+                          ToolTip="Auto memory retraining of secondary timings. Coalesced per boot. Noisy — off by default." />
                 <CheckBox Content="Drift" IsChecked="{Binding ShowDrift}"
                           Foreground="{StaticResource StatusRed}" FontSize="10" />
             </StackPanel>

@@ -37,6 +37,14 @@ public partial class TimelineEntry : ObservableObject
     public required string TypeLabel { get; init; }
 
     /// <summary>
+    /// Severity for ConfigChange entries — Major changes surface as their
+    /// own row, Minor changes coalesce by boot. Ignored for non-ConfigChange
+    /// types; they're effectively treated as Major (always visible under
+    /// their own filter).
+    /// </summary>
+    public ChangeSeverity ChangeSeverity { get; init; } = ChangeSeverity.Major;
+
+    /// <summary>
     /// Sensor key the row's ProvenanceGlyph looks up in the registry.
     /// Derived from <see cref="EntryType"/> — drift and config-change
     /// entries are Derived (diamond), validation entries are Measured
@@ -238,11 +246,16 @@ public partial class TimelineViewModel : ObservableObject
     [ObservableProperty]
     private bool _showFail = true;
 
-    // "Change" rows are overwhelmingly auto memory retraining between
-    // boots — a single tick on a secondary timing or a channel-asymmetric
-    // PHYRDL re-train. Every boot produces one, across weeks that fills
-    // the logbook and drowns the intentional events. Default off; users
-    // who want to see retrain history toggle it on.
+    // Major ConfigChange rows — a primary timing, voltage, clock, or
+    // controller boolean moved. This is the deliberate tuning signal a
+    // user actually wants to see. Default on.
+    [ObservableProperty]
+    private bool _showMajorChange = true;
+
+    // Minor ConfigChange rows ("Retrain") — secondaries, turn-around,
+    // PHY, signal integrity. Auto memory retraining between boots
+    // produces one per boot; over weeks it drowns deliberate events.
+    // Coalesced by boot into one row each when visible. Default off.
     [ObservableProperty]
     private bool _showChange = false;
 
@@ -256,6 +269,7 @@ public partial class TimelineViewModel : ObservableObject
 
     partial void OnShowPassChanged(bool value) => ApplyFilters();
     partial void OnShowFailChanged(bool value) => ApplyFilters();
+    partial void OnShowMajorChangeChanged(bool value) => ApplyFilters();
     partial void OnShowChangeChanged(bool value) => ApplyFilters();
     partial void OnShowDriftChanged(bool value) => ApplyFilters();
     partial void OnShowSnapshotChanged(bool value) => ApplyFilters();
@@ -278,7 +292,9 @@ public partial class TimelineViewModel : ObservableObject
     {
         TimelineEntryType.ValidationPass => ShowPass,
         TimelineEntryType.ValidationFail => ShowFail,
-        TimelineEntryType.ConfigChange   => ShowChange,
+        TimelineEntryType.ConfigChange   => entry.ChangeSeverity == ChangeSeverity.Major
+                                              ? ShowMajorChange
+                                              : ShowChange,
         TimelineEntryType.Drift          => ShowDrift,
         TimelineEntryType.Snapshot       => ShowSnapshot,
         _ => true
@@ -387,11 +403,28 @@ public partial class TimelineViewModel : ObservableObject
             }
         }
 
-        // Config changes
+        // Config changes — classified by severity. Major changes surface
+        // as individual rows; Minor changes coalesce by BootId into one
+        // synthetic "RETRAIN" row per boot so per-boot auto-retraining
+        // noise doesn't drown the deliberate tuning events.
         if (state.RecentChanges is { Count: > 0 })
         {
+            var minorByBoot = new Dictionary<string, List<ConfigChange>>(StringComparer.Ordinal);
+
             foreach (var change in state.RecentChanges)
             {
+                var severity = ChangeSeverityClassifier.Classify(change);
+                if (severity == ChangeSeverity.Minor)
+                {
+                    if (!minorByBoot.TryGetValue(change.BootId, out var list))
+                    {
+                        list = [];
+                        minorByBoot[change.BootId] = list;
+                    }
+                    list.Add(change);
+                    continue;
+                }
+
                 var deltas = string.Join(", ", change.Changes.Select(
                     c => $"{c.Key}: {c.Value.Before} -> {c.Value.After}"));
                 var summary = string.IsNullOrEmpty(change.UserNotes)
@@ -410,6 +443,7 @@ public partial class TimelineViewModel : ObservableObject
                     EntryId = Guid.NewGuid(),
                     Timestamp = change.Timestamp,
                     EntryType = TimelineEntryType.ConfigChange,
+                    ChangeSeverity = ChangeSeverity.Major,
                     Summary = summary,
                     TimestampDisplay = FormatTimestamp(change.Timestamp),
                     TypeLabel = "CHANGE",
@@ -419,6 +453,42 @@ public partial class TimelineViewModel : ObservableObject
                 };
                 changeEntry.OnConfirmedDeleteAsync = _deleteChangeHandler;
                 entries.Add(changeEntry);
+            }
+
+            // One synthetic row per boot for minor retrains. Distinct field
+            // names (deduplicated) are listed in the summary — same field
+            // retraining three times in one boot is still one field, not three.
+            foreach (var (bootId, changes) in minorByBoot)
+            {
+                var latest      = changes.OrderByDescending(c => c.Timestamp).First();
+                var fieldSet    = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var c in changes)
+                    foreach (var k in c.Changes.Keys)
+                        fieldSet.Add(k);
+                var fieldList   = string.Join(", ", fieldSet);
+                var changeCount = changes.Count;
+                var fieldCount  = fieldSet.Count;
+
+                string summary = changeCount == 1
+                    ? $"Minor retrain: {fieldList}"
+                    : $"{changeCount} minor retrains across {fieldCount} field{(fieldCount == 1 ? "" : "s")}: {fieldList}";
+
+                // No ServiceId — coalesced rows aren't individually
+                // deletable. The TimelineEntry delete path no-ops when
+                // ServiceId is null, and RequestDelete never surfaces a
+                // confirm because the row has no ServiceId-gated button.
+                entries.Add(new TimelineEntry
+                {
+                    EntryId          = Guid.NewGuid(),
+                    Timestamp        = latest.Timestamp,
+                    EntryType        = TimelineEntryType.ConfigChange,
+                    ChangeSeverity   = ChangeSeverity.Minor,
+                    Summary          = summary,
+                    TimestampDisplay = FormatTimestamp(latest.Timestamp),
+                    TypeLabel        = "RETRAIN",
+                    TimingSummary    = FormatTimingSummary(state.Timings),
+                    EraName          = ResolveEraName(latest.EraId),
+                });
             }
         }
 
