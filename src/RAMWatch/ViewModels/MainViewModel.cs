@@ -477,6 +477,15 @@ public partial class MainViewModel : ObservableObject
         await _pipe.DisposeAsync();
     }
 
+    /// <summary>
+    /// How long the GUI waits on a stuck connect before changing the
+    /// status text to something more actionable. The PipeClient retries
+    /// with exponential backoff forever; without this watchdog the
+    /// status would read "Connecting to service..." indefinitely when
+    /// the service is just not running, giving the user nothing to act on.
+    /// </summary>
+    internal static readonly TimeSpan ConnectStuckThreshold = TimeSpan.FromSeconds(12);
+
     private async Task ConnectAndListenAsync(CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)
@@ -484,7 +493,21 @@ public partial class MainViewModel : ObservableObject
             ConnectionStatus = "Connecting to service...";
             IsConnected = false;
 
-            await _pipe.ConnectWithRetryAsync(ct);
+            var connectTask = _pipe.ConnectWithRetryAsync(ct);
+
+            // If the first ~12s of retries don't find the service, flip
+            // the status to a user-actionable message. Retries continue
+            // in the background; a later successful connect still lands
+            // cleanly because `IsConnected = true` / "Connected" run after
+            // the await below.
+            var timeoutTask = Task.Delay(ConnectStuckThreshold, ct);
+            if (await Task.WhenAny(connectTask, timeoutTask) == timeoutTask &&
+                !ct.IsCancellationRequested && !connectTask.IsCompleted)
+            {
+                ConnectionStatus = "Service not responding — is RAMWatch.Service running?";
+            }
+
+            await connectTask;
             if (ct.IsCancellationRequested) break;
 
             IsConnected = true;

@@ -167,8 +167,16 @@ public partial class MainWindow : System.Windows.Window
                 if (!_viewModel.IsConnected)
                 {
                     _tray.SetState(TrayState.Gray);
-                    _tray.UpdateTooltip("RAMWatch — Service not connected");
+                    _tray.UpdateTooltip($"RAMWatch — {_viewModel.ConnectionStatus}");
                 }
+                break;
+
+            case nameof(MainViewModel.ConnectionStatus):
+                // Mirror the richer ConnectionStatus into the tray tooltip
+                // while the pipe is offline. Once connected, the stability
+                // handler above overwrites with "Clean (uptime)" and wins.
+                if (!_viewModel.IsConnected)
+                    _tray.UpdateTooltip($"RAMWatch — {_viewModel.ConnectionStatus}");
                 break;
         }
 
