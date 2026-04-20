@@ -271,6 +271,20 @@
                            FontSize="11"
                            VerticalAlignment="Center"
                            Margin="8,0,0,0" />
+
+                <Button Content="Log failed boot"
+                        Style="{StaticResource DarkButton}"
+                        Command="{Binding DataContext.LogBootFailCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                        Padding="10,2"
+                        FontSize="11"
+                        Margin="12,0,0,0"
+                        AutomationProperties.Name="Log failed boot"
+                        ToolTip="Record a tuning attempt that didn't POST or crashed before RAMWatch could capture the config." />
+                <TextBlock Text="{Binding DataContext.BootFailConfirmation, RelativeSource={RelativeSource AncestorType=Window}}"
+                           Foreground="{StaticResource StatusGreen}"
+                           FontSize="11"
+                           VerticalAlignment="Center"
+                           Margin="8,0,0,0" />
             </StackPanel>
         </DockPanel>
 

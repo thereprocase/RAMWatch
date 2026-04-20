@@ -313,6 +313,45 @@ public partial class MainViewModel : ObservableObject
     private string _validationConfirmation = "";
 
     /// <summary>
+    /// Opens the LogBootFail dialog. If the user submits, sends the message to
+    /// the service so the attempt is recorded in boot-fails.json even when
+    /// RAMWatch couldn't observe the crash boot. Updates the status label with
+    /// a brief confirmation. No-op when cancelled or the pipe is disconnected.
+    /// </summary>
+    [RelayCommand]
+    private async Task LogBootFailAsync()
+    {
+        var dialog = new LogBootFailDialog
+        {
+            Owner = Application.Current?.MainWindow,
+            // Anchor the attempted-changes delta against the most recent
+            // captured snapshot — typically the pre-attempt stable boot.
+            // Service persists this verbatim; null is acceptable if unknown.
+            BaseSnapshotId = _currentTimings?.SnapshotId
+        };
+
+        if (dialog.ShowDialog() != true || dialog.Result is null)
+            return;
+
+        if (!_pipe.IsConnected)
+        {
+            BootFailConfirmation = "Service not connected — attempt not saved.";
+            return;
+        }
+
+        await _pipe.SendAsync(MessageSerializer.Serialize(dialog.Result));
+        BootFailConfirmation = $"Logged: {dialog.Result.Kind} boot-fail attempt";
+
+        _ = Task.Delay(5000).ContinueWith(_ =>
+        {
+            Application.Current?.Dispatcher.Invoke(() => BootFailConfirmation = "");
+        });
+    }
+
+    [ObservableProperty]
+    private string _bootFailConfirmation = "";
+
+    /// <summary>
     /// Sends an UpdateSettingsMessage to the service. Called by SettingsViewModel.SaveCommand.
     /// No-op if the pipe is not connected.
     /// </summary>
