@@ -150,6 +150,45 @@ public sealed class RamWatchService : BackgroundService
         _bootFailJournal = new BootFailJournal(DataDirectory.BasePath);
         _bootFailJournal.Load();
 
+        // Boot-fail auto-detect — scan the event log for crash signals
+        // (Kernel-Power 41 / WER 1001 / System 6008) that the next-boot
+        // recovery writes after a bugcheck, unexpected shutdown, or boot-
+        // time faceplant. Runs once at startup; dedups against existing
+        // journal entries so a service restart in the same boot is a no-op.
+        // The sinceUtc floor is process-start time: these signals are always
+        // written very early in the current boot, so the current-process
+        // window is sufficient and excludes older unrelated events.
+        try
+        {
+            // Windows boot time anchor: TickCount64 is milliseconds since
+            // system start, so NowUtc - TickCount64 ms = actual boot instant.
+            // All signals of interest are written after this; earlier events
+            // belong to prior boots we don't care about.
+            var windowsBootUtc = DateTime.UtcNow -
+                TimeSpan.FromMilliseconds(Environment.TickCount64);
+
+            var detector = BootFailDetector.CreateDefault();
+            var entry = detector.DetectPriorCrash(
+                sinceUtc:        windowsBootUtc,
+                baseSnapshotId:  null,
+                activeEraId:     _eraJournal.GetActive()?.EraId,
+                existingEntries: _bootFailJournal.GetAll());
+
+            if (entry is not null)
+            {
+                _bootFailJournal.Save(entry);
+                _logger.LogInformation(
+                    "Auto-logged prior-boot failure: {Kind} at {Time}. {Notes}",
+                    entry.Kind, entry.Timestamp, entry.Notes);
+            }
+        }
+        catch (Exception ex)
+        {
+            // Auto-detect is best-effort. Never block service start on
+            // event log unavailability or a single failed query.
+            _logger.LogWarning(ex, "Boot-fail auto-detect failed");
+        }
+
         // Phase 4 — git committer (initialise after LKG so commit context is available)
         _gitCommitter = new GitCommitter(_settings, _logger);
         await _gitCommitter.InitializeAsync(stoppingToken);
