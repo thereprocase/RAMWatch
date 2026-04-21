@@ -242,13 +242,14 @@ public sealed class RamWatchService : BackgroundService
         // Pass CPU family to event monitor for MCA bank classification
         _eventLog.CpuFamily = _hardwareReader.CpuFamily;
 
+        // Initial timing read — populate before marking ready so the first
+        // state push to connecting clients already has timing data.
+        // Reordered: perform cold-tier UMC read first before blocking scans.
+        await ReadTimingsAsync();
+
         // Historical scan (blocks briefly, populates error counts from boot)
         _eventLog.Start();
         _integrity.ScanCbsLog();
-
-        // Initial timing read — populate before marking ready so the first
-        // state push to connecting clients already has timing data.
-        await ReadTimingsAsync();
 
         _aggregator.ScanLiveKernelReports();
         _aggregator.ReadDimmInfo();
