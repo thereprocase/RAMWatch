@@ -88,22 +88,15 @@
                            VerticalAlignment="Center"
                            Margin="0" />
             </StackPanel>
-            <!-- Right-docked column: three-axis legend above a subtitle hint.
-                 Legend explains the dot encoding used across every tab; the
-                 subtitle retains the "double-click a row" hint that was here
-                 before. -->
-            <StackPanel DockPanel.Dock="Right"
-                        VerticalAlignment="Center"
-                        HorizontalAlignment="Right">
-                <controls:DotLegend HorizontalAlignment="Right" />
-                <TextBlock Text="Double-click a row for decoded details"
-                           Foreground="{StaticResource TextDisabled}"
-                           FontFamily="{StaticResource UIFont}"
-                           FontSize="10"
-                           FontStyle="Italic"
-                           HorizontalAlignment="Right"
-                           Margin="0,2,0,0" />
-            </StackPanel>
+            <!-- Right-docked: double-click hint only; legend lives in the header. -->
+            <TextBlock DockPanel.Dock="Right"
+                       Text="Double-click a row for decoded details"
+                       Foreground="{StaticResource TextDisabled}"
+                       FontFamily="{StaticResource UIFont}"
+                       FontSize="10"
+                       FontStyle="Italic"
+                       VerticalAlignment="Center"
+                       HorizontalAlignment="Right" />
         </DockPanel>
 
         <!-- Error source table — grouped by severity tier (Stability / System).

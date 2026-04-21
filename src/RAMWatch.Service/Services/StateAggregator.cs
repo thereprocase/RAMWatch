@@ -313,6 +313,30 @@ public sealed class StateAggregator
                 baselines = computed;
         }
 
+        int wheaCorrectedCount = 0;
+        int fatalCount = 0;
+        DateTime? lastEventAtUtc = null;
+
+        var errors = _eventLog.GetErrorSources();
+        foreach (var src in errors)
+        {
+            if (src.Name == "WHEA Hardware Errors" || src.Name == "Kernel WHEA Errors" || src.Name == "PCIe Bus Errors")
+                wheaCorrectedCount += src.Count;
+            if (src.Name == "Machine Check Exception" || src.Name == "Kernel Bugcheck" || src.Name == "Unexpected Shutdown")
+                fatalCount += src.Count;
+            
+            if (src.LastSeen > (lastEventAtUtc ?? DateTime.MinValue))
+                lastEventAtUtc = src.LastSeen;
+        }
+
+        CrashClass priorBootCrash = CrashClass.Unknown;
+        if (bootFailJournal is not null)
+        {
+            var recentFail = bootFailJournal.GetRecent(1).FirstOrDefault();
+            if (recentFail is not null && recentFail.Class != CrashClass.Unknown)
+                priorBootCrash = recentFail.Class;
+        }
+
         return new ServiceState
         {
             Timestamp = DateTime.UtcNow,
@@ -347,7 +371,11 @@ public sealed class StateAggregator
             // Seed the GUI's per-source event buffer on connect. EventLogMonitor
             // owns its own lock; called outside _lock to avoid nesting.
             RecentEvents = GetRecentEventsForState(),
-            ColdBootComplete = coldBootStatus.IsComplete
+            ColdBootComplete = coldBootStatus.IsComplete,
+            PriorBootCrash = priorBootCrash,
+            WheaCorrectedCount = wheaCorrectedCount,
+            FatalCount = fatalCount,
+            LastEventAtUtc = lastEventAtUtc
         };
     }
 

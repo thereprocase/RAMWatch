@@ -305,7 +305,8 @@ public partial class MainViewModel : ObservableObject
         // Clear the confirmation label after a few seconds.
         _ = Task.Delay(5000).ContinueWith(_ =>
         {
-            Application.Current?.Dispatcher.Invoke(() => ValidationConfirmation = "");
+            try { Application.Current?.Dispatcher.Invoke(() => ValidationConfirmation = ""); }
+            catch { }
         });
     }
 
@@ -344,7 +345,8 @@ public partial class MainViewModel : ObservableObject
 
         _ = Task.Delay(5000).ContinueWith(_ =>
         {
-            Application.Current?.Dispatcher.Invoke(() => BootFailConfirmation = "");
+            try { Application.Current?.Dispatcher.Invoke(() => BootFailConfirmation = ""); }
+            catch { }
         });
     }
 

@@ -97,7 +97,8 @@ public sealed class BootFailDetector
             BaseSnapshotId = baseSnapshotId,
             AttemptedChanges = null,
             Notes = $"Auto-detected from EventLog. {signalList}. {wheaNote}",
-            EraId = activeEraId
+            EraId = activeEraId,
+            Class = hadWhea ? CrashClass.WheaFatal : CrashClass.OsBugcheck
         };
     }
 

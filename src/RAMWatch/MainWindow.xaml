@@ -6,7 +6,7 @@
         xmlns:controls="clr-namespace:RAMWatch.Controls"
         Title="RAMWatch v0.1.0"
         Icon="app.ico"
-        Width="520" Height="720"
+        Width="640" Height="1410"
         MinWidth="440" MinHeight="500"
         Style="{StaticResource DarkWindow}"
         WindowStartupLocation="CenterScreen"

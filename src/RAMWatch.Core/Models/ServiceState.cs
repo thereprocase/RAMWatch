@@ -101,4 +101,10 @@ public sealed class ServiceState
     /// servers keep working.
     /// </summary>
     public bool? ColdBootComplete { get; init; }
+
+    // Phase 3 — Crash Capture
+    public CrashClass PriorBootCrash { get; init; }
+    public int WheaCorrectedCount { get; init; }
+    public int FatalCount { get; init; }
+    public DateTime? LastEventAtUtc { get; init; }
 }

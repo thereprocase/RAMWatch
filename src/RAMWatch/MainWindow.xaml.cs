@@ -289,17 +289,11 @@ public partial class MainWindow : System.Windows.Window
     /// </summary>
     private void ApplyDefaultSize()
     {
+        // Width/Height are set in XAML. Only clamp to MinWidth/MinHeight in case
+        // the work area is smaller than the default (e.g. very low-res display).
         var workArea = SystemParameters.WorkArea;
-
-        // Target 28% of work-area width, 50% of work-area height.
-        // Timings tab drives minimum width (~440px at tightened density).
-        // 50% height shows full timings without scrolling on most displays.
-        double targetW = workArea.Width  * 0.28;
-        double targetH = workArea.Height * 0.50;
-
-        // Clamp to reasonable bounds so the window is never absurdly small or large.
-        Width  = Math.Clamp(targetW, 440, 520);
-        Height = Math.Clamp(targetH, 500, 720);
+        Width  = Math.Max(MinWidth,  Math.Min(Width,  workArea.Width));
+        Height = Math.Max(MinHeight, Math.Min(Height, workArea.Height));
     }
 
     // ── Window position persistence (Critical fix #3) ────────
@@ -357,8 +351,8 @@ public partial class MainWindow : System.Windows.Window
             {
                 Left = prefs.Left;
                 Top = prefs.Top;
-                Width = Math.Min(prefs.Width, vsRight - prefs.Left);  // don't extend past right edge
-                Height = Math.Min(prefs.Height, vsBottom - prefs.Top); // don't extend past bottom
+                Width  = Math.Max(MinWidth,  Math.Min(prefs.Width,  vsRight  - prefs.Left));
+                Height = Math.Max(MinHeight, Math.Min(prefs.Height, vsBottom - prefs.Top));
                 WindowStartupLocation = System.Windows.WindowStartupLocation.Manual;
                 if (prefs.IsMaximized)
                     WindowState = System.Windows.WindowState.Maximized;

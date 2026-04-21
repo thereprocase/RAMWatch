@@ -300,6 +300,7 @@ public sealed class BootFailEntry
     public Dictionary<string, string>? AttemptedChanges { get; init; }
     public string Notes { get; set; } = "";
     public string? EraId { get; init; }
+    public CrashClass Class { get; set; }
 }
 
 public enum BootFailKind
@@ -308,6 +309,13 @@ public enum BootFailKind
     BootLoop,
     Unstable,
     Other
+}
+
+public enum CrashClass
+{
+    Unknown,
+    OsBugcheck,
+    WheaFatal
 }
 
 // ---------------------------------------------------------------------------

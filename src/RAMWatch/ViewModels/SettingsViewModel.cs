@@ -86,8 +86,8 @@ public partial class SettingsViewModel : ObservableObject
                 await Task.Delay(500, token);
                 if (!token.IsCancellationRequested)
                 {
-                    await System.Windows.Application.Current.Dispatcher.InvokeAsync(
-                        async () => await AutoSaveAsync());
+                    await System.Windows.Application.Current.Dispatcher
+                        .InvokeAsync(() => AutoSaveAsync()).Task.Unwrap();
                 }
             }
             catch (OperationCanceledException) { /* expected on re-trigger */ }

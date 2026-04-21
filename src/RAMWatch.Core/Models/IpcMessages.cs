@@ -8,7 +8,7 @@ namespace RAMWatch.Core.Models;
 /// </summary>
 public abstract class IpcMessage
 {
-    public const int CurrentProtocolVersion = 2;
+    public const int CurrentProtocolVersion = 3;
 
     public required string Type { get; init; }
     public int ProtocolVersion { get; init; } = CurrentProtocolVersion;
