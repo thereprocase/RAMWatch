@@ -173,12 +173,19 @@ public sealed class EventLogMonitor : IDisposable
                 var capturedSource = source;
                 watcher.EventRecordWritten += (_, args) =>
                 {
-                    if (args.EventRecord is not null)
+                    try
                     {
-                        using (args.EventRecord)
+                        if (args.EventRecord is not null)
                         {
-                            RecordEvent(capturedSource, args.EventRecord, isHistorical: false);
+                            using (args.EventRecord)
+                            {
+                                RecordEvent(capturedSource, args.EventRecord, isHistorical: false);
+                            }
                         }
+                    }
+                    catch
+                    {
+                        // Background callback — must not crash the service
                     }
                 };
 

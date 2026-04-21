@@ -397,9 +397,16 @@ public sealed class RamWatchService : BackgroundService
     {
         while (await timer.WaitForNextTickAsync(ct))
         {
-            await ReadTimingsAsync();
-            await _aggregator!.BroadcastStateAsync();
-            _integrity?.ScanCbsLog();
+            try
+            {
+                await ReadTimingsAsync();
+                await _aggregator!.BroadcastStateAsync();
+                _integrity?.ScanCbsLog();
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogError(ex, "Warm loop iteration failed");
+            }
         }
     }
 
