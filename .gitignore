@@ -38,3 +38,6 @@ inpoutx64.dll
 
 # Reference directory (cloned separately, not project source)
 reference/
+
+# Scratch / session workbench
+.tmp/
