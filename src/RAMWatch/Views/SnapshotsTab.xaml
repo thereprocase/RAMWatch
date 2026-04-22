@@ -267,6 +267,7 @@
                                                             Height="24"
                                                             Margin="4,0,0,0"
                                                             Foreground="{StaticResource TextSecondary}"
+                                                            ToolTip="Cancel rename"
                                                             AutomationProperties.Name="Cancel rename" />
                                                 </StackPanel>
 
@@ -344,11 +345,13 @@
                                                             <Setter Property="Content" Value="×" />
                                                             <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
                                                             <Setter Property="Background" Value="Transparent" />
+                                                            <Setter Property="ToolTip" Value="Delete snapshot" />
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding DeleteConfirmPending}" Value="True">
                                                                     <Setter Property="Content" Value="Confirm?" />
                                                                     <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
                                                                     <Setter Property="Background" Value="{StaticResource StatusRed}" />
+                                                                    <Setter Property="ToolTip" Value="Click again to confirm deletion" />
                                                                 </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>

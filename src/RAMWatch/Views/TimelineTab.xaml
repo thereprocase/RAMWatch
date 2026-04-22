@@ -359,12 +359,14 @@
                                             <Setter Property="Content" Value="×" />
                                             <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
                                             <Setter Property="Background" Value="Transparent" />
+                                            <Setter Property="ToolTip" Value="Delete timeline entry" />
                                             <Style.Triggers>
                                                 <!-- Confirmation pending: red background + "Confirm?" label -->
                                                 <DataTrigger Binding="{Binding DeleteConfirmPending}" Value="True">
                                                     <Setter Property="Content" Value="Confirm?" />
                                                     <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
                                                     <Setter Property="Background" Value="{StaticResource StatusRed}" />
+                                                    <Setter Property="ToolTip" Value="Click again to confirm deletion" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
