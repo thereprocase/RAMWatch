@@ -107,6 +107,8 @@ public sealed class BootFailDetector
     private static IReadOnlyList<CrashSignal> DefaultQuerySignals(DateTime since)
     {
         var result = new List<CrashSignal>();
+        // Provider names are literal Windows event log source strings — never
+        // derived from user input, so interpolation into the XPath below is safe.
         var sources = new (string Provider, string LogName, int[] EventIds)[]
         {
             ("Microsoft-Windows-Kernel-Power",             "System", new[] { 41 }),

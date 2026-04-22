@@ -320,11 +320,15 @@ public sealed class StateAggregator
         var errors = _eventLog.GetErrorSources();
         foreach (var src in errors)
         {
-            if (src.Name == "WHEA Hardware Errors" || src.Name == "Kernel WHEA Errors" || src.Name == "PCIe Bus Errors")
+            if (src.Name == EventLogMonitor.SrcWheaHardware
+                || src.Name == EventLogMonitor.SrcKernelWhea
+                || src.Name == EventLogMonitor.SrcPcieBus)
                 wheaCorrectedCount += src.Count;
-            if (src.Name == "Machine Check Exception" || src.Name == "Kernel Bugcheck" || src.Name == "Unexpected Shutdown")
+            if (src.Name == EventLogMonitor.SrcMachineCheck
+                || src.Name == EventLogMonitor.SrcKernelBugcheck
+                || src.Name == EventLogMonitor.SrcUnexpectedShutdown)
                 fatalCount += src.Count;
-            
+
             if (src.LastSeen > (lastEventAtUtc ?? DateTime.MinValue))
                 lastEventAtUtc = src.LastSeen;
         }

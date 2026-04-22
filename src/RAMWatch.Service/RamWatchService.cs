@@ -164,6 +164,9 @@ public sealed class RamWatchService : BackgroundService
             // system start, so NowUtc - TickCount64 ms = actual boot instant.
             // All signals of interest are written after this; earlier events
             // belong to prior boots we don't care about.
+            // Precision: drifts by scheduler jitter and NTP correction vs the
+            // "true" boot instant — acceptable here because BootFailDetector
+            // uses a 5-minute dedupe window around matches.
             var windowsBootUtc = DateTime.UtcNow -
                 TimeSpan.FromMilliseconds(Environment.TickCount64);
 

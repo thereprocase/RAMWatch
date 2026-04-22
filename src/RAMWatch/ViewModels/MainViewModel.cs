@@ -306,7 +306,7 @@ public partial class MainViewModel : ObservableObject
         _ = Task.Delay(5000).ContinueWith(_ =>
         {
             try { Application.Current?.Dispatcher.Invoke(() => ValidationConfirmation = ""); }
-            catch { }
+            catch { /* app shutdown race: Dispatcher disposed while this timer was pending */ }
         });
     }
 
@@ -346,7 +346,7 @@ public partial class MainViewModel : ObservableObject
         _ = Task.Delay(5000).ContinueWith(_ =>
         {
             try { Application.Current?.Dispatcher.Invoke(() => BootFailConfirmation = ""); }
-            catch { }
+            catch { /* app shutdown race: Dispatcher disposed while this timer was pending */ }
         });
     }
 

@@ -38,27 +38,36 @@ public sealed class EventLogMonitor : IDisposable
     /// </summary>
     public event Action<MonitoredEvent>? EventDetected;
 
+    // Source name constants. Referenced by name elsewhere (StateAggregator counts
+    // WHEA-corrected vs fatal categories by matching these strings); keep in sync.
+    public const string SrcWheaHardware       = "WHEA Hardware Errors";
+    public const string SrcMachineCheck       = "Machine Check Exception";
+    public const string SrcKernelWhea         = "Kernel WHEA Errors";
+    public const string SrcPcieBus            = "PCIe Bus Errors";
+    public const string SrcKernelBugcheck     = "Kernel Bugcheck";
+    public const string SrcUnexpectedShutdown = "Unexpected Shutdown";
+
     /// <summary>
     /// All watched event sources with their current counts.
     /// </summary>
     public static readonly WatchedSource[] WatchedSources =
     [
         // Hardware — WHEA
-        new("WHEA Hardware Errors", "Microsoft-Windows-WHEA-Logger", EventCategory.Hardware,
+        new(SrcWheaHardware, "Microsoft-Windows-WHEA-Logger", EventCategory.Hardware,
             [17, 18, 19, 20, 46, 47, 48], EventSeverity.Warning),
-        new("Machine Check Exception", "Microsoft-Windows-WHEA-Logger", EventCategory.Hardware,
+        new(SrcMachineCheck, "Microsoft-Windows-WHEA-Logger", EventCategory.Hardware,
             [1], EventSeverity.Critical),
         // Kernel-WHEA is a separate provider that routes corrected errors on some
         // Windows builds / AGESA versions. Same event structure as WHEA-Logger.
-        new("Kernel WHEA Errors", "Microsoft-Windows-Kernel-WHEA", EventCategory.Hardware,
+        new(SrcKernelWhea, "Microsoft-Windows-Kernel-WHEA", EventCategory.Hardware,
             [1, 17, 18, 19, 20, 46, 47, 48], EventSeverity.Warning),
         // PCIe Advanced Error Reporting — fabric-adjacent on Zen platforms where
         // Infinity Fabric connects to PCIe root complexes.
-        new("PCIe Bus Errors", "Microsoft-Windows-Kernel-PCI", EventCategory.Hardware,
+        new(SrcPcieBus, "Microsoft-Windows-Kernel-PCI", EventCategory.Hardware,
             [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23], EventSeverity.Warning),
-        new("Kernel Bugcheck", "Microsoft-Windows-WER-SystemErrorReporting", EventCategory.Hardware,
+        new(SrcKernelBugcheck, "Microsoft-Windows-WER-SystemErrorReporting", EventCategory.Hardware,
             [1001], EventSeverity.Critical),
-        new("Unexpected Shutdown", "Microsoft-Windows-Kernel-Power", EventCategory.Hardware,
+        new(SrcUnexpectedShutdown, "Microsoft-Windows-Kernel-Power", EventCategory.Hardware,
             [41], EventSeverity.Critical),
 
         // Filesystem
